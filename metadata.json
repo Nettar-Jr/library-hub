@@ -1,0 +1,6 @@
+{
+  "name": "Premier Ink & Imagination",
+  "description": "An interactive digital library and creative gallery prototype for Premier International School learners, featuring library automation (ILAS), student submissions, content moderation, and peer engagement.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
