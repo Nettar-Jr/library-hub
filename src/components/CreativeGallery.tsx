@@ -3,10 +3,25 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { StudentSubmission, SubmissionCategory } from '../types';
-import { Heart, MessageSquare, Search, BookOpen, Layers, X, Send, Calendar, User, UserCheck, Sparkles, Star } from 'lucide-react';
+import { 
+  Heart, 
+  MessageSquare, 
+  Search, 
+  BookOpen, 
+  Layers, 
+  X, 
+  Send, 
+  Calendar, 
+  User, 
+  UserCheck, 
+  Sparkles, 
+  Star,
+  Filter,
+  CheckCircle2
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 export const CreativeGallery: React.FC = () => {
@@ -15,6 +30,7 @@ export const CreativeGallery: React.FC = () => {
   // Search & Filters
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<'all' | SubmissionCategory>('all');
+  const [isLoading, setIsLoading] = useState(true);
   
   // Selected Reader Overlay
   const [selectedSub, setSelectedSub] = useState<StudentSubmission | null>(null);
@@ -24,8 +40,15 @@ export const CreativeGallery: React.FC = () => {
   const [commentRating, setCommentRating] = useState(5);
   const [hoverRating, setHoverRating] = useState<number | null>(null);
 
+  // Simulate initial media skeletal loading state
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 450);
+    return () => clearTimeout(timer);
+  }, []);
+
   // Only show APPROVED submissions in the public gallery
-  // In learner view, we can also show a small "My Submissions" tray which includes pending/rejected items! This is an exceptional touch.
   const approvedSubmissions = submissions.filter((s) => s.status === 'approved');
 
   const filteredSubmissions = approvedSubmissions.filter((sub) => {
@@ -50,7 +73,6 @@ export const CreativeGallery: React.FC = () => {
     addComment(subId, newComment.trim(), undefined, commentRating);
     setNewComment('');
 
-    // Update active popup details so the user sees comment appear
     setSelectedSub((prev) => {
       if (!prev || prev.id !== subId) return prev;
       const commentAuthor = currentRole === 'librarian' ? 'Librarian Alabi' : currentLearnerName.split('(')[0].trim();
@@ -82,381 +104,332 @@ export const CreativeGallery: React.FC = () => {
 
   const getCategoryStyles = (cat: SubmissionCategory) => {
     switch (cat) {
-      case 'short-story': return 'bg-purple-50 text-purple-700 border-purple-100';
-      case 'poetry': return 'bg-amber-50 text-amber-700 border-amber-100';
-      case 'academic-essay': return 'bg-sky-50 text-sky-700 border-sky-100';
-      case 'digital-art': return 'bg-emerald-50 text-emerald-700 border-emerald-100';
+      case 'short-story': return 'bg-purple-100 text-purple-950 border-purple-300';
+      case 'poetry': return 'bg-amber-100 text-amber-950 border-amber-300';
+      case 'academic-essay': return 'bg-sky-100 text-sky-950 border-sky-300';
+      case 'digital-art': return 'bg-emerald-100 text-emerald-950 border-emerald-300';
     }
   };
 
   const getCoverPlaceholder = (cat: SubmissionCategory) => {
     switch (cat) {
-      case 'short-story': return 'bg-gradient-to-r from-purple-500 to-indigo-600';
-      case 'poetry': return 'bg-gradient-to-r from-amber-400 to-orange-500';
-      case 'academic-essay': return 'bg-gradient-to-r from-blue-500 to-sky-600';
-      case 'digital-art': return 'bg-gradient-to-r from-emerald-400 to-teal-500';
+      case 'short-story': return 'bg-gradient-to-r from-purple-700 to-indigo-900';
+      case 'poetry': return 'bg-gradient-to-r from-amber-600 to-orange-700';
+      case 'academic-essay': return 'bg-gradient-to-r from-blue-700 to-sky-900';
+      case 'digital-art': return 'bg-gradient-to-r from-emerald-600 to-teal-800';
     }
   };
 
   return (
     <div className="space-y-8">
       
-      {/* Search and Filters */}
+      {/* Header, Search & Filters */}
       <div className="space-y-4">
         <div>
-          <h2 className="font-display text-2xl font-extrabold tracking-tight text-slate-900">
+          <h2 className="font-display text-2xl sm:text-3xl font-black tracking-tight text-slate-900">
             Student Creative Gallery
           </h2>
-          <p className="text-sm text-slate-500">Original works, literature, and digital masterpieces authored by Premier learners.</p>
+          <p className="text-sm text-slate-600">
+            Original short stories, poetry collections, academic essays, and artwork authored by Premier learners.
+          </p>
         </div>
 
-        {/* Search Input */}
+        {/* Search & Category Filter Bar */}
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 items-center">
-          <div className="sm:col-span-3 flex items-center glass p-3.5 rounded-xl shadow-sm">
-            <Search className="text-slate-400 w-5 h-5 mr-3 flex-shrink-0" />
+          <div className="sm:col-span-3 flex items-center bg-white border border-slate-200 p-3 rounded-2xl shadow-xs">
+            <Search className="text-slate-500 w-5 h-5 mr-3 flex-shrink-0" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search published submissions by title, author, or content keyword..."
-              className="w-full text-sm outline-none bg-transparent"
+              placeholder="Search published pieces by student author, title, or keywords..."
+              className="w-full text-xs sm:text-sm bg-transparent outline-none text-slate-800 placeholder:text-slate-400"
+              aria-label="Search student creative submissions"
             />
-            {search && (
-              <button onClick={() => setSearch('')} className="text-slate-300 hover:text-slate-500">
-                <X className="w-4 h-4" />
-              </button>
-            )}
           </div>
 
-          <div>
+          <div className="sm:col-span-1">
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value as any)}
-              className="w-full p-3.5 glass rounded-xl shadow-xs text-xs font-semibold outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full text-xs sm:text-sm font-bold bg-white border border-slate-200 p-3 rounded-2xl shadow-xs outline-none focus:ring-2 focus:ring-indigo-600 text-slate-800"
+              aria-label="Filter submissions by category"
             >
               <option value="all">All Disciplines</option>
-              <option value="short-story">Short Story</option>
+              <option value="short-story">Short Stories</option>
               <option value="poetry">Poetry</option>
-              <option value="academic-essay">Academic Essay</option>
-              <option value="digital-art">Digital Artwork</option>
+              <option value="academic-essay">Academic Essays</option>
+              <option value="digital-art">Digital Art</option>
             </select>
           </div>
         </div>
+
+        {/* Fast Category Filter Pills */}
+        <div className="flex items-center gap-2 overflow-x-auto scrollbar-none py-1">
+          {(['all', 'short-story', 'poetry', 'academic-essay', 'digital-art'] as const).map((cat) => (
+            <button
+              key={cat}
+              type="button"
+              onClick={() => setSelectedCategory(cat)}
+              className={`text-xs px-3.5 py-1.5 rounded-full font-bold transition cursor-pointer whitespace-nowrap ${
+                selectedCategory === cat
+                  ? 'bg-indigo-950 text-white shadow-xs'
+                  : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+              }`}
+            >
+              {cat === 'all' ? '✨ All Works' : getCategoryLabel(cat)}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Main Grid of Approved Works */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {filteredSubmissions.map((sub) => {
-          return (
-            <motion.div
+      {/* Submissions Grid with Skeleton Loading States */}
+      {isLoading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[1, 2, 3, 4, 5, 6].map((sk) => (
+            <div key={sk} className="bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-xs animate-pulse">
+              <div className="h-44 bg-slate-200"></div>
+              <div className="p-5 space-y-3">
+                <div className="h-4 bg-slate-200 rounded-md w-3/4"></div>
+                <div className="h-3 bg-slate-200 rounded-md w-full"></div>
+                <div className="h-3 bg-slate-200 rounded-md w-5/6"></div>
+              </div>
+              <div className="p-5 border-t border-slate-100 flex justify-between items-center">
+                <div className="h-4 bg-slate-200 rounded-md w-1/3"></div>
+                <div className="h-6 bg-slate-200 rounded-lg w-16"></div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredSubmissions.map((sub) => (
+            <motion.article
               layout
               key={sub.id}
-              className="glass rounded-3xl overflow-hidden shadow-sm hover:shadow-lg transition-all flex flex-col justify-between"
+              className="bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-xs hover:shadow-xl transition-all duration-300 flex flex-col justify-between"
             >
               <div>
                 {/* Visual Cover Header */}
                 {sub.imageUrl ? (
-                  <div className="h-40 relative overflow-hidden">
-                    <img src={sub.imageUrl} alt={sub.title} className="w-full h-full object-cover" />
-                    <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-xs px-2.5 py-1 rounded-lg border text-[10px] font-bold tracking-wide uppercase shadow-2xs">
+                  <div className="h-44 relative overflow-hidden bg-slate-900">
+                    <img 
+                      src={sub.imageUrl} 
+                      alt={sub.title} 
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      referrerPolicy="no-referrer"
+                    />
+                    <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-xs px-2.5 py-1 rounded-lg border border-slate-200 text-[10px] font-black tracking-wide uppercase text-slate-900 shadow-2xs">
                       {getCategoryLabel(sub.category)}
                     </div>
                   </div>
                 ) : (
-                  <div className={`h-40 p-5 text-white flex flex-col justify-between ${getCoverPlaceholder(sub.category)}`}>
-                    <span className="bg-white/20 backdrop-blur-xs self-start text-[10px] px-2.5 py-1 rounded-lg uppercase font-bold tracking-wider">
+                  <div className={`h-44 p-5 text-white flex flex-col justify-between ${getCoverPlaceholder(sub.category)}`}>
+                    <span className="bg-white/20 backdrop-blur-xs self-start text-[10px] px-2.5 py-1 rounded-lg uppercase font-black tracking-wider border border-white/20">
                       {getCategoryLabel(sub.category)}
                     </span>
-                    <h3 className="font-display font-black text-lg leading-tight line-clamp-2">
+                    <h3 className="font-display font-black text-lg leading-tight line-clamp-2 text-white">
                       {sub.title}
                     </h3>
                   </div>
                 )}
 
                 {/* Sub Body excerpt */}
-                <div className="p-5 space-y-3">
+                <div className="p-5 space-y-2.5">
                   {sub.imageUrl && (
-                    <h3 className="font-display font-bold text-base text-slate-800 leading-tight line-clamp-1">
+                    <h3 className="font-display font-black text-base text-slate-900 leading-tight line-clamp-1">
                       {sub.title}
                     </h3>
                   )}
-                  <p className="text-xs text-slate-500 leading-relaxed line-clamp-3 italic">
+                  <p className="text-xs text-slate-600 leading-relaxed line-clamp-3 italic">
                     "{sub.content}"
                   </p>
                 </div>
               </div>
 
               {/* Engagement Tray */}
-              <div className="p-5 border-t border-slate-100 flex items-center justify-between text-slate-400">
+              <div className="p-5 border-t border-slate-100 flex items-center justify-between text-slate-500 bg-slate-50/40">
                 <div className="space-y-0.5">
-                  <span className="block text-[9px] uppercase font-bold text-slate-400">Author</span>
-                  <span className="text-xs font-bold text-slate-600 block truncate max-w-[150px]">
+                  <span className="block text-[9px] uppercase font-black text-slate-600">Author</span>
+                  <span className="text-xs font-bold text-slate-900 block truncate max-w-[140px]">
                     {sub.authorName} ({sub.gradeOrYear})
                   </span>
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                   <button
+                    type="button"
                     onClick={() => toggleLike(sub.id)}
-                    className={`flex items-center gap-1.5 text-xs font-semibold cursor-pointer transition ${
-                      sub.likedByCurrentUser ? 'text-rose-500' : 'hover:text-rose-400'
+                    className={`flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-lg transition cursor-pointer ${
+                      sub.likedByCurrentUser ? 'text-rose-600 bg-rose-50' : 'text-slate-600 hover:text-rose-600 hover:bg-slate-100'
                     }`}
+                    aria-label={`Like submission, currently ${sub.likesCount} likes`}
                   >
-                    <Heart className={`w-4 h-4 ${sub.likedByCurrentUser ? 'fill-rose-500' : ''}`} />
+                    <Heart className={`w-4 h-4 ${sub.likedByCurrentUser ? 'fill-rose-600' : ''}`} />
                     <span>{sub.likesCount}</span>
                   </button>
 
                   <button
+                    type="button"
                     onClick={() => setSelectedSub(sub)}
-                    className="flex items-center gap-1.5 text-xs font-semibold hover:text-indigo-500 cursor-pointer"
+                    className="flex items-center gap-1 text-xs font-bold text-slate-600 hover:text-indigo-900 px-2 py-1 rounded-lg hover:bg-slate-100 transition cursor-pointer"
+                    aria-label={`View comments, currently ${sub.comments.length} comments`}
                   >
                     <MessageSquare className="w-4 h-4" />
                     <span>{sub.comments.length}</span>
                   </button>
                   
                   <button
+                    type="button"
                     onClick={() => setSelectedSub(sub)}
-                    className="bg-indigo-50 text-indigo-900 font-bold px-3 py-1.5 rounded-lg text-[10px] hover:bg-indigo-100 transition cursor-pointer"
+                    className="bg-indigo-950 hover:bg-indigo-900 text-white font-bold px-3.5 py-1.5 rounded-xl text-xs transition cursor-pointer shadow-2xs"
                   >
                     Read
                   </button>
                 </div>
               </div>
-            </motion.div>
-          );
-        })}
+            </motion.article>
+          ))}
 
-        {filteredSubmissions.length === 0 && (
-          <div className="md:col-span-3 text-center py-16 bg-slate-50 border border-dashed rounded-3xl p-6">
-            <Layers className="w-12 h-12 text-slate-300 mx-auto mb-2" />
-            <p className="font-display font-bold text-slate-600">No creative pieces found</p>
-            <p className="text-xs text-slate-400 mt-1">Check back later or submit your own work using the submit tab.</p>
-          </div>
-        )}
-      </div>
-
-      {/* Optional: Student's Personal Submissions Tracking dashboard (Only for Learners) */}
-      {currentRole === 'learner' && myPrivateSubmissions.length > 0 && (
-        <div className="bg-slate-50 rounded-3xl p-6 border border-slate-200/60 mt-12 space-y-4">
-          <div className="flex items-center gap-2">
-            <UserCheck className="w-5 h-5 text-indigo-900" />
-            <h3 className="font-display font-extrabold text-sm text-slate-800 uppercase tracking-wider">
-              My Submissions & Moderation History
-            </h3>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {myPrivateSubmissions.map((mySub) => (
-              <div key={mySub.id} className="bg-white p-4 rounded-xl border border-slate-100 shadow-3xs flex justify-between items-center gap-4">
-                <div className="space-y-1">
-                  <h4 className="font-sans font-bold text-xs text-slate-800 line-clamp-1">{mySub.title}</h4>
-                  <p className="text-[10px] text-slate-400 flex items-center gap-1">
-                    <Calendar className="w-3 h-3" /> Submitted {new Date(mySub.createdAt).toLocaleDateString()}
-                  </p>
-                  {mySub.status === 'rejected' && mySub.moderationFeedback && (
-                    <p className="text-[10px] text-rose-600 leading-tight italic bg-rose-50 p-2 rounded border border-rose-100">
-                      Feedback: {mySub.moderationFeedback}
-                    </p>
-                  )}
-                </div>
-
-                <div className="flex-shrink-0">
-                  {mySub.status === 'pending' && (
-                    <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-2.5 py-1 rounded-md">
-                      Pending Moderation
-                    </span>
-                  )}
-                  {mySub.status === 'approved' && (
-                    <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2.5 py-1 rounded-md">
-                      Published
-                    </span>
-                  )}
-                  {mySub.status === 'rejected' && (
-                    <span className="bg-rose-100 text-rose-800 text-[10px] font-bold px-2.5 py-1 rounded-md">
-                      Revision Requested
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
+          {filteredSubmissions.length === 0 && (
+            <div className="md:col-span-3 text-center py-16 bg-white border border-dashed border-slate-300 rounded-3xl p-8 space-y-2">
+              <Layers className="w-12 h-12 text-slate-400 mx-auto mb-2" />
+              <p className="font-display font-bold text-slate-800 text-base">No creative pieces found</p>
+              <p className="text-xs text-slate-500">Check back later or submit your own work through the Submit Work form.</p>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Reader Overlay Detail view with Comments */}
+      {/* Reader Modal Overlay with Accessible Focus Control */}
       <AnimatePresence>
         {selectedSub && (
-          <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div 
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs overflow-y-auto"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="reader-modal-title"
+          >
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 15 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 15 }}
-              className="bg-white rounded-3xl p-6 sm:p-8 max-w-2xl w-full shadow-2xl relative border border-slate-100 space-y-6 my-8 max-h-[90vh] flex flex-col justify-between"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 sm:p-8 space-y-6 shadow-2xl border border-slate-200"
             >
-              {/* Absolute Close */}
-              <button
-                onClick={() => setSelectedSub(null)}
-                className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-50 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-
-              <div className="space-y-6 overflow-y-auto pr-1 flex-1">
-                
-                {/* Meta details */}
-                <div className="space-y-2">
-                  <span className={`border px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase inline-block ${getCategoryStyles(selectedSub.category)}`}>
+              {/* Top Modal Header */}
+              <div className="flex justify-between items-start gap-4 border-b border-slate-100 pb-4">
+                <div className="space-y-1">
+                  <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-md border ${getCategoryStyles(selectedSub.category)}`}>
                     {getCategoryLabel(selectedSub.category)}
                   </span>
-                  <h3 className="font-display font-black text-2xl text-slate-950 leading-tight">
+                  <h3 id="reader-modal-title" className="font-display font-black text-xl sm:text-2xl text-slate-900 pt-1">
                     {selectedSub.title}
                   </h3>
-                  
-                  <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
-                    <User className="w-4 h-4 text-slate-400" />
-                    <span>Authored by {selectedSub.authorName} ({selectedSub.gradeOrYear})</span>
-                    <span className="text-slate-300">•</span>
-                    <span>{new Date(selectedSub.createdAt).toLocaleDateString()}</span>
-                  </div>
-                </div>
-
-                {/* Cover Asset if available */}
-                {selectedSub.imageUrl && (
-                  <img src={selectedSub.imageUrl} alt={selectedSub.title} className="w-full h-48 sm:h-64 object-cover rounded-2xl" />
-                )}
-
-                {/* Content Reader Pane */}
-                <div className="space-y-4">
-                  <h4 className="font-display font-extrabold text-[10px] text-slate-400 uppercase tracking-widest border-b pb-1">Literary Content</h4>
-                  <p className="text-sm text-slate-800 leading-relaxed font-serif whitespace-pre-wrap italic bg-slate-50/50 p-5 rounded-2xl border leading-relaxed">
-                    {selectedSub.content}
+                  <p className="text-xs text-slate-500 font-medium">
+                    By <span className="font-bold text-slate-800">{selectedSub.authorName}</span> ({selectedSub.gradeOrYear}) • Published on {new Date(selectedSub.createdAt).toLocaleDateString()}
                   </p>
                 </div>
 
-                {/* Interaction & Likes feedback */}
-                <div className="flex items-center gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100 text-xs">
-                  <button
-                    onClick={() => {
-                      toggleLike(selectedSub.id);
-                      setSelectedSub((prev) => {
-                        if (!prev) return null;
-                        const liked = !prev.likedByCurrentUser;
-                        return {
-                          ...prev,
-                          likedByCurrentUser: liked,
-                          likesCount: liked ? prev.likesCount + 1 : Math.max(0, prev.likesCount - 1)
-                        };
-                      });
-                    }}
-                    className={`flex items-center gap-1.5 font-bold cursor-pointer transition ${
-                      selectedSub.likedByCurrentUser ? 'text-rose-600' : 'text-slate-500 hover:text-rose-500'
-                    }`}
-                  >
-                    <Heart className={`w-5 h-5 ${selectedSub.likedByCurrentUser ? 'fill-rose-500' : ''}`} />
-                    <span>{selectedSub.likesCount} Learners liked this work</span>
-                  </button>
-                </div>
-
-                {/* Real-time Comments Board */}
-                <div className="space-y-4 pt-2">
-                  <h4 className="font-display font-extrabold text-[10px] text-slate-400 uppercase tracking-widest border-b pb-1">Comments Feed ({selectedSub.comments.length})</h4>
-                  
-                  {/* Comment list */}
-                  <div className="space-y-3 max-h-48 overflow-y-auto pr-1">
-                    {selectedSub.comments.map((comm) => (
-                      <div key={comm.id} className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1">
-                        <div className="flex justify-between items-center text-[10px] font-bold">
-                          <span className="text-slate-800 flex items-center gap-1">
-                            <User className="w-3.5 h-3.5 text-slate-400" />
-                            {comm.authorName}
-                          </span>
-                          <div className="flex items-center gap-1.5">
-                            {comm.rating && comm.rating > 0 && (
-                              <div className="flex gap-0.5 mr-1">
-                                {Array.from({ length: 5 }).map((_, idx) => (
-                                  <Star 
-                                    key={idx} 
-                                    className={`w-3 h-3 ${idx < (comm.rating || 0) ? 'fill-amber-400 text-amber-400' : 'text-slate-200'}`} 
-                                  />
-                                ))}
-                              </div>
-                            )}
-                            <span className="text-slate-400">{new Date(comm.createdAt).toLocaleDateString()}</span>
-                          </div>
-                        </div>
-                        <p className="text-xs text-slate-600 leading-relaxed">{comm.content}</p>
-                      </div>
-                    ))}
-
-                    {selectedSub.comments.length === 0 && (
-                      <p className="text-xs text-slate-400 text-center py-4 italic">No reviews or feedback posted yet. Be the first to share your thoughts!</p>
-                    )}
-                  </div>
-
-                  {/* Comment Post Form */}
-                  <div className="space-y-2 pt-2 border-t border-slate-100">
-                    <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                      Add Your Rating & Encouraging Feedback:
-                    </span>
-
-                    <div className="flex items-center gap-1">
-                      {[1, 2, 3, 4, 5].map((star) => (
-                        <button
-                          type="button"
-                          key={star}
-                          onClick={() => setCommentRating(star)}
-                          onMouseEnter={() => setHoverRating(star)}
-                          onMouseLeave={() => setHoverRating(null)}
-                          className="focus:outline-none cursor-pointer"
-                        >
-                          <Star 
-                            className={`w-4 h-4 transition-colors ${
-                              star <= (hoverRating ?? commentRating) 
-                                ? 'fill-amber-400 text-amber-400' 
-                                : 'text-slate-300'
-                            }`} 
-                          />
-                        </button>
-                      ))}
-                      <span className="text-[9px] font-bold text-slate-400 font-mono ml-1.5">
-                        {commentRating} Stars
-                      </span>
-                    </div>
-
-                    <form onSubmit={(e) => handleSendComment(e, selectedSub.id)} className="flex gap-2 items-center">
-                      <input
-                        type="text"
-                        required
-                        value={newComment}
-                        onChange={(e) => setNewComment(e.target.value)}
-                        placeholder="Type your review comments and encouraging feedback..."
-                        className="w-full text-xs p-3 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white outline-none focus:ring-2 focus:ring-indigo-500"
-                      />
-                      <button
-                        type="submit"
-                        className="p-3 bg-indigo-900 text-white rounded-xl hover:bg-indigo-800 transition shadow-xs cursor-pointer flex-shrink-0"
-                      >
-                        <Send className="w-4 h-4" />
-                      </button>
-                    </form>
-                  </div>
-                </div>
-
-              </div>
-
-              <div className="border-t border-slate-100 pt-4 flex justify-end">
                 <button
+                  type="button"
                   onClick={() => setSelectedSub(null)}
-                  className="px-5 py-2.5 bg-indigo-900 text-white text-xs font-bold rounded-xl hover:bg-indigo-800 cursor-pointer"
+                  className="p-2 text-slate-400 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-full transition cursor-pointer"
+                  aria-label="Close reader modal"
                 >
-                  Finished Reading
+                  <X className="w-5 h-5" />
                 </button>
               </div>
 
+              {/* Cover Image if present */}
+              {selectedSub.imageUrl && (
+                <div className="rounded-2xl overflow-hidden max-h-72 bg-slate-900">
+                  <img 
+                    src={selectedSub.imageUrl} 
+                    alt={selectedSub.title} 
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                </div>
+              )}
+
+              {/* Full Content */}
+              <div className="prose prose-slate max-w-none text-sm text-slate-800 leading-relaxed whitespace-pre-line font-serif bg-slate-50/50 p-6 rounded-2xl border border-slate-100">
+                {selectedSub.content}
+              </div>
+
+              {/* Peer Feedback and Discussion Section */}
+              <div className="space-y-4 border-t border-slate-100 pt-4">
+                <h4 className="font-display font-black text-sm text-slate-900 flex items-center gap-2">
+                  <MessageSquare className="w-4 h-4 text-indigo-900" />
+                  Peer Discussion & Appreciations ({selectedSub.comments.length})
+                </h4>
+
+                {/* Comment Input */}
+                <form onSubmit={(e) => handleSendComment(e, selectedSub.id)} className="space-y-3">
+                  <div className="flex items-center gap-2 text-xs text-slate-600">
+                    <span className="font-bold">Rating:</span>
+                    <div className="flex items-center gap-1">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                          key={star}
+                          type="button"
+                          onClick={() => setCommentRating(star)}
+                          onMouseEnter={() => setHoverRating(star)}
+                          onMouseLeave={() => setHoverRating(null)}
+                          className="p-0.5 text-amber-400 cursor-pointer"
+                          aria-label={`Rate ${star} star`}
+                        >
+                          <Star className={`w-4 h-4 ${(hoverRating !== null ? hoverRating >= star : commentRating >= star) ? 'fill-amber-400' : 'text-slate-300'}`} />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newComment}
+                      onChange={(e) => setNewComment(e.target.value)}
+                      placeholder="Write encouraging feedback or a peer compliment..."
+                      className="flex-1 text-xs border border-slate-200 rounded-xl p-3 outline-none focus:ring-2 focus:ring-indigo-600"
+                      aria-label="Add peer comment"
+                    />
+                    <button
+                      type="submit"
+                      className="bg-indigo-950 hover:bg-indigo-900 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                      <span>Post</span>
+                    </button>
+                  </div>
+                </form>
+
+                {/* Comment list */}
+                <div className="space-y-2.5 max-h-48 overflow-y-auto">
+                  {selectedSub.comments.map((c) => (
+                    <div key={c.id} className="p-3 bg-slate-50 rounded-xl text-xs space-y-1 border border-slate-100">
+                      <div className="flex justify-between items-center text-[10px] text-slate-500">
+                        <span className="font-bold text-slate-800">{c.authorName}</span>
+                        <div className="flex items-center gap-1 text-amber-500">
+                          <Star className="w-3 h-3 fill-amber-400" />
+                          <span>{c.rating || 5}/5</span>
+                        </div>
+                      </div>
+                      <p className="text-slate-700">{c.content}</p>
+                    </div>
+                  ))}
+
+                  {selectedSub.comments.length === 0 && (
+                    <p className="text-xs text-slate-400 text-center py-3 italic">
+                      Be the first student to leave an encouraging remark on this piece!
+                    </p>
+                  )}
+                </div>
+              </div>
             </motion.div>
           </div>
         )}
       </AnimatePresence>
-
     </div>
   );
 };

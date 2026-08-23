@@ -4,6 +4,7 @@
  */
 
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { BookCard } from './BookCard';
 import { triggerBorrowCelebration, triggerMilestoneCelebration } from '../utils/confetti';
@@ -37,6 +38,7 @@ import { Book } from '../types';
 
 export const HomeDiscoveryHub: React.FC = () => {
   const { books, submissions, setActiveTab, isLibrarianLoggedIn, loggedInLearner, checkoutBook, currentLearnerName, currentRole } = useApp();
+  const navigate = useNavigate();
 
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedBookModal, setSelectedBookModal] = useState<Book | null>(null);
@@ -327,7 +329,11 @@ export const HomeDiscoveryHub: React.FC = () => {
           </div>
 
           <button
-            onClick={() => setActiveTab('library')}
+            type="button"
+            onClick={() => {
+              setActiveTab('library');
+              navigate('/catalog');
+            }}
             className="text-xs font-bold text-indigo-600 hover:text-indigo-800 transition flex items-center gap-1 cursor-pointer bg-indigo-50 px-3.5 py-2 rounded-xl"
           >
             <span>Browse Full Catalog</span>
@@ -390,7 +396,11 @@ export const HomeDiscoveryHub: React.FC = () => {
           </div>
 
           <button
-            onClick={() => setActiveTab('gallery')}
+            type="button"
+            onClick={() => {
+              setActiveTab('gallery');
+              navigate('/gallery');
+            }}
             className="bg-amber-400 hover:bg-amber-300 text-indigo-950 font-black px-4 py-2.5 rounded-xl text-xs shadow-md transition cursor-pointer flex items-center gap-1.5 shrink-0"
           >
             <span>Explore Creative Gallery</span>
@@ -402,7 +412,10 @@ export const HomeDiscoveryHub: React.FC = () => {
           {topSubmissions.map((submission) => (
             <div
               key={submission.id}
-              onClick={() => setActiveTab('gallery')}
+              onClick={() => {
+                setActiveTab('gallery');
+                navigate('/gallery');
+              }}
               className="group bg-slate-800/90 hover:bg-slate-800 border border-slate-700/80 rounded-3xl p-4.5 space-y-3 transition-all duration-300 cursor-pointer flex flex-col justify-between hover:scale-[1.02] hover:border-amber-400/50 shadow-lg"
             >
               <div className="space-y-3">
