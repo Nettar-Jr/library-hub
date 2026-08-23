@@ -59,6 +59,7 @@ interface AppContextType {
   returnBook: (recordId: string) => void;
   sendOverdueAlert: (recordId: string) => void;
   addSubmission: (title: string, category: StudentSubmission['category'], content: string, imageUrl?: string) => void;
+  updateSubmission: (id: string, title: string, category: StudentSubmission['category'], content: string, imageUrl?: string) => void;
   approveSubmission: (id: string) => void;
   rejectSubmission: (id: string, feedback: string) => void;
   toggleLike: (id: string) => void;
@@ -152,8 +153,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [books, setBooks] = useState<Book[]>(() => {
-    const saved = localStorage.getItem('p_books');
-    return saved ? JSON.parse(saved) : initialBooks;
+    const saved = localStorage.getItem('p_books_v3') || localStorage.getItem('p_books');
+    if (saved) {
+      try {
+        const parsed: Book[] = JSON.parse(saved);
+        // Merge with initialBooks so missing coverImages and new fields are populated
+        return initialBooks.map(ib => {
+          const matched = parsed.find(p => p.id === ib.id);
+          return matched ? { ...ib, ...matched, coverImage: matched.coverImage || ib.coverImage } : ib;
+        }).concat(parsed.filter(p => !initialBooks.some(ib => ib.id === p.id)));
+      } catch {
+        return initialBooks;
+      }
+    }
+    return initialBooks;
   });
 
   const [circulation, setCirculation] = useState<CirculationRecord[]>(() => {
@@ -257,10 +270,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const logout = () => {
-    if (currentPath === '/admin') {
-      setIsLibrarianLoggedIn(false);
-    } else {
-      setLoggedInLearner(null);
+    setIsLibrarianLoggedInState(false);
+    localStorage.removeItem('p_lib_logged_in');
+    setLoggedInLearnerState(null);
+    localStorage.removeItem('p_learner_logged_in');
+    setActiveTabState('home');
+    if (window.location.pathname === '/admin') {
+      window.history.pushState({}, '', '/');
+      setCurrentPath('/');
     }
   };
 
@@ -400,6 +417,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setSubmissions((prev) => [newSub, ...prev]);
+  };
+
+  const updateSubmission = (
+    id: string,
+    title: string,
+    category: StudentSubmission['category'],
+    content: string,
+    imageUrl?: string
+  ) => {
+    setSubmissions((prev) =>
+      prev.map((s) =>
+        s.id === id
+          ? {
+              ...s,
+              title,
+              category,
+              content,
+              imageUrl,
+              status: 'pending' as const, // Resubmitting sets it back to pending for review!
+              createdAt: new Date().toISOString(),
+            }
+          : s
+      )
+    );
   };
 
   const approveSubmission = (id: string) => {
@@ -642,7 +683,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setEmailLogs(prev => [newEmail, ...prev]);
     setCirculation(prev => prev.map(r => r.id === recordId ? { ...r, alertSent: true } : r));
 
-    return { success: true, message: `Simulated overdue alert email sent to ${studentEmail} successfully!` };
+    return { success: true, message: `Overdue alert notice sent to ${studentEmail} successfully!` };
   };
 
   const sendLostEmail = (recordId: string) => {
@@ -664,7 +705,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setEmailLogs(prev => [newEmail, ...prev]);
 
-    return { success: true, message: `Simulated replacement/lost email notice dispatched to ${studentEmail}!` };
+    return { success: true, message: `Replacement notice email dispatched to ${studentEmail}!` };
   };
 
   return (
@@ -705,6 +746,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         returnBook,
         sendOverdueAlert,
         addSubmission,
+        updateSubmission,
         approveSubmission,
         rejectSubmission,
         toggleLike,

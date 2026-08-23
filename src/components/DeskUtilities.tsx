@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { LibraryUser } from '../types';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import { 
   User, 
   UserPlus, 
@@ -61,6 +62,10 @@ export const DeskUtilities: React.FC = () => {
   // Card Selection for Printing
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [printBadgeList, setPrintBadgeList] = useState<LibraryUser[]>([]);
+
+  // Modal Focus Traps
+  const createModalRef = useFocusTrap(showCreateModal, () => setShowCreateModal(false));
+  const printModalRef = useFocusTrap(printBadgeList.length > 0, () => setPrintBadgeList([]));
 
   // Simulated Scanner State
   const [scannedUserId, setScannedUserId] = useState<string>('');
@@ -353,9 +358,15 @@ export const DeskUtilities: React.FC = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Library Card Print Preview"
             className="fixed inset-0 bg-slate-900/80 z-50 overflow-y-auto flex items-center justify-center p-4 print:absolute print:inset-0 print:bg-white print:p-0"
           >
-            <div className="bg-slate-900 border border-slate-700/60 rounded-3xl max-w-4xl w-full p-6 sm:p-8 space-y-6 print:bg-white print:border-none print:shadow-none print:p-0">
+            <div 
+              ref={printModalRef}
+              className="bg-slate-900 border border-slate-700/60 rounded-3xl max-w-4xl w-full p-6 sm:p-8 space-y-6 print:bg-white print:border-none print:shadow-none print:p-0"
+            >
               
               {/* Header inside Modal */}
               <div className="flex justify-between items-center border-b border-slate-800 pb-4 print:hidden">
@@ -503,7 +514,7 @@ export const DeskUtilities: React.FC = () => {
           }`}
         >
           <ScanLine className="w-4 h-4" />
-          Desk Scanner Simulator
+          Desk Barcode Scanner
         </button>
         <button
           onClick={() => setActiveSubTab('emails')}
@@ -644,21 +655,29 @@ export const DeskUtilities: React.FC = () => {
           {/* Modal to register new Student or Teacher */}
           <AnimatePresence>
             {showCreateModal && (
-              <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+              <div 
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="register-user-modal-title"
+                className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4"
+              >
                 <motion.div 
+                  ref={createModalRef}
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
                   className="bg-white border border-slate-200 rounded-3xl max-w-md w-full p-6 shadow-xl space-y-6"
                 >
                   <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-                    <h4 className="font-display font-extrabold text-lg text-slate-900 flex items-center gap-2">
+                    <h4 id="register-user-modal-title" className="font-display font-extrabold text-lg text-slate-900 flex items-center gap-2">
                       <UserPlus className="w-5 h-5 text-cyan-600" />
                       Register New User Account
                     </h4>
                     <button 
+                      type="button"
                       onClick={() => setShowCreateModal(false)}
-                      className="text-slate-400 hover:text-slate-600 text-lg font-bold"
+                      aria-label="Close register user modal"
+                      className="text-slate-400 hover:text-slate-600 text-lg font-bold p-1 cursor-pointer"
                     >
                       &times;
                     </button>
@@ -862,8 +881,8 @@ export const DeskUtilities: React.FC = () => {
                     ) : (
                       <div className="text-center text-slate-500 font-mono text-xs p-6 space-y-2 z-10">
                         <ScanLine className="w-8 h-8 text-slate-600 mx-auto" />
-                        <p>Awaiting Scanner Scan...</p>
-                        <p className="text-[9px] text-slate-600">Scan any card or click simulator sweep below</p>
+                        <p>Awaiting Barcode Scan...</p>
+                        <p className="text-[9px] text-slate-600">Scan physical barcode or select active card below</p>
                       </div>
                     )}
                   </AnimatePresence>
@@ -872,7 +891,7 @@ export const DeskUtilities: React.FC = () => {
                 {/* Laser Sweep Triggers */}
                 <div className="space-y-2.5">
                   <span className="block text-[10px] font-bold text-slate-400 font-mono uppercase tracking-wide">
-                    Simulate Card Sweeps:
+                    Quick Card Readers:
                   </span>
                   <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto pr-1">
                     {users.map(u => (
@@ -962,9 +981,9 @@ export const DeskUtilities: React.FC = () => {
                     <div className="p-4 bg-slate-50 rounded-2xl text-center border border-dashed border-slate-200">
                       <p className="text-xs text-slate-400 italic">No book currently loaded. Scan any book barcode above to change its status.</p>
                       
-                      {/* Book Simulation helper list */}
+                      {/* Book Quick Scan helper list */}
                       <div className="mt-3 space-y-1.5 text-left">
-                        <span className="text-[9px] font-mono font-bold text-slate-400 uppercase tracking-wider block">Simulate book scan:</span>
+                        <span className="text-[9px] font-mono font-bold text-slate-400 uppercase tracking-wider block">Quick Book Select:</span>
                         <div className="flex flex-wrap gap-1">
                           {books.slice(0, 3).map(b => (
                             <button
@@ -973,7 +992,7 @@ export const DeskUtilities: React.FC = () => {
                                 setScannedBookId(b.id);
                                 setScannerMessage({
                                   type: 'success',
-                                  text: `Simulated scan for book: "${b.title}" (ISBN: ${b.isbn})`
+                                  text: `Scanned barcode for book: "${b.title}" (ISBN: ${b.isbn})`
                                 });
                               }}
                               className="text-[9px] bg-slate-200 hover:bg-indigo-100 text-slate-700 hover:text-indigo-900 font-mono font-bold py-1 px-2 rounded transition cursor-pointer"
@@ -1068,7 +1087,7 @@ export const DeskUtilities: React.FC = () => {
                                       setScannerMessage({ type: 'success', text: `Dispatched automated overdue notice to ${scannedUser.email}!` });
                                     }}
                                     className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg text-[10px] font-bold flex items-center gap-1 cursor-pointer border border-rose-200/50"
-                                    title="Send simulated warning email"
+                                    title="Send overdue notice email"
                                   >
                                     <Mail className="w-3.5 h-3.5" />
                                     Mail Alert
@@ -1192,10 +1211,10 @@ export const DeskUtilities: React.FC = () => {
                   <ScanLine className="w-12 h-12 text-slate-300 animate-pulse" />
                   <div>
                     <h5 className="font-display font-extrabold text-slate-800 text-sm">
-                      Awaiting Laser Scan Feed
+                      Awaiting Barcode Scan Feed
                     </h5>
                     <p className="text-xs text-slate-500 max-w-sm mt-1 leading-relaxed">
-                      Click any registered user barcode sweep simulator in the left panel. The computer will parse the card, load historical borrows, overdue flags, and provide direct action gates!
+                      Scan a registered card or select a user from the left panel to load active loans, overdue statuses, and circulation actions.
                     </p>
                   </div>
                 </div>

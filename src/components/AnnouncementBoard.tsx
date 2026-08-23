@@ -10,7 +10,7 @@ import { Bell, Trophy, AlertTriangle, Calendar, Plus, X, Check } from 'lucide-re
 import { motion, AnimatePresence } from 'motion/react';
 
 export const AnnouncementBoard: React.FC = () => {
-  const { announcements, currentRole, addAnnouncement } = useApp();
+  const { announcements, isLibrarianLoggedIn, addAnnouncement } = useApp();
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -58,7 +58,8 @@ export const AnnouncementBoard: React.FC = () => {
           <p className="text-sm text-slate-500">Official updates, guidelines, and celebrate student successes.</p>
         </div>
         
-        {currentRole === 'librarian' && (
+        {/* Post announcement button is strictly available only to authenticated librarians/admins */}
+        {isLibrarianLoggedIn && (
           <button
             onClick={() => setShowForm(!showForm)}
             className="flex items-center gap-1.5 bg-indigo-900 hover:bg-indigo-800 text-white font-semibold py-2 px-3.5 rounded-lg text-xs shadow-sm transition-all cursor-pointer"

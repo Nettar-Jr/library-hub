@@ -28,6 +28,23 @@ export interface Book {
   reviews?: BookReview[];
   rating?: number; // Average star rating
   usageType?: 'circulation' | 'reserve'; // 'circulation' = can be borrowed, 'reserve' = library use only
+  ageRange?: string; // e.g. "Ages 8-12", "All Ages", "Young Adult"
+  readingLevel?: string; // e.g. "Lexile 740L", "AR 4.8"
+  pageCount?: number;
+  themeColor?: string; // Accent styling for card
+  hasAudio?: boolean;
+}
+
+export interface ReaderAchievement {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  unlockedAt?: string;
+  progress: number; // 0 - 100
+  target: number;
+  current: number;
+  category: 'books' | 'streak' | 'creative' | 'genres';
 }
 
 export type CirculationStatus = 'borrowed' | 'returned' | 'overdue' | 'lost' | 'misplaced';
