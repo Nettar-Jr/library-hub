@@ -37,7 +37,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Book } from '../types';
 
 export const HomeDiscoveryHub: React.FC = () => {
-  const { books, submissions, setActiveTab, isLibrarianLoggedIn, loggedInLearner, checkoutBook, currentLearnerName, currentRole } = useApp();
+  const { books, submissions, setActiveTab, isLibrarianLoggedIn, loggedInLearner, currentUser, checkoutBook, currentLearnerName, currentRole } = useApp();
   const navigate = useNavigate();
 
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -74,7 +74,13 @@ export const HomeDiscoveryHub: React.FC = () => {
   const topSubmissions = submissions.filter(s => s.status === 'approved').slice(0, 3);
 
   const handleBorrow = (book: Book) => {
-    const res = checkoutBook(book.id, currentLearnerName || (loggedInLearner ? loggedInLearner.name : 'Chidi Okafor (Year 9)'));
+    if (!currentUser) {
+      setCelebrationToast(`🔐 Sign in with your Student Card or Staff login to borrow "${book.title}"!`);
+      setTimeout(() => setCelebrationToast(null), 5000);
+      navigate('/login?redirect=/');
+      return;
+    }
+    const res = checkoutBook(book.id, currentLearnerName || (loggedInLearner ? loggedInLearner.name : currentUser.name));
     if (res.success) {
       triggerBorrowCelebration();
       setCelebrationToast(`🎉 Awesome! "${book.title}" added to your backpack! Return by due date.`);
@@ -89,6 +95,12 @@ export const HomeDiscoveryHub: React.FC = () => {
   };
 
   const handleClaimMilestone = () => {
+    if (!currentUser) {
+      setCelebrationToast('🔐 Sign in to track your reading streaks and earn trophy badges!');
+      setTimeout(() => setCelebrationToast(null), 5000);
+      navigate('/login');
+      return;
+    }
     triggerMilestoneCelebration();
     setCelebrationToast('🏆 Milestone Achieved! +150 Reader XP added to your profile!');
     setTimeout(() => setCelebrationToast(null), 6000);
@@ -331,8 +343,12 @@ export const HomeDiscoveryHub: React.FC = () => {
           <button
             type="button"
             onClick={() => {
-              setActiveTab('library');
-              navigate('/catalog');
+              if (!currentUser) {
+                navigate('/login?redirect=/catalog');
+              } else {
+                setActiveTab('library');
+                navigate('/catalog');
+              }
             }}
             className="text-xs font-bold text-indigo-600 hover:text-indigo-800 transition flex items-center gap-1 cursor-pointer bg-indigo-50 px-3.5 py-2 rounded-xl"
           >
@@ -398,8 +414,12 @@ export const HomeDiscoveryHub: React.FC = () => {
           <button
             type="button"
             onClick={() => {
-              setActiveTab('gallery');
-              navigate('/gallery');
+              if (!currentUser) {
+                navigate('/login?redirect=/gallery');
+              } else {
+                setActiveTab('gallery');
+                navigate('/gallery');
+              }
             }}
             className="bg-amber-400 hover:bg-amber-300 text-indigo-950 font-black px-4 py-2.5 rounded-xl text-xs shadow-md transition cursor-pointer flex items-center gap-1.5 shrink-0"
           >
@@ -413,8 +433,12 @@ export const HomeDiscoveryHub: React.FC = () => {
             <div
               key={submission.id}
               onClick={() => {
-                setActiveTab('gallery');
-                navigate('/gallery');
+                if (!currentUser) {
+                  navigate('/login?redirect=/gallery');
+                } else {
+                  setActiveTab('gallery');
+                  navigate('/gallery');
+                }
               }}
               className="group bg-slate-800/90 hover:bg-slate-800 border border-slate-700/80 rounded-3xl p-4.5 space-y-3 transition-all duration-300 cursor-pointer flex flex-col justify-between hover:scale-[1.02] hover:border-amber-400/50 shadow-lg"
             >

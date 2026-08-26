@@ -3,10 +3,54 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+export type UserRole = 'LEARNER' | 'STAFF' | 'ADMIN' | 'learner' | 'staff' | 'admin' | 'librarian' | 'student' | 'teacher';
+export type AppRole = 'LEARNER' | 'STAFF' | 'ADMIN';
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  avatarUrl?: string;
+  avatar?: string;
+  assignedStaffId?: string; // For Learners linked to a Teacher
+  assignedTeacherId?: string;
+  assignedTeacherName?: string;
+  gradeOrYear?: string;
+  department?: string;
+  libraryCardId?: string;
+  createdAt?: string;
+}
+
+export type NavView = 
+  | 'EXPLORE' 
+  | 'BOOKSHELF' 
+  | 'COMMUNITY' 
+  | 'BULLETIN'
+  | 'SUBMIT'
+  | 'MODERATION' 
+  | 'CIRCULATION' 
+  | 'DESK_UTILITIES' 
+  | 'ANALYTICS' 
+  | 'LOGIN';
+
+export interface HeroSpotlightData {
+  id: string;
+  title: string;
+  subtitle: string;
+  description: string;
+  featuredBookId: string;
+  badgeText: string;
+  bgGradient: string; // e.g., "from-blue-600 via-indigo-600 to-purple-600"
+  coverUrl?: string;
+}
+
+export type CatalogViewMode = 'CAROUSEL' | 'GRID';
+
 export interface BookReview {
   id: string;
   reviewerName: string;
-  reviewerRole: 'student' | 'teacher' | 'librarian';
+  reviewerRole: 'student' | 'teacher' | 'librarian' | 'learner' | 'staff' | 'admin';
   rating: number; // 1-5 stars
   comment: string;
   createdAt: string;
@@ -21,10 +65,13 @@ export interface Book {
   totalCopies: number;
   availableCopies: number;
   description: string;
+  summary?: string;
   coverImage?: string;
+  coverUrl?: string;
   readsCount: number;
   deweyClass: string; // e.g. "000", "500", "800"
   deweyCode: string;  // e.g. "005.1", "523.1", "813"
+  callNumber?: string;
   reviews?: BookReview[];
   rating?: number; // Average star rating
   usageType?: 'circulation' | 'reserve'; // 'circulation' = can be borrowed, 'reserve' = library use only
@@ -33,6 +80,10 @@ export interface Book {
   pageCount?: number;
   themeColor?: string; // Accent styling for card
   hasAudio?: boolean;
+  isAudiobook?: boolean;
+  isPopular?: boolean;
+  isNew?: boolean;
+  isTeacherPick?: boolean;
 }
 
 export interface ReaderAchievement {
@@ -65,11 +116,14 @@ export interface CirculationRecord {
 export interface LibraryUser {
   id: string;
   name: string;
-  role: 'student' | 'teacher';
+  role: 'learner' | 'staff' | 'admin' | 'student' | 'teacher' | 'librarian';
   gradeOrYear?: string; // e.g., 'Year 9', 'Primary 5'
-  department?: string;  // e.g., 'Science Department', 'English Department'
-  libraryCardId: string; // e.g. 'LIB-STUD-9128'
+  department?: string;  // e.g., 'English Department', 'Science Department'
+  libraryCardId: string; // e.g. 'LIB-STUD-1001'
   email: string;
+  avatar?: string;
+  assignedTeacherId?: string; // ID of assigned teacher/advisor
+  assignedTeacherName?: string; // Name of assigned teacher/advisor
   createdAt: string;
 }
 
@@ -117,5 +171,3 @@ export interface Announcement {
   date: string;
   category: 'info' | 'alert' | 'achievement';
 }
-
-export type UserRole = 'librarian' | 'learner';

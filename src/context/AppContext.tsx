@@ -4,8 +4,8 @@
  */
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Book, CirculationRecord, StudentSubmission, Announcement, UserRole, LibraryUser, BookHold, BookReview } from '../types';
-import { initialBooks, initialCirculation, initialSubmissions, initialAnnouncements } from '../data';
+import { Book, CirculationRecord, StudentSubmission, Announcement, UserRole, AppRole, LibraryUser, User, NavView, BookHold, BookReview, HeroSpotlightData, CatalogViewMode } from '../types';
+import { initialBooks, initialCirculation, initialSubmissions, initialAnnouncements, initialHeroSpotlight } from '../data';
 
 export interface EmailLog {
   id: string;
@@ -17,7 +17,66 @@ export interface EmailLog {
   type: 'overdue' | 'lost' | 'general';
 }
 
+const pathToViewMap: Record<string, NavView> = {
+  '/': 'EXPLORE',
+  '/home': 'EXPLORE',
+  '/catalog': 'BOOKSHELF',
+  '/library': 'BOOKSHELF',
+  '/gallery': 'COMMUNITY',
+  '/moderator': 'MODERATION',
+  '/moderation': 'MODERATION',
+  '/circulation': 'CIRCULATION',
+  '/desk-utilities': 'DESK_UTILITIES',
+  '/desk': 'DESK_UTILITIES',
+  '/analytics': 'ANALYTICS',
+  '/announcements': 'BULLETIN',
+  '/bulletin': 'BULLETIN',
+  '/submit': 'SUBMIT',
+  '/login': 'LOGIN',
+  '/admin': 'LOGIN',
+};
+
+const viewToPathMap: Record<NavView, string> = {
+  EXPLORE: '/',
+  BOOKSHELF: '/catalog',
+  COMMUNITY: '/gallery',
+  BULLETIN: '/announcements',
+  SUBMIT: '/submit',
+  MODERATION: '/moderator',
+  CIRCULATION: '/circulation',
+  DESK_UTILITIES: '/desk-utilities',
+  ANALYTICS: '/analytics',
+  LOGIN: '/login',
+};
+
 interface AppContextType {
+  // 3-Tier Role Management (Learners, Staff, Admin)
+  userRole: AppRole;
+  setUserRole: (role: AppRole) => void;
+  currentUser: LibraryUser | null;
+  setCurrentUser: (user: LibraryUser | User | null) => void;
+  isLearner: boolean;
+  isStaff: boolean;
+  isAdmin: boolean;
+  isLoggedIn: boolean;
+  switchRolePreset: (role: AppRole | 'GUEST', specificUserId?: string) => void;
+
+  // View Navigation & Global Search Query
+  activeView: NavView;
+  setActiveView: (view: NavView) => void;
+  searchQuery: string;
+  setSearchQuery: (query: string) => void;
+
+  // Hero Spotlight & Catalog Discovery States
+  spotlightData: HeroSpotlightData;
+  updateHeroSpotlight: (newData: HeroSpotlightData) => void;
+  catalogViewMode: CatalogViewMode;
+  setCatalogViewMode: (mode: CatalogViewMode) => void;
+  selectedBook: Book | null;
+  setSelectedBook: React.Dispatch<React.SetStateAction<Book | null>>;
+  selectedCategory: string;
+  setSelectedCategory: (category: string) => void;
+
   currentRole: UserRole;
   setCurrentRole: (role: UserRole) => void;
   activeTab: string;
@@ -36,11 +95,16 @@ interface AppContextType {
   setLoggedInLearner: (user: LibraryUser | null) => void;
   currentPath: string;
   navigateTo: (path: string) => void;
+  login: (user: User | LibraryUser) => void;
   logout: () => void;
   
   // Custom states and actions
   users: LibraryUser[];
   createUser: (userData: Omit<LibraryUser, 'id' | 'createdAt' | 'libraryCardId'>) => LibraryUser;
+  assignLearnerToTeacher: (learnerId: string, teacherId: string | null) => { success: boolean; message: string };
+  assignMultipleLearnersToTeacher: (learnerIds: string[], teacherId: string) => { success: boolean; message: string };
+  isRosterModalOpen: boolean;
+  setIsRosterModalOpen: (val: boolean) => void;
   holds: BookHold[];
   createHold: (bookId: string, userId: string) => { success: boolean; message: string };
   releaseHold: (holdId: string) => void;
@@ -68,67 +132,132 @@ interface AppContextType {
   restockBook: (bookId: string, quantity: number) => void;
 }
 
+export const defaultAdminUser: LibraryUser = {
+  id: 'user-admin-1',
+  name: 'Librarian Abdul Alabi',
+  role: 'admin',
+  department: 'Library Administration & Curation',
+  libraryCardId: 'LIB-ADMIN-0001',
+  email: 'abdul.alabi@premier-international.edu',
+  avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
+  createdAt: '2025-09-01',
+};
+
 const initialUsers: LibraryUser[] = [
   {
     id: 'user-1',
     name: 'Chidi Okafor',
-    role: 'student',
+    role: 'learner',
     gradeOrYear: 'Year 9',
     libraryCardId: 'LIB-STUD-1001',
     email: 'chidi.okafor@school.edu',
+    assignedTeacherId: 'user-5',
+    assignedTeacherName: 'Mrs. Emily Cole',
+    avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=200',
     createdAt: '2026-01-10',
   },
   {
     id: 'user-2',
     name: 'Amina Bello',
-    role: 'student',
+    role: 'learner',
     gradeOrYear: 'Primary 5',
     libraryCardId: 'LIB-STUD-1002',
     email: 'amina.bello@school.edu',
+    assignedTeacherId: 'user-6',
+    assignedTeacherName: 'Mr. David Mensah',
+    avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=200',
     createdAt: '2026-01-12',
   },
   {
     id: 'user-3',
     name: 'Sarah J.',
-    role: 'student',
+    role: 'learner',
     gradeOrYear: 'Primary 4',
     libraryCardId: 'LIB-STUD-1003',
     email: 'sarah.j@school.edu',
+    assignedTeacherId: 'user-5',
+    assignedTeacherName: 'Mrs. Emily Cole',
+    avatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&q=80&w=200',
     createdAt: '2026-01-15',
   },
   {
     id: 'user-4',
     name: 'Tunde Williams',
-    role: 'student',
+    role: 'learner',
     gradeOrYear: 'Year 11',
     libraryCardId: 'LIB-STUD-1004',
     email: 'tunde.williams@school.edu',
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200',
     createdAt: '2026-01-18',
+  },
+  {
+    id: 'user-7',
+    name: 'Kemi Adebayo',
+    role: 'learner',
+    gradeOrYear: 'Year 8',
+    libraryCardId: 'LIB-STUD-1005',
+    email: 'kemi.adebayo@school.edu',
+    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200',
+    createdAt: '2026-01-20',
+  },
+  {
+    id: 'user-8',
+    name: 'Daniel Okon',
+    role: 'learner',
+    gradeOrYear: 'Year 10',
+    libraryCardId: 'LIB-STUD-1006',
+    email: 'daniel.okon@school.edu',
+    assignedTeacherId: 'user-6',
+    assignedTeacherName: 'Mr. David Mensah',
+    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=200',
+    createdAt: '2026-01-22',
   },
   {
     id: 'user-5',
     name: 'Mrs. Emily Cole',
-    role: 'teacher',
-    department: 'English Department',
+    role: 'staff',
+    department: 'English & Literature Department',
     libraryCardId: 'LIB-TEACH-2001',
     email: 'emily.cole@school.edu',
+    avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=200',
     createdAt: '2026-01-05',
   },
   {
     id: 'user-6',
     name: 'Mr. David Mensah',
-    role: 'teacher',
-    department: 'Science Department',
+    role: 'staff',
+    department: 'Science & STEM Department',
     libraryCardId: 'LIB-TEACH-2002',
     email: 'david.mensah@school.edu',
+    avatar: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=200',
     createdAt: '2026-01-08',
   },
+  {
+    id: 'user-9',
+    name: 'Ms. Zainab Farooq',
+    role: 'staff',
+    department: 'Creative Arts & World Languages',
+    libraryCardId: 'LIB-TEACH-2003',
+    email: 'zainab.farooq@school.edu',
+    avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&q=80&w=200',
+    createdAt: '2026-01-14',
+  },
+  defaultAdminUser,
 ];
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Load initial state from localStorage or default static data
+  // Normalized 3-Role State ('LEARNER' | 'STAFF' | 'ADMIN')
+  const [userRole, setUserRoleState] = useState<AppRole>(() => {
+    const saved = localStorage.getItem('p_app_role');
+    if (saved === 'STAFF' || saved === 'ADMIN' || saved === 'LEARNER') return saved;
+    const legacyRole = localStorage.getItem('p_role');
+    const legacyLib = localStorage.getItem('p_lib_logged_in') === 'true';
+    if (legacyLib || legacyRole === 'librarian' || legacyRole === 'admin') return 'ADMIN';
+    return 'LEARNER';
+  });
+
   const [currentRole, setCurrentRole] = useState<UserRole>(() => {
     const saved = localStorage.getItem('p_role');
     return (saved as UserRole) || 'learner';
@@ -143,6 +272,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved ? JSON.parse(saved) : null;
   });
 
+  const [currentUser, setCurrentUserState] = useState<LibraryUser | null>(() => {
+    const saved = localStorage.getItem('p_current_user');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        // ignore
+      }
+    }
+    return null;
+  });
+
+  // Modal control for the Librarian Roster Tool
+  const [isRosterModalOpen, setIsRosterModalOpen] = useState(false);
+
   const [currentPath, setCurrentPath] = useState<string>(() => {
     return window.location.pathname;
   });
@@ -151,6 +295,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const saved = localStorage.getItem('p_tab');
     return saved || 'home';
   });
+
+  // Active View navigation state (GetEpic Model)
+  const [activeView, setActiveViewState] = useState<NavView>(() => {
+    const p = window.location.pathname;
+    return pathToViewMap[p] || 'EXPLORE';
+  });
+
+  // Global Search query
+  const [searchQuery, setSearchQuery] = useState<string>('');
+
+  // Hero Spotlight State
+  const [spotlightData, setSpotlightData] = useState<HeroSpotlightData>(() => {
+    const saved = localStorage.getItem('p_hero_spotlight');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        // ignore
+      }
+    }
+    return initialHeroSpotlight;
+  });
+
+  const updateHeroSpotlight = (newData: HeroSpotlightData) => {
+    setSpotlightData(newData);
+    localStorage.setItem('p_hero_spotlight', JSON.stringify(newData));
+  };
+
+  // Catalog View Mode State ('CAROUSEL' | 'GRID')
+  const [catalogViewMode, setCatalogViewMode] = useState<CatalogViewMode>('CAROUSEL');
+
+  // Selected Category filter ('ALL', 'POPULAR', etc.)
+  const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
+
+  // Selected Book for Drawer/Modal
+  const [selectedBook, setSelectedBook] = useState<Book | null>(null);
 
   const [books, setBooks] = useState<Book[]>(() => {
     const saved = localStorage.getItem('p_books_v3') || localStorage.getItem('p_books');
@@ -185,8 +365,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [users, setUsers] = useState<LibraryUser[]>(() => {
-    const saved = localStorage.getItem('p_users');
-    return saved ? JSON.parse(saved) : initialUsers;
+    const saved = localStorage.getItem('p_users_v3') || localStorage.getItem('p_users');
+    if (saved) {
+      try {
+        const parsed: LibraryUser[] = JSON.parse(saved);
+        if (parsed && parsed.length > 0) return parsed;
+      } catch {
+        // fallback
+      }
+    }
+    return initialUsers;
   });
 
   const [holds, setHolds] = useState<BookHold[]>(() => {
@@ -203,7 +391,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return localStorage.getItem('p_learner_name') || 'Chidi Okafor (Year 9)';
   });
 
+  // Derived role flags
+  const isLoggedIn = currentUser !== null;
+  const isLearner = isLoggedIn ? userRole === 'LEARNER' : false;
+  const isStaff = isLoggedIn ? userRole === 'STAFF' : false;
+  const isAdmin = isLoggedIn ? userRole === 'ADMIN' : false;
+
   // Sync state to localStorage
+  useEffect(() => {
+    localStorage.setItem('p_app_role', userRole);
+  }, [userRole]);
+
   useEffect(() => {
     localStorage.setItem('p_role', currentRole);
   }, [currentRole]);
@@ -229,7 +427,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [announcements]);
 
   useEffect(() => {
-    localStorage.setItem('p_users', JSON.stringify(users));
+    localStorage.setItem('p_users_v3', JSON.stringify(users));
   }, [users]);
 
   useEffect(() => {
@@ -244,29 +442,166 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('p_learner_name', currentLearnerName);
   }, [currentLearnerName]);
 
+  useEffect(() => {
+    if (currentUser) {
+      localStorage.setItem('p_current_user', JSON.stringify(currentUser));
+    } else {
+      localStorage.removeItem('p_current_user');
+    }
+  }, [currentUser]);
+
+  // Set User Role synchronized
+  const setUserRole = (role: AppRole) => {
+    setUserRoleState(role);
+    if (role === 'ADMIN') {
+      setIsLibrarianLoggedInState(true);
+      setCurrentRole('admin');
+      setCurrentUserState(defaultAdminUser);
+    } else if (role === 'STAFF') {
+      setIsLibrarianLoggedInState(true);
+      setCurrentRole('staff');
+      const teacher = users.find(u => u.role === 'staff' || u.role === 'teacher') || initialUsers[6];
+      setCurrentUserState(teacher);
+      setLoggedInLearnerState(teacher);
+    } else {
+      setIsLibrarianLoggedInState(false);
+      setCurrentRole('learner');
+      const student = users.find(u => u.role === 'learner' || u.role === 'student') || initialUsers[0];
+      setCurrentUserState(student);
+      setLoggedInLearnerState(student);
+      setCurrentLearnerName(`${student.name} (${student.gradeOrYear || 'Student'})`);
+    }
+  };
+
+  const setCurrentUser = (user: LibraryUser | null) => {
+    setCurrentUserState(user);
+    if (user) {
+      if (user.role === 'admin' || user.role === 'librarian') {
+        setUserRoleState('ADMIN');
+        setIsLibrarianLoggedInState(true);
+        setCurrentRole('admin');
+      } else if (user.role === 'staff' || user.role === 'teacher') {
+        setUserRoleState('STAFF');
+        setIsLibrarianLoggedInState(true);
+        setCurrentRole('staff');
+        setLoggedInLearnerState(user);
+      } else {
+        setUserRoleState('LEARNER');
+        setIsLibrarianLoggedInState(false);
+        setCurrentRole('learner');
+        setLoggedInLearnerState(user);
+        setCurrentLearnerName(`${user.name} (${user.gradeOrYear || 'Student'})`);
+      }
+    }
+  };
+
+  const switchRolePreset = (role: AppRole | 'GUEST', specificUserId?: string) => {
+    if (role === 'GUEST') {
+      logout();
+      return;
+    }
+    if (specificUserId) {
+      const found = users.find(u => u.id === specificUserId);
+      if (found) {
+        setCurrentUser(found);
+        return;
+      }
+    }
+    setUserRole(role);
+  };
+
   const setIsLibrarianLoggedIn = (val: boolean) => {
     setIsLibrarianLoggedInState(val);
     localStorage.setItem('p_lib_logged_in', String(val));
     if (val) {
-      setCurrentRole('librarian');
+      setUserRoleState('ADMIN');
+      setCurrentRole('admin');
+      setCurrentUserState(defaultAdminUser);
+    } else {
+      setUserRoleState('LEARNER');
+      setCurrentRole('learner');
     }
   };
 
   const setLoggedInLearner = (user: LibraryUser | null) => {
     setLoggedInLearnerState(user);
+    setCurrentUserState(user);
     if (user) {
       localStorage.setItem('p_learner_logged_in', JSON.stringify(user));
-      const formattedName = user.role === 'student' ? `${user.name} (${user.gradeOrYear})` : `${user.name} (Teacher)`;
+      const formattedName = (user.role === 'student' || user.role === 'learner')
+        ? `${user.name} (${user.gradeOrYear || 'Scholar'})` 
+        : `${user.name} (Teacher)`;
       setCurrentLearnerName(formattedName);
-      setCurrentRole('learner');
+      if (user.role === 'staff' || user.role === 'teacher') {
+        setUserRoleState('STAFF');
+        setCurrentRole('staff');
+        setIsLibrarianLoggedInState(true);
+      } else if (user.role === 'admin' || user.role === 'librarian') {
+        setUserRoleState('ADMIN');
+        setCurrentRole('admin');
+        setIsLibrarianLoggedInState(true);
+      } else {
+        setUserRoleState('LEARNER');
+        setCurrentRole('learner');
+        setIsLibrarianLoggedInState(false);
+      }
     } else {
       localStorage.removeItem('p_learner_logged_in');
     }
   };
 
+  const setActiveView = (view: NavView) => {
+    setActiveViewState(view);
+    const targetPath = viewToPathMap[view] || '/';
+    setActiveTabState(view.toLowerCase());
+    if (window.location.pathname !== targetPath) {
+      window.history.pushState({}, '', targetPath);
+      window.dispatchEvent(new PopStateEvent('popstate'));
+      setCurrentPath(targetPath);
+    }
+  };
+
+  const login = (user: User | LibraryUser) => {
+    const roleStr = String(user.role).toUpperCase();
+    const normRole: AppRole = (roleStr === 'ADMIN' || roleStr === 'LIBRARIAN')
+      ? 'ADMIN'
+      : (roleStr === 'STAFF' || roleStr === 'TEACHER')
+      ? 'STAFF'
+      : 'LEARNER';
+
+    const avatar = ('avatarUrl' in user && user.avatarUrl) ? user.avatarUrl : ('avatar' in user ? user.avatar : undefined);
+    const assignedTeacher = ('assignedStaffId' in user && user.assignedStaffId) ? user.assignedStaffId : ('assignedTeacherId' in user ? user.assignedTeacherId : undefined);
+
+    const fullUser: LibraryUser = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: normRole === 'ADMIN' ? 'admin' : normRole === 'STAFF' ? 'staff' : 'learner',
+      gradeOrYear: user.gradeOrYear,
+      department: user.department,
+      libraryCardId: user.libraryCardId || `LIB-${user.id}`,
+      avatar: avatar,
+      assignedTeacherId: assignedTeacher,
+      assignedTeacherName: user.assignedTeacherName,
+      createdAt: user.createdAt || new Date().toISOString().split('T')[0],
+    };
+
+    setCurrentUser(fullUser);
+    setUserRole(normRole);
+    if (normRole === 'ADMIN' || normRole === 'STAFF') {
+      setIsLibrarianLoggedInState(true);
+    } else {
+      setIsLibrarianLoggedInState(false);
+    }
+  };
+
   const navigateTo = (path: string) => {
     window.history.pushState({}, '', path);
+    window.dispatchEvent(new PopStateEvent('popstate'));
     setCurrentPath(path);
+    if (pathToViewMap[path]) {
+      setActiveViewState(pathToViewMap[path]);
+    }
   };
 
   const logout = () => {
@@ -274,16 +609,85 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.removeItem('p_lib_logged_in');
     setLoggedInLearnerState(null);
     localStorage.removeItem('p_learner_logged_in');
+    setCurrentUserState(null);
+    setUserRoleState('LEARNER');
+    setCurrentRole('learner');
     setActiveTabState('home');
-    if (window.location.pathname === '/admin') {
+    setActiveViewState('EXPLORE');
+    if (window.location.pathname === '/admin' || window.location.pathname === '/login') {
       window.history.pushState({}, '', '/');
+      window.dispatchEvent(new PopStateEvent('popstate'));
       setCurrentPath('/');
     }
   };
 
+  // Assign Learner to Staff / Teacher
+  const assignLearnerToTeacher = (learnerId: string, teacherId: string | null) => {
+    const learner = users.find(u => u.id === learnerId);
+    if (!learner) return { success: false, message: 'Learner record not found.' };
+
+    let teacherName: string | undefined = undefined;
+    if (teacherId) {
+      const teacher = users.find(u => u.id === teacherId);
+      if (!teacher) return { success: false, message: 'Teacher record not found.' };
+      teacherName = teacher.name;
+    }
+
+    setUsers(prev => prev.map(u => {
+      if (u.id === learnerId) {
+        return {
+          ...u,
+          assignedTeacherId: teacherId || undefined,
+          assignedTeacherName: teacherName,
+        };
+      }
+      return u;
+    }));
+
+    if (currentUser?.id === learnerId) {
+      setCurrentUserState(prev => prev ? {
+        ...prev,
+        assignedTeacherId: teacherId || undefined,
+        assignedTeacherName: teacherName,
+      } : null);
+    }
+
+    const msg = teacherName 
+      ? `Assigned ${learner.name} to ${teacherName} successfully.`
+      : `Removed teacher assignment from ${learner.name}.`;
+
+    return { success: true, message: msg };
+  };
+
+  // Batch assign learners to teacher
+  const assignMultipleLearnersToTeacher = (learnerIds: string[], teacherId: string) => {
+    const teacher = users.find(u => u.id === teacherId);
+    if (!teacher) return { success: false, message: 'Staff member not found.' };
+
+    setUsers(prev => prev.map(u => {
+      if (learnerIds.includes(u.id)) {
+        return {
+          ...u,
+          assignedTeacherId: teacher.id,
+          assignedTeacherName: teacher.name,
+        };
+      }
+      return u;
+    }));
+
+    return { 
+      success: true, 
+      message: `Assigned ${learnerIds.length} learners to ${teacher.name} successfully.` 
+    };
+  };
+
   useEffect(() => {
     const handlePopState = () => {
-      setCurrentPath(window.location.pathname);
+      const p = window.location.pathname;
+      setCurrentPath(p);
+      if (pathToViewMap[p]) {
+        setActiveViewState(pathToViewMap[p]);
+      }
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
@@ -711,6 +1115,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <AppContext.Provider
       value={{
+        userRole,
+        setUserRole,
+        currentUser,
+        setCurrentUser,
+        isLearner,
+        isStaff,
+        isAdmin,
+        isLoggedIn,
+        switchRolePreset,
+        activeView,
+        setActiveView,
+        searchQuery,
+        setSearchQuery,
+        spotlightData,
+        updateHeroSpotlight,
+        catalogViewMode,
+        setCatalogViewMode,
+        selectedBook,
+        setSelectedBook,
+        selectedCategory,
+        setSelectedCategory,
         currentRole,
         setCurrentRole,
         activeTab,
@@ -727,9 +1152,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setLoggedInLearner,
         currentPath,
         navigateTo,
+        login,
         logout,
         users,
         createUser,
+        assignLearnerToTeacher,
+        assignMultipleLearnersToTeacher,
+        isRosterModalOpen,
+        setIsRosterModalOpen,
         holds,
         createHold,
         releaseHold,

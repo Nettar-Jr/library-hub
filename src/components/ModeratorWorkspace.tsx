@@ -25,16 +25,29 @@ import {
   MessageCircle,
   BookOpen,
   CheckSquare,
-  Square
+  Square,
+  GraduationCap,
+  Users,
+  Award
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 export const ModeratorWorkspace: React.FC = () => {
-  const { submissions, approveSubmission, rejectSubmission } = useApp();
+  const { 
+    submissions, 
+    approveSubmission, 
+    rejectSubmission, 
+    users, 
+    currentUser, 
+    isStaff, 
+    isAdmin, 
+    setIsRosterModalOpen 
+  } = useApp();
   
   // Selection and Filter states
   const [selectedSub, setSelectedSub] = useState<StudentSubmission | null>(null);
   const [activeTab, setActiveTab] = useState<'pending' | 'revision' | 'approved' | 'all'>('pending');
+  const [classFilterOnly, setClassFilterOnly] = useState(isStaff && !isAdmin);
   
   // Batch multi-select state
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -48,21 +61,36 @@ export const ModeratorWorkspace: React.FC = () => {
   // Notification toast
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'amber' } | null>(null);
 
-  // Filter queues
-  const pendingQueue = submissions.filter((s) => s.status === 'pending');
-  const revisionQueue = submissions.filter((s) => s.status === 'rejected');
-  const approvedQueue = submissions.filter((s) => s.status === 'approved');
+  // Helper to check if submission author belongs to logged-in teacher
+  const isAuthorInMyClass = (authorName: string) => {
+    if (!currentUser) return false;
+    const authorUser = users.find(u => u.name.toLowerCase().includes(authorName.toLowerCase()) || authorName.toLowerCase().includes(u.name.toLowerCase()));
+    return authorUser?.assignedTeacherId === currentUser.id;
+  };
 
-  const displayedList = submissions.filter((s) => {
+  // Filter queues
+  const filteredSubmissions = submissions.filter((s) => {
+    if (classFilterOnly && isStaff && !isAdmin && currentUser) {
+      return isAuthorInMyClass(s.authorName);
+    }
+    return true;
+  });
+
+  const pendingQueue = filteredSubmissions.filter((s) => s.status === 'pending');
+  const revisionQueue = filteredSubmissions.filter((s) => s.status === 'rejected');
+  const approvedQueue = filteredSubmissions.filter((s) => s.status === 'approved');
+
+  const displayedList = filteredSubmissions.filter((s) => {
     if (activeTab === 'pending') return s.status === 'pending';
     if (activeTab === 'revision') return s.status === 'rejected';
     if (activeTab === 'approved') return s.status === 'approved';
     return true;
   });
 
-  // Quick feedback presets for fast librarian feedback
+  // Quick feedback presets for fast feedback
   const feedbackPresets = [
     { label: 'Grammar & Punctuation', text: 'Great creative start! Please review and correct punctuation and spelling in paragraph 2 before publishing.' },
+    { label: 'Teacher Endorsement 🌟', text: 'Outstanding work from our class! Excellent vocabulary choice and vivid imagery. Approved with high praise.' },
     { label: 'Expand Narrative Ending', text: 'Wonderful atmosphere and character voice. Consider expanding the conclusion to give the story a stronger resolution.' },
     { label: 'Format Stanzas', text: 'Beautiful poetic rhythm. Please reformat the stanza line breaks to improve readability on digital screens.' },
     { label: 'Add Academic Citations', text: 'Well-researched essay. Please add formal citations or references for the data points cited.' },
@@ -129,7 +157,7 @@ export const ModeratorWorkspace: React.FC = () => {
     } else if (subForRevision) {
       rejectSubmission(subForRevision.id, revisionFeedback.trim());
       setNotification({
-        message: `Revision request with librarian comments sent to ${subForRevision.authorName} for "${subForRevision.title}".`,
+        message: `Revision request with moderation feedback sent to ${subForRevision.authorName} for "${subForRevision.title}".`,
         type: 'amber'
       });
       if (selectedSub?.id === subForRevision.id) {
@@ -159,25 +187,57 @@ export const ModeratorWorkspace: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
         <div>
-          <h2 className="font-display text-2xl font-black tracking-tight text-slate-900 flex items-center gap-2">
-            <ShieldAlert className="w-6 h-6 text-amber-500" />
-            Librarian Moderation Workspace
-          </h2>
-          <p className="text-sm text-slate-600">
-            Review, provide constructive feedback, and approve original student literature and art.
+          <div className="flex items-center gap-2">
+            <h2 className="font-display text-xl sm:text-2xl font-black tracking-tight text-slate-900 flex items-center gap-2">
+              <ShieldAlert className="w-6 h-6 text-amber-500" />
+              {isAdmin ? 'Librarian Institutional Moderation' : 'Teacher Classroom Moderation'}
+            </h2>
+            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+              isAdmin ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-900'
+            }`}>
+              {isAdmin ? 'Admin View' : 'Teacher View'}
+            </span>
+          </div>
+          <p className="text-xs sm:text-sm text-slate-600 mt-1">
+            {isAdmin 
+              ? 'Review, provide constructive feedback, and approve original student literature and art school-wide.'
+              : `Review submissions from your assigned class scholars, provide encouraging feedback, and publish them.`
+            }
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => setIsRosterModalOpen(true)}
+              className="bg-indigo-900 hover:bg-indigo-800 text-white text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs transition"
+            >
+              <Users className="w-4 h-4 text-amber-400" />
+              <span>Manage Class Rosters</span>
+            </button>
+          )}
+
+          {isStaff && !isAdmin && (
+            <button
+              type="button"
+              onClick={() => setClassFilterOnly(!classFilterOnly)}
+              className={`text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 cursor-pointer transition border ${
+                classFilterOnly 
+                  ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs' 
+                  : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
+              }`}
+            >
+              <GraduationCap className="w-4 h-4" />
+              <span>{classFilterOnly ? 'Showing My Class Only' : 'Showing All School Works'}</span>
+            </button>
+          )}
+
           <div className="bg-amber-100 text-amber-950 border border-amber-300 text-xs font-bold px-3 py-1.5 rounded-xl font-mono flex items-center gap-1.5">
             <Clock className="w-3.5 h-3.5 text-amber-700" />
-            <span>{pendingQueue.length} Pending Audit</span>
-          </div>
-          <div className="bg-rose-100 text-rose-950 border border-rose-300 text-xs font-bold px-3 py-1.5 rounded-xl font-mono flex items-center gap-1.5">
-            <RefreshCw className="w-3.5 h-3.5 text-rose-700" />
-            <span>{revisionQueue.length} In Revision</span>
+            <span>{pendingQueue.length} Pending</span>
           </div>
         </div>
       </div>
@@ -324,6 +384,7 @@ export const ModeratorWorkspace: React.FC = () => {
             {displayedList.map((sub) => {
               const isSelected = selectedSub?.id === sub.id;
               const isChecked = selectedIds.includes(sub.id);
+              const authorObj = users.find(u => u.name.toLowerCase().includes(sub.authorName.toLowerCase()));
 
               return (
                 <div
@@ -352,6 +413,11 @@ export const ModeratorWorkspace: React.FC = () => {
                       <span className="bg-slate-100 text-slate-800 font-mono font-bold text-[9px] px-2 py-0.5 rounded uppercase tracking-wider">
                         {sub.category.replace('-', ' ')}
                       </span>
+                      {authorObj?.assignedTeacherName && (
+                        <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold text-[9px] px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+                          <GraduationCap className="w-2.5 h-2.5" /> {authorObj.assignedTeacherName.split(' ')[1] || 'Class'}
+                        </span>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-1.5">
@@ -384,7 +450,7 @@ export const ModeratorWorkspace: React.FC = () => {
 
                   {sub.moderationFeedback && (
                     <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-[11px] text-rose-950 font-medium line-clamp-2">
-                      <span className="font-bold">Librarian Feedback: </span>"{sub.moderationFeedback}"
+                      <span className="font-bold">Feedback: </span>"{sub.moderationFeedback}"
                     </div>
                   )}
 
@@ -532,7 +598,7 @@ export const ModeratorWorkspace: React.FC = () => {
                 </div>
                 <button 
                   onClick={closeRevisionModal}
-                  className="p-1.5 text-slate-400 hover:text-slate-700 rounded-full"
+                  className="p-1.5 text-slate-400 hover:text-slate-700 rounded-full cursor-pointer"
                   aria-label="Close revision modal"
                 >
                   <X className="w-5 h-5" />
@@ -562,7 +628,7 @@ export const ModeratorWorkspace: React.FC = () => {
               <form onSubmit={handleSendRevisionRequest} className="space-y-4">
                 <div>
                   <label htmlFor="revision-textarea" className="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1.5">
-                    Librarian Feedback Notes
+                    Feedback Notes for Scholar
                   </label>
                   <textarea
                     id="revision-textarea"
@@ -579,7 +645,7 @@ export const ModeratorWorkspace: React.FC = () => {
                   <button
                     type="button"
                     onClick={closeRevisionModal}
-                    className="px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl"
+                    className="px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer"
                   >
                     Cancel
                   </button>
