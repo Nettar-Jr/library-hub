@@ -352,7 +352,7 @@ export const SubmitWorkForm: React.FC = () => {
                       }`}>
                         {isContentValid && currentStep > 2 ? <Check className="w-4 h-4" /> : '2'}
                       </span>
-                      <span className="hidden sm:inline">2. Manuscript Text</span>
+                      <span className="hidden sm:inline">2. Content & Manuscript</span>
                     </button>
 
                     <div className="h-0.5 flex-1 mx-3 bg-slate-200">
@@ -374,7 +374,7 @@ export const SubmitWorkForm: React.FC = () => {
                       }`}>
                         3
                       </span>
-                      <span className="hidden sm:inline">3. Cover & Review</span>
+                      <span className="hidden sm:inline">3. Media & Review</span>
                     </button>
                   </div>
                 </div>
@@ -434,7 +434,7 @@ export const SubmitWorkForm: React.FC = () => {
 
                         <div>
                           <label htmlFor="submit-category-select" className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-1.5">
-                            Select Genre Category *
+                            Select Creative Category *
                           </label>
                           <select
                             id="submit-category-select"
@@ -443,9 +443,11 @@ export const SubmitWorkForm: React.FC = () => {
                             className="w-full text-xs sm:text-sm p-3.5 border border-slate-300 bg-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-600 font-bold text-slate-900"
                           >
                             <option value="short-story">📖 Short Story</option>
-                            <option value="poetry">✍️ Poetry Collection</option>
+                            <option value="poetry">✍️ Poetry & Verse</option>
                             <option value="academic-essay">🎓 Academic Essay</option>
-                            <option value="digital-art">🎨 Digital Artwork</option>
+                            <option value="digital-art">🎨 Visual Art & Illustration</option>
+                            <option value="audio-podcast">🎙️ Audio & Podcast</option>
+                            <option value="video-multimedia">🎬 Video & Multimedia</option>
                           </select>
                         </div>
                       </div>
@@ -459,14 +461,14 @@ export const SubmitWorkForm: React.FC = () => {
                           }}
                           className="bg-indigo-950 hover:bg-indigo-900 text-white font-bold py-3 px-6 rounded-xl text-xs sm:text-sm flex items-center gap-2 cursor-pointer shadow-sm focus-visible:ring-2 focus-visible:ring-amber-400"
                         >
-                          <span>Proceed to Manuscript</span>
+                          <span>Proceed to Content</span>
                           <ArrowRight className="w-4 h-4" />
                         </button>
                       </div>
                     </motion.div>
                   )}
 
-                  {/* STEP 2: Manuscript Text */}
+                  {/* STEP 2: Manuscript & Media Text */}
                   {currentStep === 2 && (
                     <motion.div
                       initial={{ opacity: 0, x: -10 }}
@@ -476,7 +478,7 @@ export const SubmitWorkForm: React.FC = () => {
                       <div>
                         <div className="flex justify-between items-center mb-1.5">
                           <label htmlFor="submit-content-textarea" className="block text-xs font-bold text-slate-800 uppercase tracking-wider">
-                            Compose Your Text / Narrative Description *
+                            Manuscript, Lyrics, Script or Project Statement *
                           </label>
                           <div className="text-[11px] font-mono">
                             <span className={isContentValid ? 'text-emerald-700 font-bold' : 'text-slate-500 font-medium'}>
@@ -495,7 +497,7 @@ export const SubmitWorkForm: React.FC = () => {
                             setTouched(prev => ({ ...prev, content: true }));
                           }}
                           onBlur={() => setTouched(prev => ({ ...prev, content: true }))}
-                          placeholder="Type or paste your short story paragraphs, poetic stanzas, essay points, or digital art background here..."
+                          placeholder="Type or paste your short story, poetry stanzas, essay text, artist statement, podcast audio transcript, or video description here..."
                           aria-invalid={touched.content && !isContentValid}
                           aria-describedby="content-error"
                           className={`w-full text-xs sm:text-sm p-4 border rounded-2xl outline-none font-serif leading-relaxed text-slate-900 ${
@@ -506,7 +508,7 @@ export const SubmitWorkForm: React.FC = () => {
                         />
                         {touched.content && !isContentValid && (
                           <p id="content-error" className="text-[11px] font-bold text-rose-700 mt-1">
-                            Manuscript should contain at least 20 characters of written prose or verse.
+                            Submission content should contain at least 20 characters of written prose, verse, or project explanation.
                           </p>
                         )}
                       </div>

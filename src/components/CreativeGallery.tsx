@@ -96,9 +96,12 @@ export const CreativeGallery: React.FC = () => {
   const getCategoryLabel = (cat: SubmissionCategory) => {
     switch (cat) {
       case 'short-story': return 'Short Story';
-      case 'poetry': return 'Poem';
+      case 'poetry': return 'Poetry & Verse';
       case 'academic-essay': return 'Academic Essay';
-      case 'digital-art': return 'Digital Art';
+      case 'digital-art': return 'Digital Art & Illustration';
+      case 'audio-podcast': return 'Audio & Podcast';
+      case 'video-multimedia': return 'Video & Media';
+      default: return 'Creative Work';
     }
   };
 
@@ -108,6 +111,9 @@ export const CreativeGallery: React.FC = () => {
       case 'poetry': return 'bg-amber-100 text-amber-950 border-amber-300';
       case 'academic-essay': return 'bg-sky-100 text-sky-950 border-sky-300';
       case 'digital-art': return 'bg-emerald-100 text-emerald-950 border-emerald-300';
+      case 'audio-podcast': return 'bg-pink-100 text-pink-950 border-pink-300';
+      case 'video-multimedia': return 'bg-indigo-100 text-indigo-950 border-indigo-300';
+      default: return 'bg-slate-100 text-slate-950 border-slate-300';
     }
   };
 
@@ -117,6 +123,9 @@ export const CreativeGallery: React.FC = () => {
       case 'poetry': return 'bg-gradient-to-r from-amber-600 to-orange-700';
       case 'academic-essay': return 'bg-gradient-to-r from-blue-700 to-sky-900';
       case 'digital-art': return 'bg-gradient-to-r from-emerald-600 to-teal-800';
+      case 'audio-podcast': return 'bg-gradient-to-r from-pink-600 to-rose-800';
+      case 'video-multimedia': return 'bg-gradient-to-r from-indigo-700 to-violet-900';
+      default: return 'bg-gradient-to-r from-slate-700 to-slate-900';
     }
   };
 
@@ -130,7 +139,7 @@ export const CreativeGallery: React.FC = () => {
             Student Creative Gallery
           </h2>
           <p className="text-sm text-slate-600">
-            Original short stories, poetry collections, academic essays, and artwork authored by Premier learners.
+            Original art, illustrations, audio recordings, video projects, stories, poems, and academic essays authored by Premier learners.
           </p>
         </div>
 
@@ -155,18 +164,20 @@ export const CreativeGallery: React.FC = () => {
               className="w-full text-xs sm:text-sm font-bold bg-white border border-slate-200 p-3 rounded-2xl shadow-xs outline-none focus:ring-2 focus:ring-indigo-600 text-slate-800"
               aria-label="Filter submissions by category"
             >
-              <option value="all">All Disciplines</option>
+              <option value="all">All Creative Media</option>
               <option value="short-story">Short Stories</option>
-              <option value="poetry">Poetry</option>
+              <option value="poetry">Poetry & Verse</option>
               <option value="academic-essay">Academic Essays</option>
-              <option value="digital-art">Digital Art</option>
+              <option value="digital-art">Digital Art & Illustration</option>
+              <option value="audio-podcast">Audio & Podcasts</option>
+              <option value="video-multimedia">Video & Multimedia</option>
             </select>
           </div>
         </div>
 
         {/* Fast Category Filter Pills */}
         <div className="flex items-center gap-2 overflow-x-auto scrollbar-none py-1">
-          {(['all', 'short-story', 'poetry', 'academic-essay', 'digital-art'] as const).map((cat) => (
+          {(['all', 'short-story', 'poetry', 'academic-essay', 'digital-art', 'audio-podcast', 'video-multimedia'] as const).map((cat) => (
             <button
               key={cat}
               type="button"

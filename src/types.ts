@@ -138,7 +138,13 @@ export interface BookHold {
   status: 'active' | 'claimed' | 'released';
 }
 
-export type SubmissionCategory = 'short-story' | 'poetry' | 'academic-essay' | 'digital-art';
+export type SubmissionCategory = 
+  | 'short-story' 
+  | 'poetry' 
+  | 'academic-essay' 
+  | 'digital-art' 
+  | 'audio-podcast' 
+  | 'video-multimedia';
 
 export interface Comment {
   id: string;

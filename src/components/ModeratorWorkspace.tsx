@@ -90,10 +90,12 @@ export const ModeratorWorkspace: React.FC = () => {
   // Quick feedback presets for fast feedback
   const feedbackPresets = [
     { label: 'Grammar & Punctuation', text: 'Great creative start! Please review and correct punctuation and spelling in paragraph 2 before publishing.' },
-    { label: 'Teacher Endorsement 🌟', text: 'Outstanding work from our class! Excellent vocabulary choice and vivid imagery. Approved with high praise.' },
-    { label: 'Expand Narrative Ending', text: 'Wonderful atmosphere and character voice. Consider expanding the conclusion to give the story a stronger resolution.' },
-    { label: 'Format Stanzas', text: 'Beautiful poetic rhythm. Please reformat the stanza line breaks to improve readability on digital screens.' },
-    { label: 'Add Academic Citations', text: 'Well-researched essay. Please add formal citations or references for the data points cited.' },
+    { label: 'Teacher Endorsement 🌟', text: 'Outstanding creative piece from our class! Excellent voice and imaginative execution. Approved with high praise.' },
+    { label: 'Expand Narrative Ending', text: 'Wonderful atmosphere and character voice. Consider expanding the conclusion to give the piece a stronger resolution.' },
+    { label: 'Audio / Video Clarity', text: 'Creative audio/video concept! Please ensure speech is clearly audible and video titles are formatted cleanly.' },
+    { label: 'Visual Art Resolution', text: 'Vibrant artwork! Please review the uploaded image crop and resolution to ensure optimal display in the gallery.' },
+    { label: 'Format Stanzas & Lines', text: 'Beautiful rhythm. Please reformat stanza line breaks to improve readability on digital screens.' },
+    { label: 'Add Citations / Credits', text: 'Well-crafted project. Please add citations or credits for any sample media or cited research points.' },
     { label: 'School Guidelines Review', text: 'Please adjust certain expressions to align with our school community guidelines and resubmit.' }
   ];
 
@@ -536,7 +538,7 @@ export const ModeratorWorkspace: React.FC = () => {
                 {/* Sub Body Content */}
                 <div className="space-y-2">
                   <h4 className="font-display font-black text-xs uppercase tracking-wider text-slate-500">
-                    Literary Content / Description
+                    Submission Content & Statement
                   </h4>
                   <div className="p-6 bg-slate-50 rounded-2xl border border-slate-200 text-sm text-slate-800 leading-relaxed font-serif whitespace-pre-line max-h-72 overflow-y-auto">
                     {selectedSub.content}

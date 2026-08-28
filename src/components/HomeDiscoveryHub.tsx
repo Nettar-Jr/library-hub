@@ -403,11 +403,11 @@ export const HomeDiscoveryHub: React.FC = () => {
                 <Feather className="w-5 h-5" />
               </span>
               <h2 className="font-display font-black text-xl sm:text-2xl text-white">
-                Ink & Imagination: Student Authors & Artists
+                Ink & Imagination: Student Creatives & Artists
               </h2>
             </div>
             <p className="text-xs sm:text-sm text-indigo-200">
-              Outstanding peer-authored poems, narratives, and digital artworks created by Premier learners.
+              Outstanding peer-created art, video projects, audio podcasts, poems, narratives, and essays by Premier learners.
             </p>
           </div>
 

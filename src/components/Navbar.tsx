@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { NavView } from '../types';
 import { 
@@ -57,7 +57,6 @@ export const Navbar: React.FC = () => {
   } = useApp();
 
   const navigate = useNavigate();
-  const location = useLocation();
 
   // Dropdown / Popover states
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -137,16 +136,6 @@ export const Navbar: React.FC = () => {
     logout();
     navigate('/');
     setIsMenuOpen(false);
-  };
-
-  // Nav link style helper
-  const getNavPillClasses = (viewName: NavView, routePath: string) => {
-    const isCurrent = activeView === viewName || location.pathname === routePath;
-    return `px-3.5 py-1.5 rounded-full font-sans text-xs sm:text-sm font-extrabold tracking-wide transition-all duration-200 cursor-pointer flex items-center gap-1.5 focus-visible:ring-2 focus-visible:ring-blue-500 outline-none ${
-      isCurrent
-        ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20 scale-[1.02]'
-        : 'text-slate-700 hover:text-blue-600 hover:bg-slate-100'
-    }`;
   };
 
   // Quick genre discovery tags for search overlay
@@ -347,48 +336,6 @@ export const Navbar: React.FC = () => {
             </button>
           ) : (
             <>
-              {/* Quick-Access Top Pills (Large Screens - Logged In Only) */}
-              <div className="hidden xl:flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => handleNavClick('EXPLORE', '/')}
-                  className={getNavPillClasses('EXPLORE', '/')}
-                >
-                  <Compass className="w-4 h-4" />
-                  <span>Explore</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleNavClick('BOOKSHELF', '/catalog')}
-                  className={getNavPillClasses('BOOKSHELF', '/catalog')}
-                >
-                  <Library className="w-4 h-4" />
-                  <span>{isLearner ? 'My Bookshelf' : 'Book Catalog'}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleNavClick('COMMUNITY', '/gallery')}
-                  className={getNavPillClasses('COMMUNITY', '/gallery')}
-                >
-                  <Sparkles className="w-4 h-4 text-amber-500" />
-                  <span>Community</span>
-                </button>
-              </div>
-
-              {/* Quick-Access Action for Logged In Learners */}
-              {isLearner && (
-                <button
-                  type="button"
-                  onClick={() => handleNavClick('SUBMIT', '/submit')}
-                  className="hidden sm:flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/90 rounded-full px-3 py-1.5 text-xs font-bold transition-all cursor-pointer shadow-xs"
-                >
-                  <FilePlus className="w-3.5 h-3.5 text-amber-600" />
-                  <span>Write Story</span>
-                </button>
-              )}
-
               {/* =======================================================
                * UNIFIED MASTER DROPDOWN NAVIGATION (Authenticated User)
                * ======================================================= */}
@@ -559,7 +506,7 @@ export const Navbar: React.FC = () => {
                           </div>
                           <div className="flex-1 min-w-0">
                             <span className="block font-extrabold text-slate-900">Student Creative Gallery</span>
-                            <span className="block text-[10px] text-slate-500">Published stories, poems & essays</span>
+                            <span className="block text-[10px] text-slate-500">Stories, poems, essays, art, audio & video</span>
                           </div>
                         </button>
 
@@ -597,11 +544,11 @@ export const Navbar: React.FC = () => {
                             }`}
                           >
                             <div className="p-1.5 bg-amber-100 text-amber-700 rounded-xl group-hover:scale-105 transition-transform">
-                              <FilePlus className="w-4 h-4" />
+                              <Sparkles className="w-4 h-4" />
                             </div>
                             <div className="flex-1 min-w-0">
-                              <span className="block font-extrabold text-slate-900">Submit Creative Story</span>
-                              <span className="block text-[10px] text-slate-500">Send story or poem to your teacher</span>
+                              <span className="block font-extrabold text-slate-900">Submit Creative Work</span>
+                              <span className="block text-[10px] text-slate-500">Submit art, audio, video, stories & poems</span>
                             </div>
                           </button>
 
@@ -646,8 +593,8 @@ export const Navbar: React.FC = () => {
                                 <ShieldAlert className="w-4 h-4" />
                               </div>
                               <div>
-                                <span className="block font-extrabold text-slate-900">Story Moderation Queue</span>
-                                <span className="block text-[10px] text-slate-500">Review student drafts & feedback</span>
+                                <span className="block font-extrabold text-slate-900">Creative Moderation Queue</span>
+                                <span className="block text-[10px] text-slate-500">Review student stories, art, audio & video</span>
                               </div>
                             </div>
                             {pendingSubmissionsCount > 0 && (
@@ -747,7 +694,7 @@ export const Navbar: React.FC = () => {
                               </div>
                               <div>
                                 <span className="block font-extrabold text-slate-900">All-School Moderation</span>
-                                <span className="block text-[10px] text-slate-500">Approve or request story revisions</span>
+                                <span className="block text-[10px] text-slate-500">Approve or request revisions on creative submissions</span>
                               </div>
                             </div>
                             {pendingSubmissionsCount > 0 && (
