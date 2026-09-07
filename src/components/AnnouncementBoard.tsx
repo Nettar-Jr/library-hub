@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Announcement } from '../types';
-import { Bell, Trophy, AlertTriangle, Calendar, Plus, X, Check, Filter } from 'lucide-react';
+import { Bell, AlertCircle, Calendar, Plus, X, Check, BookOpen } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 export const AnnouncementBoard: React.FC = () => {
@@ -28,25 +28,29 @@ export const AnnouncementBoard: React.FC = () => {
     setShowForm(false);
   };
 
-  const getIcon = (cat: Announcement['category']) => {
+  const getBadge = (cat: Announcement['category']) => {
     switch (cat) {
       case 'achievement':
-        return <Trophy className="w-5 h-5 text-amber-700" />;
+        return {
+          label: 'Academic Notice',
+          icon: BookOpen,
+          badgeStyle: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+          cardStyle: 'bg-white border-slate-200'
+        };
       case 'alert':
-        return <AlertTriangle className="w-5 h-5 text-rose-700 animate-pulse" />;
+        return {
+          label: 'Urgent Notice',
+          icon: AlertCircle,
+          badgeStyle: 'bg-amber-50 text-amber-900 border-amber-200',
+          cardStyle: 'bg-white border-slate-200'
+        };
       default:
-        return <Bell className="w-5 h-5 text-indigo-800" />;
-    }
-  };
-
-  const getStyles = (cat: Announcement['category']) => {
-    switch (cat) {
-      case 'achievement':
-        return 'bg-amber-50/80 border-2 border-amber-300 text-amber-950 shadow-xs';
-      case 'alert':
-        return 'bg-rose-50/80 border-2 border-rose-400 text-rose-950 shadow-xs ring-1 ring-rose-200';
-      default:
-        return 'bg-indigo-50/60 border-2 border-indigo-200 text-indigo-950 shadow-xs';
+        return {
+          label: 'General Notice',
+          icon: Bell,
+          badgeStyle: 'bg-blue-50 text-blue-800 border-blue-200',
+          cardStyle: 'bg-white border-slate-200'
+        };
     }
   };
 
@@ -59,11 +63,11 @@ export const AnnouncementBoard: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="font-display text-2xl sm:text-3xl font-black tracking-tight text-slate-900 flex items-center gap-2">
-            School Bulletin & Notices
+          <h2 className="font-display text-xl sm:text-2xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
+            Library Notices
           </h2>
-          <p className="text-sm text-slate-600">
-            Official academic library bulletins, reading challenges, and student achievements.
+          <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+            Official dates, schedule adjustments, book return deadlines, and library notices.
           </p>
         </div>
         
@@ -71,36 +75,38 @@ export const AnnouncementBoard: React.FC = () => {
           <button
             type="button"
             onClick={() => setShowForm(!showForm)}
-            className="flex items-center gap-1.5 bg-indigo-950 hover:bg-indigo-900 text-white font-bold py-2.5 px-4 rounded-xl text-xs shadow-sm transition-all cursor-pointer"
+            className="flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white font-semibold py-2 px-3.5 rounded-xl text-xs transition cursor-pointer shadow-xs"
           >
             {showForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-            {showForm ? 'Cancel Notice' : 'Post New Notice'}
+            <span>{showForm ? 'Cancel Notice' : 'Post Notice'}</span>
           </button>
         )}
       </div>
 
       {/* Category Filter Pills */}
       <div className="flex items-center gap-2 overflow-x-auto scrollbar-none py-1">
-        {(['all', 'alert', 'achievement', 'info'] as const).map((cat) => (
+        {[
+          { key: 'all', label: 'All Notices' },
+          { key: 'alert', label: 'Urgent Notices' },
+          { key: 'achievement', label: 'Academic Notices' },
+          { key: 'info', label: 'General Notices' }
+        ].map((item) => (
           <button
-            key={cat}
+            key={item.key}
             type="button"
-            onClick={() => setFilterCategory(cat)}
-            className={`text-xs px-3.5 py-1.5 rounded-full font-bold transition cursor-pointer whitespace-nowrap ${
-              filterCategory === cat
-                ? 'bg-indigo-950 text-white shadow-xs'
-                : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+            onClick={() => setFilterCategory(item.key as any)}
+            className={`text-xs px-3.5 py-1.5 rounded-full font-medium transition cursor-pointer whitespace-nowrap ${
+              filterCategory === item.key
+                ? 'bg-slate-900 text-white shadow-xs'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200/80'
             }`}
           >
-            {cat === 'all' && '📢 All Notices'}
-            {cat === 'alert' && '⚠️ Urgent Alerts'}
-            {cat === 'achievement' && '🏆 Student Achievements'}
-            {cat === 'info' && 'ℹ️ General Updates'}
+            {item.label}
           </button>
         ))}
       </div>
 
-      {/* New Notice Form */}
+      {/* New Notice Form (Librarian Only) */}
       <AnimatePresence>
         {showForm && (
           <motion.form
@@ -108,12 +114,12 @@ export const AnnouncementBoard: React.FC = () => {
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             onSubmit={handleSubmit}
-            className="bg-white rounded-2xl border border-slate-200 p-6 shadow-md space-y-4 overflow-hidden"
+            className="bg-slate-50 rounded-2xl border border-slate-200 p-5 space-y-4 overflow-hidden"
           >
-            <h3 className="font-display font-black text-sm text-slate-900">Publish a New School Notice</h3>
+            <h3 className="font-display font-bold text-sm text-slate-900">Post New Official Notice</h3>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="sm:col-span-2">
-                <label htmlFor="notice-title" className="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">
+                <label htmlFor="notice-title" className="block text-xs font-semibold text-slate-700 mb-1">
                   Notice Title
                 </label>
                 <input
@@ -122,29 +128,29 @@ export const AnnouncementBoard: React.FC = () => {
                   required
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="e.g. Annual Book Fair Schedule"
-                  className="w-full text-xs sm:text-sm border border-slate-300 rounded-xl p-3 outline-none focus:ring-2 focus:ring-indigo-600 text-slate-800"
+                  placeholder="e.g. End of Term Book Returns"
+                  className="w-full text-xs sm:text-sm bg-white border border-slate-200 rounded-xl p-2.5 outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
                 />
               </div>
               <div>
-                <label htmlFor="notice-category" className="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">
-                  Notice Category
+                <label htmlFor="notice-category" className="block text-xs font-semibold text-slate-700 mb-1">
+                  Category
                 </label>
                 <select
                   id="notice-category"
                   value={category}
                   onChange={(e) => setCategory(e.target.value as Announcement['category'])}
-                  className="w-full text-xs sm:text-sm font-bold border border-slate-300 rounded-xl p-3 outline-none focus:ring-2 focus:ring-indigo-600 bg-white text-slate-800"
+                  className="w-full text-xs sm:text-sm font-medium bg-white border border-slate-200 rounded-xl p-2.5 outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
                 >
-                  <option value="info">📢 Standard Update</option>
-                  <option value="alert">⚠️ Urgent Warning / Deadline</option>
-                  <option value="achievement">🏆 Student Achievement</option>
+                  <option value="info">General Update</option>
+                  <option value="alert">Urgent / Deadline</option>
+                  <option value="achievement">Academic Program</option>
                 </select>
               </div>
             </div>
 
             <div>
-              <label htmlFor="notice-content" className="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">
+              <label htmlFor="notice-content" className="block text-xs font-semibold text-slate-700 mb-1">
                 Notice Message
               </label>
               <textarea
@@ -153,73 +159,82 @@ export const AnnouncementBoard: React.FC = () => {
                 rows={3}
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
-                placeholder="Write the full details of the notice here..."
-                className="w-full text-xs sm:text-sm border border-slate-300 rounded-xl p-3 outline-none focus:ring-2 focus:ring-indigo-600 text-slate-800"
+                placeholder="Full notice text and relevant instructions for students and staff..."
+                className="w-full text-xs sm:text-sm bg-white border border-slate-200 rounded-xl p-2.5 outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
               />
             </div>
 
-            <div className="flex justify-end gap-2.5">
+            <div className="flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setShowForm(false)}
-                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl"
+                className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-200 rounded-xl"
               >
-                Close
+                Cancel
               </button>
               <button
                 type="submit"
-                className="flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-600 text-white font-bold py-2 px-4 rounded-xl text-xs cursor-pointer shadow-xs"
+                className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-1.5 px-3.5 rounded-xl text-xs cursor-pointer shadow-xs"
               >
-                <Check className="w-4 h-4" />
-                Publish Notice
+                <Check className="w-3.5 h-3.5" />
+                <span>Post Notice</span>
               </button>
             </div>
           </motion.form>
         )}
       </AnimatePresence>
 
-      {/* Grid of Announcements with ARIA live region */}
+      {/* Grid of Announcements */}
       <section 
-        className="grid grid-cols-1 md:grid-cols-3 gap-5" 
+        className="grid grid-cols-1 md:grid-cols-3 gap-4" 
         aria-live="polite" 
         aria-label="School Announcements Feed"
       >
-        {filteredAnnouncements.map((ann, idx) => (
-          <motion.article
-            key={ann.id}
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: idx * 0.05 }}
-            className={`rounded-3xl p-6 flex flex-col justify-between ${getStyles(ann.category)}`}
-          >
-            <div className="space-y-3.5">
-              <div className="flex justify-between items-start gap-2">
-                <div className="p-2.5 bg-white rounded-xl shadow-xs flex items-center justify-center border border-slate-200">
-                  {getIcon(ann.category)}
+        {filteredAnnouncements.map((ann, idx) => {
+          const badge = getBadge(ann.category);
+          const Icon = badge.icon;
+          return (
+            <motion.article
+              key={ann.id}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: idx * 0.04 }}
+              className="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col justify-between shadow-xs hover:border-slate-300 transition-colors"
+            >
+              <div className="space-y-3">
+                <div className="flex justify-between items-center gap-2">
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border flex items-center gap-1 ${badge.badgeStyle}`}>
+                    <Icon className="w-3 h-3" />
+                    <span>{badge.label}</span>
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-400 flex items-center gap-1">
+                    <Calendar className="w-3 h-3" />
+                    {ann.date}
+                  </span>
                 </div>
-                <span className="text-[10px] font-mono font-bold tracking-wider text-slate-600 uppercase flex items-center gap-1 bg-white/60 px-2 py-0.5 rounded-md border border-slate-200">
-                  <Calendar className="w-3 h-3" />
-                  {ann.date}
-                </span>
+                <div>
+                  <h3 className="font-display font-bold text-sm sm:text-base text-slate-900 leading-snug">
+                    {ann.title}
+                  </h3>
+                  <p className="mt-1.5 text-xs leading-relaxed text-slate-600">
+                    {ann.content}
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-display font-black text-lg leading-snug text-slate-950">{ann.title}</h3>
-                <p className="mt-2 text-xs leading-relaxed text-slate-800 font-medium">{ann.content}</p>
-              </div>
-            </div>
 
-            {ann.category === 'alert' && (
-              <div className="mt-4 pt-3 border-t border-rose-200/80 flex items-center justify-between text-[11px] font-bold text-rose-900">
-                <span>Priority Notice</span>
-                <span className="font-mono text-[10px] uppercase bg-rose-200/80 px-2 py-0.5 rounded">Action Required</span>
-              </div>
-            )}
-          </motion.article>
-        ))}
+              {ann.category === 'alert' && (
+                <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px] font-semibold text-amber-800">
+                  <span>Action Required</span>
+                  <span className="text-[10px] bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">Notice</span>
+                </div>
+              )}
+            </motion.article>
+          );
+        })}
 
         {filteredAnnouncements.length === 0 && (
-          <div className="md:col-span-3 text-center py-16 bg-white border border-dashed border-slate-300 rounded-3xl p-6">
-            <p className="font-display font-bold text-slate-700 text-sm">No announcements in this category</p>
+          <div className="md:col-span-3 text-center py-12 bg-slate-50 border border-dashed border-slate-200 rounded-2xl p-6">
+            <p className="text-xs text-slate-500 font-medium">No announcements in this category.</p>
           </div>
         )}
       </section>

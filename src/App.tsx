@@ -7,7 +7,6 @@ import React from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { AppProvider, useApp } from './context/AppContext';
 import { Navbar } from './components/Navbar';
-import { RoleSwitchBanner } from './components/RoleSwitchBanner';
 import { ClassRosterManagementModal } from './components/ClassRosterManagementModal';
 import { AnnouncementBoard } from './components/AnnouncementBoard';
 import { BookCatalog } from './components/BookCatalog';
@@ -21,19 +20,14 @@ import {
   BookOpen, 
   Award, 
   FileSpreadsheet, 
-  Feather, 
   Library, 
   CheckSquare, 
-  Compass, 
   ArrowRight, 
-  Star, 
   Lock, 
-  UserCheck, 
   ShieldCheck, 
   LogIn,
-  Sparkles,
-  Bell,
-  GraduationCap
+  Star,
+  Bell
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Login } from './components/Login';
@@ -43,50 +37,13 @@ import { HomeDiscoveryHub } from './components/HomeDiscoveryHub';
  * 1. Home View Component
  * ------------------------------------------------------------- */
 function HomeView() {
-  const { isLibrarianLoggedIn, loggedInLearner, currentUser, userRole } = useApp();
-  const navigate = useNavigate();
-  const isLoggedIn = isLibrarianLoggedIn || !!loggedInLearner || !!currentUser;
-
   return (
-    <div className="space-y-12">
-      {/* Epic-inspired Discovery & Reading Hub */}
+    <div className="space-y-16">
+      {/* 1. Hero, 2. Limited Catalog Preview, 3. What You Can Do */}
       <HomeDiscoveryHub />
 
-      {/* Core Pillars */}
-      <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="glass p-6 sm:p-8 rounded-3xl shadow-sm space-y-3 border border-slate-200/80">
-          <div className="p-3 bg-blue-50 text-blue-900 rounded-2xl inline-block shadow-2xs">
-            <Feather className="w-6 h-6" />
-          </div>
-          <h3 className="font-display font-extrabold text-base text-slate-900">Publish Student Voices</h3>
-          <p className="text-xs text-slate-600 leading-relaxed">
-            Faculty and teacher moderated spaces allow young scholars to write and publish original short stories, essays, and poetry to the community gallery.
-          </p>
-        </div>
-
-        <div className="glass p-6 sm:p-8 rounded-3xl shadow-sm space-y-3 border border-slate-200/80">
-          <div className="p-3 bg-amber-50 text-amber-900 rounded-2xl inline-block shadow-2xs">
-            <FileSpreadsheet className="w-6 h-6" />
-          </div>
-          <h3 className="font-display font-extrabold text-base text-slate-900">Digital Automation (ILAS)</h3>
-          <p className="text-xs text-slate-600 leading-relaxed">
-            Track book loans, view due dates, restock inventories, and trigger automated reminders with our advanced library circulation system.
-          </p>
-        </div>
-
-        <div className="glass p-6 sm:p-8 rounded-3xl shadow-sm space-y-3 border border-slate-200/80">
-          <div className="p-3 bg-emerald-50 text-emerald-900 rounded-2xl inline-block shadow-2xs">
-            <Award className="w-6 h-6" />
-          </div>
-          <h3 className="font-display font-extrabold text-base text-slate-900">Classroom Mentorship</h3>
-          <p className="text-xs text-slate-600 leading-relaxed">
-            Teachers monitor their assigned student cohorts, review drafts, provide encouraging feedback, and celebrate student literacy milestones.
-          </p>
-        </div>
-      </section>
-
-      {/* Public Bulletin Updates Section */}
-      <section className="glass rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200/80">
+      {/* 4. Bulletin & Notices Section */}
+      <section className="bg-white rounded-3xl p-6 sm:p-10 shadow-xs border border-slate-200">
         <AnnouncementBoard />
       </section>
     </div>
@@ -155,12 +112,12 @@ function CatalogView() {
                 </div>
               </div>
 
-              <div className="bg-gradient-to-br from-blue-500/10 to-teal-600/10 border border-blue-200/50 p-5 rounded-3xl space-y-3">
+              <div className="bg-blue-50/70 border border-blue-200/60 p-5 rounded-3xl space-y-3">
                 <h4 className="font-display font-extrabold text-xs text-blue-900 uppercase tracking-wider flex items-center gap-1">
-                  <Star className="w-4 h-4 fill-amber-500 text-amber-500" /> Active Student Account
+                  <CheckSquare className="w-4 h-4 text-blue-600" /> Active Student Account
                 </h4>
                 <p className="text-[11px] text-blue-800 leading-relaxed">
-                  You are signed in as <span className="font-bold">{loggedInLearner.name}</span>. You can reserve books, review loans, and submit creative writings.
+                  You are signed in as <span className="font-bold">{loggedInLearner.name}</span>. You can search the catalog, place holds on books, and manage your active loans.
                 </p>
               </div>
             </div>
@@ -193,11 +150,11 @@ function SubmitView() {
       <div className="bg-white p-8 rounded-3xl border border-slate-200 text-center space-y-4 max-w-md mx-auto my-12 shadow-sm">
         <Lock className="w-10 h-10 text-amber-500 mx-auto" />
         <h3 className="font-display font-extrabold text-lg text-slate-900">Student Sign-In Required</h3>
-        <p className="text-xs text-slate-500">You must be signed in with your Student account to submit creative stories and artwork.</p>
+        <p className="text-xs text-slate-500">You must be signed in with your Student account to submit a book recommendation or reading response.</p>
         <button
           type="button"
           onClick={() => navigate('/login?redirect=/submit')}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-5 py-2.5 rounded-xl transition cursor-pointer"
+          className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-5 py-2.5 rounded-xl transition cursor-pointer shadow-xs"
         >
           Sign In to Submit
         </button>
@@ -244,7 +201,7 @@ function AnalyticsView() {
 }
 
 /* -------------------------------------------------------------
- * 4. Circulation View Component (Librarian Only)
+ * 5. Circulation View Component (Librarian Only)
  * ------------------------------------------------------------- */
 function CirculationView() {
   const { isAdmin } = useApp();
@@ -255,7 +212,7 @@ function CirculationView() {
       <div className="bg-white p-8 rounded-3xl border border-slate-200 text-center space-y-4 max-w-md mx-auto my-12 shadow-sm">
         <Lock className="w-10 h-10 text-amber-500 mx-auto" />
         <h3 className="font-display font-extrabold text-lg text-slate-900">Librarian Access Required</h3>
-        <p className="text-xs text-slate-500">The Circulation Management Console is restricted to library administrative staff.</p>
+        <p className="text-xs text-slate-500">The Circulation Desk is restricted to library administrative staff.</p>
         <button
           type="button"
           onClick={() => navigate('/admin')}
@@ -275,7 +232,7 @@ function CirculationView() {
 }
 
 /* -------------------------------------------------------------
- * 5. Moderator View Component (Staff & Librarian)
+ * 6. Moderator View Component (Staff & Librarian)
  * ------------------------------------------------------------- */
 function ModeratorView() {
   const { isStaff, isAdmin } = useApp();
@@ -285,8 +242,8 @@ function ModeratorView() {
     return (
       <div className="bg-white p-8 rounded-3xl border border-slate-200 text-center space-y-4 max-w-md mx-auto my-12 shadow-sm">
         <Lock className="w-10 h-10 text-amber-500 mx-auto" />
-        <h3 className="font-display font-extrabold text-lg text-slate-900">Faculty Access Required</h3>
-        <p className="text-xs text-slate-500">The Moderation Workspace is restricted to teachers and library staff.</p>
+        <h3 className="font-display font-extrabold text-lg text-slate-900">Staff Access Required</h3>
+        <p className="text-xs text-slate-500">The Review Queue is restricted to faculty and library staff.</p>
         <button
           type="button"
           onClick={() => navigate('/admin')}
@@ -306,7 +263,7 @@ function ModeratorView() {
 }
 
 /* -------------------------------------------------------------
- * 6. Desk Utilities View Component (Librarian Only)
+ * 7. Desk Utilities View Component (Librarian Only)
  * ------------------------------------------------------------- */
 function DeskView() {
   const { isAdmin } = useApp();
@@ -317,7 +274,7 @@ function DeskView() {
       <div className="bg-white p-8 rounded-3xl border border-slate-200 text-center space-y-4 max-w-md mx-auto my-12 shadow-sm">
         <Lock className="w-10 h-10 text-amber-500 mx-auto" />
         <h3 className="font-display font-extrabold text-lg text-slate-900">Librarian Access Required</h3>
-        <p className="text-xs text-slate-500">The Circulation Desk & Utilities console is restricted to library administrative staff.</p>
+        <p className="text-xs text-slate-500">The Circulation Desk is restricted to library administrative staff.</p>
         <button
           type="button"
           onClick={() => navigate('/admin')}
@@ -337,7 +294,7 @@ function DeskView() {
 }
 
 /* -------------------------------------------------------------
- * 7. Bulletin View Component
+ * 8. Bulletin View Component
  * ------------------------------------------------------------- */
 function BulletinView() {
   return (
@@ -345,10 +302,10 @@ function BulletinView() {
       <div className="mb-6 pb-4 border-b border-slate-100">
         <h2 className="font-display font-extrabold text-xl sm:text-2xl text-slate-900 flex items-center gap-2">
           <Bell className="w-6 h-6 text-amber-500" />
-          School Library Bulletin & Notices
+          Library Notices
         </h2>
         <p className="text-xs sm:text-sm text-slate-500 mt-1">
-          Stay informed with the latest library updates, literacy milestones, book club schedules, and announcements.
+          Official announcements, schedule updates, book return deadlines, and library notices.
         </p>
       </div>
       <AnnouncementBoard />
@@ -365,11 +322,8 @@ function AppContent() {
   const { isLibrarianLoggedIn, loggedInLearner, userRole } = useApp();
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-between font-sans text-slate-800 antialiased selection:bg-yellow-500 selection:text-slate-950">
+    <div className="min-h-screen bg-slate-50 flex flex-col justify-between font-sans text-slate-800 antialiased selection:bg-blue-500 selection:text-white">
       
-      {/* Top Interactive Role Perspective Switcher */}
-      <RoleSwitchBanner />
-
       {/* Main navigation */}
       <Navbar />
 
@@ -410,35 +364,45 @@ function AppContent() {
       </main>
 
       {/* Footer */}
-      <footer className="bg-slate-950 text-slate-500 py-10 border-t border-slate-900/60 mt-16 text-center text-xs">
+      <footer className="bg-white text-slate-500 py-10 border-t border-slate-200 mt-16 text-center text-xs">
         <div className="max-w-7xl mx-auto px-4 space-y-3">
-          <p className="font-semibold text-slate-400 uppercase tracking-widest text-[10px]">PREMIER INTERNATIONAL SCHOOL DIGITAL LIBRARY PORTAL</p>
-          <p className="text-slate-600 leading-relaxed max-w-md mx-auto">
-            Empowering students, educators, and staff with visual-first content discovery, classroom roster management, and creative student publishing.
+          <p className="font-semibold text-slate-700 uppercase tracking-widest text-[11px]">
+            Premier International School Digital Library Portal
           </p>
-          <div className="pt-2 text-[10px] text-slate-700 font-mono flex flex-wrap justify-center items-center gap-4">
+          <p className="text-slate-500 leading-relaxed max-w-md mx-auto text-xs">
+            Providing students, educators, and staff with catalog discovery, library circulation, and academic reading resources.
+          </p>
+          <div className="pt-2 text-[11px] text-slate-500 font-medium flex flex-wrap justify-center items-center gap-4">
             <span>&copy; 2026 Premier International School.</span>
             <span>•</span>
             <button 
               type="button"
               onClick={() => navigate('/')}
-              className="hover:text-amber-400 underline cursor-pointer"
+              className="hover:text-blue-600 underline cursor-pointer"
             >
-              Public Discovery Hub
+              Library Home
             </button>
             <span>•</span>
             <button 
               type="button"
               onClick={() => navigate('/catalog')}
-              className="hover:text-amber-400 underline cursor-pointer"
+              className="hover:text-blue-600 underline cursor-pointer"
             >
-              Visual Catalog
+              Catalog
+            </button>
+            <span>•</span>
+            <button 
+              type="button"
+              onClick={() => navigate('/announcements')}
+              className="hover:text-blue-600 underline cursor-pointer"
+            >
+              Library Notices
             </button>
             <span>•</span>
             <button 
               type="button"
               onClick={() => navigate('/admin')}
-              className="hover:text-amber-400 underline cursor-pointer"
+              className="hover:text-blue-600 underline cursor-pointer"
             >
               Staff & Admin Portal
             </button>
