@@ -27,7 +27,10 @@ import {
   ArrowUpDown,
   RotateCcw,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Database,
+  RefreshCw,
+  Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -56,6 +59,12 @@ export const BookCatalog: React.FC = () => {
     currentRole,
     isAdmin,
     addBook,
+    deleteBook,
+    clearSampleBooks,
+    isCloudConnected,
+    isLoadingCloudBooks,
+    cloudSyncStatus,
+    refreshBooks,
     currentUser,
     loggedInLearner,
     circulation,
@@ -63,6 +72,8 @@ export const BookCatalog: React.FC = () => {
     currentLearnerName,
     checkoutBook
   } = useApp();
+
+  const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
 
   // Local filter controls
   const [activeSort, setActiveSort] = useState<'reads' | 'title' | 'rating' | 'newest' | 'callNumber'>('reads');
@@ -435,16 +446,54 @@ export const BookCatalog: React.FC = () => {
               </button>
             </div>
 
-            {/* Admin Add Title Button */}
+            {/* Admin Controls & Supabase Cloud Status */}
             {isAdmin && (
-              <button
-                type="button"
-                onClick={() => setIsAddBookModalOpen(true)}
-                className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer transition active:scale-95"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Accession Title</span>
-              </button>
+              <div className="flex items-center gap-1.5">
+                {isCloudConnected ? (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await refreshBooks();
+                      showToast('success', 'Catalog synced with Supabase database.');
+                    }}
+                    disabled={isLoadingCloudBooks}
+                    className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition disabled:opacity-50"
+                    title="Sync with Supabase PostgreSQL Database"
+                  >
+                    <RefreshCw className={`w-3 h-3 text-emerald-600 ${isLoadingCloudBooks ? 'animate-spin' : ''}`} />
+                    <span className="hidden sm:inline">
+                      {cloudSyncStatus === 'synced' ? 'Supabase Synced' : cloudSyncStatus === 'empty' ? 'Supabase (0 Books)' : 'Sync Cloud'}
+                    </span>
+                  </button>
+                ) : (
+                  <div 
+                    className="px-2.5 py-1.5 bg-slate-100 text-slate-600 border border-slate-200 rounded-xl text-xs font-medium flex items-center gap-1.5"
+                    title="Local storage mode. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY on Netlify or .env to enable cloud database."
+                  >
+                    <Database className="w-3 h-3 text-slate-500" />
+                    <span className="hidden sm:inline">Local Mode</span>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setIsClearConfirmOpen(true)}
+                  className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold rounded-xl flex items-center gap-1.5 cursor-pointer transition"
+                  title="Remove default demonstration sample books"
+                >
+                  <Trash2 className="w-3 h-3 text-rose-600" />
+                  <span className="hidden md:inline">Clear Sample Books</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsAddBookModalOpen(true)}
+                  className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer transition active:scale-95"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Accession Title</span>
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -926,6 +975,55 @@ export const BookCatalog: React.FC = () => {
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Confirmation Modal for Clearing Sample Books */}
+      <AnimatePresence>
+        {isClearConfirmOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl p-6 max-w-md w-full border border-slate-200 shadow-xl space-y-4"
+            >
+              <div className="flex items-start gap-3">
+                <div className="p-2.5 bg-rose-100 text-rose-700 rounded-2xl shrink-0">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-display font-bold text-base text-slate-900">
+                    Clear Generic Sample Titles?
+                  </h3>
+                  <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                    This removes the default demonstration books from your catalog view. Any books you add or sync from your Supabase PostgreSQL database will remain active.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsClearConfirmOpen(false)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    clearSampleBooks();
+                    setIsClearConfirmOpen(false);
+                    showToast('success', 'Default sample books cleared.');
+                  }}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-xl cursor-pointer shadow-xs transition"
+                >
+                  Yes, Clear Sample Books
+                </button>
+              </div>
             </motion.div>
           </div>
         )}

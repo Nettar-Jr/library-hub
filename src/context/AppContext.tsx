@@ -6,6 +6,12 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Book, CirculationRecord, StudentSubmission, Announcement, UserRole, AppRole, LibraryUser, User, NavView, BookHold, BookReview, HeroSpotlightData, CatalogViewMode } from '../types';
 import { initialBooks, initialCirculation, initialSubmissions, initialAnnouncements, initialHeroSpotlight } from '../data';
+import { 
+  isSupabaseConfigured, 
+  fetchBooksFromSupabase, 
+  insertBookToSupabase, 
+  deleteBookFromSupabase 
+} from '../services/supabase';
 
 export interface EmailLog {
   id: string;
@@ -117,7 +123,13 @@ interface AppContextType {
   renewLoan: (recordId: string, days?: number) => { success: boolean; message: string };
   updateBookUsageType: (bookId: string, usageType: 'circulation' | 'reserve') => void;
   
-  // Actions
+  // Actions & Supabase Cloud Integration
+  isCloudConnected: boolean;
+  isLoadingCloudBooks: boolean;
+  cloudSyncStatus: 'synced' | 'connecting' | 'syncing' | 'local' | 'empty' | 'error';
+  refreshBooks: () => Promise<void>;
+  deleteBook: (bookId: string) => Promise<{ success: boolean; message: string }>;
+  clearSampleBooks: () => void;
   addBook: (book: Omit<Book, 'id' | 'readsCount'>) => void;
   checkoutBook: (bookId: string, learnerName: string, days?: number) => { success: boolean; message: string };
   returnBook: (recordId: string) => void;
@@ -390,6 +402,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [currentLearnerName, setCurrentLearnerName] = useState<string>(() => {
     return localStorage.getItem('p_learner_name') || 'Chidi Okafor (Year 9)';
   });
+
+  // Supabase Cloud State
+  const [isCloudConnected] = useState<boolean>(isSupabaseConfigured);
+  const [isLoadingCloudBooks, setIsLoadingCloudBooks] = useState<boolean>(false);
+  const [cloudSyncStatus, setCloudSyncStatus] = useState<'synced' | 'connecting' | 'syncing' | 'local' | 'empty' | 'error'>(
+    isSupabaseConfigured ? 'connecting' : 'local'
+  );
+
+  const refreshBooks = async () => {
+    if (!isSupabaseConfigured) return;
+    setIsLoadingCloudBooks(true);
+    setCloudSyncStatus('syncing');
+    try {
+      const { data, error } = await fetchBooksFromSupabase();
+      setIsLoadingCloudBooks(false);
+      if (error) {
+        console.warn('Could not sync books from Supabase:', error);
+        setCloudSyncStatus('error');
+      } else if (data && data.length > 0) {
+        setBooks(data);
+        setCloudSyncStatus('synced');
+      } else {
+        // Connected, but no records yet in Supabase
+        setCloudSyncStatus('empty');
+      }
+    } catch {
+      setIsLoadingCloudBooks(false);
+      setCloudSyncStatus('error');
+    }
+  };
+
+  useEffect(() => {
+    if (isSupabaseConfigured) {
+      refreshBooks();
+    }
+  }, []);
 
   // Derived role flags
   const isLoggedIn = currentUser !== null;
@@ -711,13 +759,54 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Actions implementation
-  const addBook = (newBookData: Omit<Book, 'id' | 'readsCount'>) => {
+  const addBook = async (newBookData: Omit<Book, 'id' | 'readsCount'>) => {
+    const tempId = `book-${Date.now()}`;
     const newBook: Book = {
       ...newBookData,
-      id: `book-${Date.now()}`,
+      id: tempId,
       readsCount: 0,
     };
+    // Optimistic local state update
     setBooks((prev) => [newBook, ...prev]);
+
+    // Persist to Supabase if connected
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await insertBookToSupabase(newBookData);
+        if (data) {
+          // Replace temp optimistic book with server-generated ID and record
+          setBooks((prev) => prev.map((b) => (b.id === tempId ? data : b)));
+          setCloudSyncStatus('synced');
+        } else if (error) {
+          console.warn('Could not insert to Supabase, retained in local storage:', error);
+        }
+      } catch (err) {
+        console.error('Failed to save to Supabase:', err);
+      }
+    }
+  };
+
+  const deleteBook = async (bookId: string): Promise<{ success: boolean; message: string }> => {
+    setBooks((prev) => prev.filter((b) => b.id !== bookId));
+    if (isSupabaseConfigured) {
+      try {
+        await deleteBookFromSupabase(bookId);
+      } catch (err) {
+        console.warn('Failed to delete from Supabase:', err);
+      }
+    }
+    return { success: true, message: 'Title removed from catalog.' };
+  };
+
+  const clearSampleBooks = () => {
+    const sampleIds = new Set(initialBooks.map((b) => b.id));
+    setBooks((prev) => prev.filter((b) => !sampleIds.has(b.id)));
+    try {
+      localStorage.removeItem('p_books_v3');
+      localStorage.removeItem('p_books');
+    } catch {
+      // ignore
+    }
   };
 
   const checkoutBook = (bookId: string, learnerName: string, days = 14) => {
@@ -1171,6 +1260,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         triggerOverdueEmail,
         sendLostEmail,
         emailLogs,
+        isCloudConnected,
+        isLoadingCloudBooks,
+        cloudSyncStatus,
+        refreshBooks,
+        deleteBook,
+        clearSampleBooks,
         addBook,
         checkoutBook,
         returnBook,

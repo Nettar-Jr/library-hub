@@ -19,7 +19,8 @@ import {
   Layers,
   Check,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Trash2
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -40,7 +41,9 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({ book, onClose 
     releaseHold, 
     addBookReview, 
     checkoutBook,
-    setSelectedBook
+    setSelectedBook,
+    isAdmin,
+    deleteBook
   } = useApp();
 
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
@@ -304,6 +307,21 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({ book, onClose 
               {isSavedToShelf ? <Check className="w-4 h-4 text-slate-900" /> : <BookMarked className="w-4 h-4 text-slate-500" />}
               <span>{isSavedToShelf ? 'Saved to List' : 'Save to List'}</span>
             </button>
+
+            {(isAdmin || currentRole === 'STAFF' || currentRole === 'ADMIN') && (
+              <button
+                type="button"
+                onClick={async () => {
+                  await deleteBook(book.id);
+                  onClose();
+                }}
+                className="px-3 py-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 transition cursor-pointer"
+                title="Delete title from library catalog"
+              >
+                <Trash2 className="w-4 h-4 text-rose-600" />
+                <span className="hidden sm:inline">Delete</span>
+              </button>
+            )}
           </div>
 
           {/* Audio Visualizer if Active */}
