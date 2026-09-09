@@ -345,17 +345,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
 
   const [books, setBooks] = useState<Book[]>(() => {
-    const saved = localStorage.getItem('p_books_v3') || localStorage.getItem('p_books');
+    const samplesCleared = localStorage.getItem('p_samples_cleared') === 'true';
+    const saved = localStorage.getItem('p_books_v3');
+    if (samplesCleared) {
+      if (saved) {
+        try {
+          const parsed: Book[] = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+            const sampleIds = new Set(initialBooks.map(ib => ib.id));
+            return parsed.filter(b => !sampleIds.has(b.id));
+          }
+        } catch {
+          return [];
+        }
+      }
+      return [];
+    }
     if (saved) {
       try {
         const parsed: Book[] = JSON.parse(saved);
-        // Merge with initialBooks so missing coverImages and new fields are populated
-        return initialBooks.map(ib => {
-          const matched = parsed.find(p => p.id === ib.id);
-          return matched ? { ...ib, ...matched, coverImage: matched.coverImage || ib.coverImage } : ib;
-        }).concat(parsed.filter(p => !initialBooks.some(ib => ib.id === p.id)));
+        if (Array.isArray(parsed)) {
+          return parsed;
+        }
       } catch {
-        return initialBooks;
+        return [];
       }
     }
     return initialBooks;
@@ -363,7 +376,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [circulation, setCirculation] = useState<CirculationRecord[]>(() => {
     const saved = localStorage.getItem('p_circulation');
-    return saved ? JSON.parse(saved) : initialCirculation;
+    if (saved) {
+      try {
+        const parsed: CirculationRecord[] = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          const sampleIds = new Set(initialBooks.map(b => b.id));
+          // Strip out old mock loans or any loans referencing initial sample books
+          return parsed.filter(c => !sampleIds.has(c.bookId) && !c.id.startsWith('loan-'));
+        }
+      } catch {
+        return [];
+      }
+    }
+    return [];
   });
 
   const [submissions, setSubmissions] = useState<StudentSubmission[]>(() => {
@@ -422,9 +447,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setCloudSyncStatus('error');
       } else if (data && data.length > 0) {
         setBooks(data);
+        localStorage.setItem('p_books_v3', JSON.stringify(data));
         setCloudSyncStatus('synced');
-      } else {
-        // Connected, but no records yet in Supabase
+      } else if (data && data.length === 0) {
+        // Connected to Supabase, but 0 books exist in cloud database yet
+        // Clear sample books so catalog reflects the clean database
+        setBooks([]);
+        localStorage.setItem('p_samples_cleared', 'true');
+        localStorage.setItem('p_books_v3', JSON.stringify([]));
         setCloudSyncStatus('empty');
       }
     } catch {
@@ -787,7 +817,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteBook = async (bookId: string): Promise<{ success: boolean; message: string }> => {
-    setBooks((prev) => prev.filter((b) => b.id !== bookId));
+    setBooks((prev) => {
+      const updated = prev.filter((b) => b.id !== bookId);
+      localStorage.setItem('p_books_v3', JSON.stringify(updated));
+      return updated;
+    });
+    setCirculation((prev) => {
+      const updatedCirc = prev.filter((c) => c.bookId !== bookId);
+      localStorage.setItem('p_circulation', JSON.stringify(updatedCirc));
+      return updatedCirc;
+    });
     if (isSupabaseConfigured) {
       try {
         await deleteBookFromSupabase(bookId);
@@ -800,13 +839,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const clearSampleBooks = () => {
     const sampleIds = new Set(initialBooks.map((b) => b.id));
-    setBooks((prev) => prev.filter((b) => !sampleIds.has(b.id)));
-    try {
-      localStorage.removeItem('p_books_v3');
-      localStorage.removeItem('p_books');
-    } catch {
-      // ignore
-    }
+    localStorage.setItem('p_samples_cleared', 'true');
+    setBooks((prev) => {
+      const remaining = prev.filter((b) => !sampleIds.has(b.id));
+      localStorage.setItem('p_books_v3', JSON.stringify(remaining));
+      return remaining;
+    });
+    // Remove all hardcoded circulation records from circulation and statics
+    setCirculation((prev) => {
+      const remainingCirc = prev.filter((c) => !sampleIds.has(c.bookId) && !c.id.startsWith('loan-'));
+      localStorage.setItem('p_circulation', JSON.stringify(remainingCirc));
+      return remainingCirc;
+    });
+    localStorage.removeItem('p_books');
   };
 
   const checkoutBook = (bookId: string, learnerName: string, days = 14) => {

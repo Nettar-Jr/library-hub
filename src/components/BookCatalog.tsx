@@ -642,25 +642,53 @@ export const BookCatalog: React.FC = () => {
 
       {/* 3A. Collections / Carousel View */}
       {activeMode === 'CAROUSEL' ? (
-        <div className="space-y-10 py-2">
-          {curatedCollections.map((collection) => {
-            if (collection.books.length === 0) return null;
-            return (
-              <SwimlaneRow
-                key={collection.id}
-                title={collection.title}
-                subtitle={collection.subtitle}
-                books={collection.books}
-                userLoanMap={userLoanMap}
-                userHoldMap={userHoldMap}
-                onViewAll={() => handleSelectViewAll(collection.categoryTag)}
-                onBookClick={(book) => setSelectedBook(book)}
-                onBorrow={isLearner ? handleQuickBorrow : undefined}
-                isLearner={isLearner}
-              />
-            );
-          })}
-        </div>
+        books.length === 0 ? (
+          <div className="col-span-full text-center py-16 bg-white border border-dashed border-slate-200 rounded-2xl p-8 space-y-4 my-6">
+            <div className="p-3 bg-slate-50 text-slate-400 rounded-full w-12 h-12 mx-auto flex items-center justify-center border border-slate-200">
+              <BookOpen className="w-6 h-6" />
+            </div>
+            <div className="space-y-1.5 max-w-md mx-auto">
+              <h3 className="font-display font-bold text-slate-900 text-sm sm:text-base">
+                Library Catalog is Ready
+              </h3>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Demonstration sample titles have been cleared. Accession your school library's physical titles or sync from Supabase to populate your collection.
+              </p>
+            </div>
+            {isAdmin && (
+              <div className="pt-2 flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => setIsAddBookModalOpen(true)}
+                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold cursor-pointer transition shadow-xs flex items-center gap-1.5"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Accession First Title</span>
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-10 py-2">
+            {curatedCollections.map((collection) => {
+              if (collection.books.length === 0) return null;
+              return (
+                <SwimlaneRow
+                  key={collection.id}
+                  title={collection.title}
+                  subtitle={collection.subtitle}
+                  books={collection.books}
+                  userLoanMap={userLoanMap}
+                  userHoldMap={userHoldMap}
+                  onViewAll={() => handleSelectViewAll(collection.categoryTag)}
+                  onBookClick={(book) => setSelectedBook(book)}
+                  onBorrow={isLearner ? handleQuickBorrow : undefined}
+                  isLearner={isLearner}
+                />
+              );
+            })}
+          </div>
+        )
       ) : (
         /* 3B. Complete Catalog Grid View */
         <section className="space-y-4" aria-label="Catalog Results Grid">
@@ -722,35 +750,40 @@ export const BookCatalog: React.FC = () => {
                 </div>
                 <div className="space-y-1.5 max-w-md mx-auto">
                   <h3 className="font-display font-bold text-slate-900 text-sm sm:text-base">
-                    No catalog records found
+                    {books.length === 0 ? 'Library Catalog is Ready' : 'No catalog records found'}
                   </h3>
                   <p className="text-xs text-slate-500 leading-relaxed">
-                    {myActivityFilter !== 'ALL'
-                      ? myActivityFilter === 'LOANS'
-                        ? "You have no active loans matching this search. Browse the catalog to borrow or reserve available titles."
-                        : "You have no active holds matching this search. You can place 24-hour holds on available physical copies."
-                      : "We couldn't find any resources matching your search criteria or filters. Check your spelling or reset filters to browse the complete collection."}
+                    {books.length === 0
+                      ? "Demonstration sample titles have been cleared. Accession your school library's physical titles or sync from Supabase to populate your collection."
+                      : myActivityFilter !== 'ALL'
+                        ? myActivityFilter === 'LOANS'
+                          ? "You have no active loans matching this search. Browse the catalog to borrow or reserve available titles."
+                          : "You have no active holds matching this search. You can place 24-hour holds on available physical copies."
+                        : "We couldn't find any resources matching your search criteria or filters. Check your spelling or reset filters to browse the complete collection."}
                   </p>
                 </div>
-                <div className="pt-2 flex flex-wrap items-center justify-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handleResetFilters}
-                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold cursor-pointer transition shadow-xs"
-                  >
-                    Reset All Filters
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      handleResetFilters();
-                      setCatalogViewMode('CAROUSEL');
-                    }}
-                    className="px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold cursor-pointer transition"
-                  >
-                    View Curated Collections
-                  </button>
-                </div>
+                {books.length === 0 && isAdmin ? (
+                  <div className="pt-2 flex justify-center">
+                    <button
+                      type="button"
+                      onClick={() => setIsAddBookModalOpen(true)}
+                      className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold cursor-pointer transition shadow-xs flex items-center gap-1.5"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Accession First Title</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="pt-2 flex flex-wrap items-center justify-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleResetFilters}
+                      className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold cursor-pointer transition shadow-xs"
+                    >
+                      Reset All Filters
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>

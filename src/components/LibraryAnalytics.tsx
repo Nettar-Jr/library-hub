@@ -123,15 +123,16 @@ export const LibraryAnalytics: React.FC = () => {
 
   // Most popular category (the class with the highest total reads)
   const sortedByPopularity = [...ddcStats].sort((a, b) => b.totalReads - a.totalReads);
-  const mostPopularClass = sortedByPopularity[0];
+  const mostPopularClass = sortedByPopularity[0]?.totalReads > 0 ? sortedByPopularity[0] : null;
 
   // Neglected categories for management report (readsCount under average and has books)
   const neglectedClasses = ddcStats
     .filter(c => c.uniqueTitles > 0 && c.totalReads < (totalBorrowingsAcrossHistory / 10))
     .sort((a, b) => a.totalReads - b.totalReads);
 
-  // 3. Most borrowed books list (Top 5)
+  // 3. Most borrowed books list (Top 5 with at least 1 read)
   const topBorrowedBooks = [...books]
+    .filter(b => b.readsCount > 0)
     .sort((a, b) => b.readsCount - a.readsCount)
     .slice(0, 5);
 
@@ -695,23 +696,25 @@ export const LibraryAnalytics: React.FC = () => {
                 <div className="space-y-1">
                   <span className="text-[10px] uppercase font-bold tracking-wider text-indigo-200 block">Peak Borrowing Category</span>
                   <h4 className="text-lg font-display font-black leading-tight text-white">
-                    {mostPopularClass ? mostPopularClass.name : 'Literature, Fiction & Poetry'}
+                    {mostPopularClass ? mostPopularClass.name : 'Awaiting Lending Activity'}
                   </h4>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 border-t border-white/10 pt-4 text-xs font-mono">
                   <div>
                     <span className="block text-[9px] text-indigo-300 uppercase font-sans font-bold">Total Reads</span>
-                    <span className="text-base font-black text-amber-300">{mostPopularClass ? mostPopularClass.totalReads : 0} lendings</span>
+                    <span className="text-base font-black text-amber-300">{mostPopularClass ? `${mostPopularClass.totalReads} lendings` : '0 lendings'}</span>
                   </div>
                   <div>
                     <span className="block text-[9px] text-indigo-300 uppercase font-sans font-bold">DDC Code Range</span>
-                    <span className="text-base font-black text-white">{mostPopularClass ? mostPopularClass.range : '800-899'}</span>
+                    <span className="text-base font-black text-white">{mostPopularClass ? mostPopularClass.range : '—'}</span>
                   </div>
                 </div>
                 
                 <p className="text-[11px] text-indigo-200 leading-relaxed italic">
-                  Engagement is peak in this area. Encourage classroom teachers to reward diverse subject readings!
+                  {mostPopularClass 
+                    ? 'Engagement is peak in this area. Encourage classroom teachers to reward diverse subject readings!'
+                    : 'Class-level borrowing trends will appear here as books are issued to learners.'}
                 </p>
               </div>
 
@@ -727,37 +730,43 @@ export const LibraryAnalytics: React.FC = () => {
                 </div>
 
                 <div className="space-y-3">
-                  {topBorrowedBooks.map((book, idx) => {
-                    const colorMap = [
-                      'bg-amber-400 text-amber-950 border-amber-500', 
-                      'bg-slate-300 text-slate-800 border-slate-400',  
-                      'bg-amber-700 text-white border-amber-800',      
-                      'bg-slate-100 text-slate-600 border-slate-200',  
-                      'bg-slate-100 text-slate-600 border-slate-200',  
-                    ];
+                  {topBorrowedBooks.length === 0 ? (
+                    <div className="p-4 text-center text-xs text-slate-400 italic">
+                      No borrowings recorded yet. Statistics update live as books are checked out.
+                    </div>
+                  ) : (
+                    topBorrowedBooks.map((book, idx) => {
+                      const colorMap = [
+                        'bg-amber-400 text-amber-950 border-amber-500', 
+                        'bg-slate-300 text-slate-800 border-slate-400',  
+                        'bg-amber-700 text-white border-amber-800',      
+                        'bg-slate-100 text-slate-600 border-slate-200',  
+                        'bg-slate-100 text-slate-600 border-slate-200',  
+                      ];
 
-                    return (
-                      <div key={book.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-slate-50/50 border border-slate-50 transition-all text-xs">
-                        <div className="flex items-center gap-3">
-                          <span className={`w-6 h-6 rounded-lg text-[10px] font-bold flex items-center justify-center border font-mono shrink-0 ${colorMap[idx]}`}>
-                            #{idx + 1}
-                          </span>
-                          <div>
-                            <h4 className="font-bold text-slate-800 line-clamp-1 italic">{book.title}</h4>
-                            <div className="flex items-center gap-1.5 text-[9px] text-slate-400 font-mono">
-                              <span>DDC: {book.deweyCode}</span>
-                              <span>•</span>
-                              <span>{book.author}</span>
+                      return (
+                        <div key={book.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-slate-50/50 border border-slate-50 transition-all text-xs">
+                          <div className="flex items-center gap-3">
+                            <span className={`w-6 h-6 rounded-lg text-[10px] font-bold flex items-center justify-center border font-mono shrink-0 ${colorMap[idx]}`}>
+                              #{idx + 1}
+                            </span>
+                            <div>
+                              <h4 className="font-bold text-slate-800 line-clamp-1 italic">{book.title}</h4>
+                              <div className="flex items-center gap-1.5 text-[9px] text-slate-400 font-mono">
+                                <span>DDC: {book.deweyCode}</span>
+                                <span>•</span>
+                                <span>{book.author}</span>
+                              </div>
                             </div>
                           </div>
-                        </div>
 
-                        <div className="text-right shrink-0">
-                          <span className="font-mono font-extrabold text-indigo-950 block">{book.readsCount} reads</span>
+                          <div className="text-right shrink-0">
+                            <span className="font-mono font-extrabold text-indigo-950 block">{book.readsCount} reads</span>
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })
+                  )}
                 </div>
               </div>
 

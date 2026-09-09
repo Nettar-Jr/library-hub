@@ -308,49 +308,7 @@ export const initialBooks: Book[] = [
   }
 ];
 
-export const initialCirculation: CirculationRecord[] = [
-  {
-    id: 'loan-1',
-    learnerName: 'Chidi Okafor (Year 9)',
-    bookId: 'book-2',
-    bookTitle: 'The Great Gatsby',
-    borrowDate: '2026-06-15',
-    dueDate: '2026-06-29',
-    status: 'borrowed',
-    alertSent: false,
-  },
-  {
-    id: 'loan-2',
-    learnerName: 'Amina Bello (Primary 5)',
-    bookId: 'book-4',
-    bookTitle: 'The Secret Garden',
-    borrowDate: '2026-06-05',
-    dueDate: '2026-06-19',
-    status: 'overdue',
-    alertSent: true,
-  },
-  {
-    id: 'loan-3',
-    learnerName: 'Tunde Williams (Year 11)',
-    bookId: 'book-1',
-    bookTitle: 'Things Fall Apart',
-    borrowDate: '2026-05-10',
-    dueDate: '2026-05-24',
-    returnDate: '2026-05-23',
-    status: 'returned',
-    alertSent: false,
-  },
-  {
-    id: 'loan-4',
-    learnerName: 'Sarah J. (Primary 4)',
-    bookId: 'book-3',
-    bookTitle: 'Percy Jackson: The Lightning Thief',
-    borrowDate: '2026-06-20',
-    dueDate: '2026-07-04',
-    status: 'borrowed',
-    alertSent: false,
-  }
-];
+export const initialCirculation: CirculationRecord[] = [];
 
 export const initialSubmissions: StudentSubmission[] = [
   {

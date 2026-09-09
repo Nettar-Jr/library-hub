@@ -535,7 +535,11 @@ export const CirculationTracker: React.FC = () => {
             <div className="col-span-full py-16 bg-white border border-dashed border-slate-200 rounded-3xl text-center space-y-2">
               <BookOpen className="w-10 h-10 text-slate-300 mx-auto" />
               <p className="font-display font-black text-slate-800">No circulation records found</p>
-              <p className="text-xs text-slate-500">Try adjusting your search keywords or filter tab.</p>
+              <p className="text-xs text-slate-500">
+                {circulation.length === 0 
+                  ? 'All hardcoded records removed. Loans will appear here when students or staff borrow titles.'
+                  : 'Try adjusting your search keywords or filter tab.'}
+              </p>
             </div>
           )}
         </div>
@@ -555,6 +559,15 @@ export const CirculationTracker: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium">
+                {paginatedRecords.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="p-8 text-center text-slate-400 font-sans">
+                      {circulation.length === 0
+                        ? 'All hardcoded records removed. Loans will appear here when students or staff borrow titles.'
+                        : 'No records matching the selected search and status filters.'}
+                    </td>
+                  </tr>
+                )}
                 {paginatedRecords.map((record) => (
                   <tr key={record.id} className="hover:bg-slate-50/80 transition">
                     <td className="p-4 font-bold text-slate-900">{record.learnerName}</td>
