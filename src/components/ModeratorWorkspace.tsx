@@ -18,7 +18,6 @@ import {
   AlertCircle, 
   Send, 
   Edit3, 
-  Sparkles, 
   CheckCircle2, 
   Clock, 
   RefreshCw,

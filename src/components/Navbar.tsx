@@ -80,7 +80,7 @@ export const Navbar: React.FC = () => {
   // Pending moderation submissions count
   const pendingSubmissionsCount = submissions.filter((s) => s.status === 'pending').length;
 
-  // Search filter matches (active only when logged in)
+  // Search filter matches
   const matchedBooks = searchQuery.trim()
     ? books.filter(
         (b) =>
@@ -144,16 +144,16 @@ export const Navbar: React.FC = () => {
     : (currentUser?.gradeOrYear ? `Grade ${currentUser.gradeOrYear}` : 'Student');
 
   return (
-    <header className="sticky top-3 z-40 px-3 sm:px-6 max-w-7xl mx-auto mb-6">
+    <header className="sticky top-3 z-40 px-3 sm:px-6 w-full max-w-7xl mx-auto mb-6">
       {/* Main Clean Navbar Pill */}
-      <div className="h-16 rounded-2xl bg-white border border-slate-200 shadow-xs px-4 sm:px-6 flex items-center justify-between gap-3 sm:gap-6 transition-all">
+      <div className="w-full h-16 rounded-2xl bg-white border border-slate-200 shadow-xs px-4 sm:px-6 flex items-center justify-between gap-3 sm:gap-6 transition-all">
         
         {/* ZONE A: Brand Logo (Left) */}
         <button
           type="button"
           onClick={() => handleNavClick('EXPLORE', '/')}
           className="flex items-center gap-2.5 cursor-pointer select-none group rounded-xl shrink-0 text-left outline-none"
-          title="LibraryHub - Premier International School"
+          title="LibraryHub · Premier International School"
           aria-label="LibraryHub Home"
         >
           <div className="p-2 bg-blue-600 rounded-xl text-white shadow-xs flex items-center justify-center">
@@ -213,7 +213,7 @@ export const Navbar: React.FC = () => {
                 >
                   {/* Subject Tags */}
                   <div className="space-y-1.5">
-                    <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider px-1">
+                    <div className="text-xs font-semibold text-slate-700 px-1">
                       Explore Subjects
                     </div>
                     <div className="flex flex-wrap gap-1.5">
@@ -300,7 +300,7 @@ export const Navbar: React.FC = () => {
         {/* ZONE C: Action & User Profile Zone */}
         <div className="flex items-center gap-2">
           
-          {/* LOGGED OUT: Only a clean, prominent Log In button */}
+          {/* LOGGED OUT: Only a clean, prominent Sign In button */}
           {!currentUser ? (
             <button
               type="button"
@@ -309,7 +309,7 @@ export const Navbar: React.FC = () => {
               aria-label="Sign In to School Library"
             >
               <LogIn className="w-4 h-4" />
-              <span>Log In</span>
+              <span>Sign In</span>
             </button>
           ) : (
             /* LOGGED IN: Profile Menu Dropdown */

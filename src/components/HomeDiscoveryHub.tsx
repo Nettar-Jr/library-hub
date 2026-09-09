@@ -142,7 +142,7 @@ export const HomeDiscoveryHub: React.FC = () => {
                   onClick={scrollToPreview}
                   className="bg-white hover:bg-slate-100 text-slate-700 font-semibold text-xs sm:text-sm px-5 py-3 rounded-xl border border-slate-200 transition-colors cursor-pointer"
                 >
-                  <span>Preview Collection</span>
+                  <span>Browse Catalog Preview</span>
                 </button>
               </>
             )}
@@ -150,15 +150,10 @@ export const HomeDiscoveryHub: React.FC = () => {
         </div>
       </section>
 
-      {/* =========================================================================
-       * 2. LIMITED CATALOG PREVIEW
-       * ========================================================================= */}
+      {/* Catalog Preview Section */}
       <section id="catalog-preview" className="space-y-6 scroll-mt-24">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3 pb-2 border-b border-slate-200/80">
           <div>
-            <span className="text-xs font-semibold text-blue-700 uppercase tracking-wider block mb-1">
-              Curated Selection
-            </span>
             <h2 className="font-display font-bold text-2xl text-slate-900">
               Featured Catalog Preview
             </h2>
@@ -218,66 +213,42 @@ export const HomeDiscoveryHub: React.FC = () => {
                 className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs sm:text-sm px-5 py-2.5 rounded-xl shadow-xs transition-colors cursor-pointer"
               >
                 <BookOpen className="w-4 h-4" />
-                <span>Browse Catalog</span>
+                <span>Open Catalog</span>
               </button>
             )}
           </div>
         </div>
       </section>
 
-      {/* =========================================================================
-       * 3. SHORT "WHAT YOU CAN DO" SECTION
-       * ========================================================================= */}
-      <section className="space-y-6">
-        <div>
-          <span className="text-xs font-semibold text-blue-700 uppercase tracking-wider block mb-1">
-            Library Services
-          </span>
-          <h2 className="font-display font-bold text-xl sm:text-2xl text-slate-900">
-            What You Can Do
+      {/* Library Information & Circulation Guidelines */}
+      <section className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 text-left">
+        <div className="max-w-3xl">
+          <h2 className="font-display font-bold text-xl text-slate-900">
+            Circulation Desk and Borrowing Guidelines
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Core resources and tools designed to support your academic study and daily reading.
+            General library hours, lending terms, and research desk support for students and faculty.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Pillar 1 */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-3">
-            <div className="p-2.5 bg-blue-50 text-blue-700 rounded-xl inline-block">
-              <BookOpen className="w-5 h-5" />
-            </div>
-            <h3 className="font-display font-bold text-base text-slate-900">
-              Borrow & Reserve Books
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 mt-6 border-t border-slate-100">
+          <div className="space-y-2">
+            <h3 className="text-xs font-bold text-slate-900 flex items-center gap-2">
+              <Clock className="w-4 h-4 text-blue-600 shrink-0" />
+              <span>Library and Study Hall Hours</span>
             </h3>
             <p className="text-xs text-slate-600 leading-relaxed font-normal">
-              Search print titles across curriculum subjects, view real-time shelf availability, and place 24-hour holds for desk pickup.
+              Monday to Friday, 7:45 AM to 4:30 PM. The reading room remains open through after-school study sessions. Reference librarians are available for research consultations during academic periods.
             </p>
           </div>
 
-          {/* Pillar 2 */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-3">
-            <div className="p-2.5 bg-teal-50 text-teal-700 rounded-xl inline-block">
-              <Headphones className="w-5 h-5" />
-            </div>
-            <h3 className="font-display font-bold text-base text-slate-900">
-              Audiobooks & Digital Reading
+          <div className="space-y-2">
+            <h3 className="text-xs font-bold text-slate-900 flex items-center gap-2">
+              <BookOpen className="w-4 h-4 text-blue-600 shrink-0" />
+              <span>Borrowing Privileges and Holds</span>
             </h3>
             <p className="text-xs text-slate-600 leading-relaxed font-normal">
-              Access digital read-aloud editions and audio recordings to assist pronunciation, language study, and literature coursework.
-            </p>
-          </div>
-
-          {/* Pillar 3 */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-3">
-            <div className="p-2.5 bg-slate-100 text-slate-700 rounded-xl inline-block">
-              <GraduationCap className="w-5 h-5" />
-            </div>
-            <h3 className="font-display font-bold text-base text-slate-900">
-              Curriculum & Faculty Guidance
-            </h3>
-            <p className="text-xs text-slate-600 leading-relaxed font-normal">
-              Discover reading lists curated by classroom teachers, aligned with academic terms and international school standards.
+              Students may borrow up to 3 physical volumes concurrently for a 14-day loan period with one renewal. Books reserved online are held at the circulation desk for 24 hours.
             </p>
           </div>
         </div>
@@ -383,7 +354,7 @@ export const HomeDiscoveryHub: React.FC = () => {
                     }`}
                   >
                     <BookmarkCheck className="w-3.5 h-3.5" />
-                    <span>Borrow This Title</span>
+                    <span>Borrow Book</span>
                   </button>
                 ) : null}
               </div>

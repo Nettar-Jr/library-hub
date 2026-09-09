@@ -6,15 +6,15 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { HeroSpotlightData, Book } from '../types';
-import { Sparkles, Edit3, BookOpen, Headphones, X, Check, ArrowRight } from 'lucide-react';
+import { Bookmark, Edit3, BookOpen, Headphones, X, Check, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 const GRADIENT_PRESETS = [
-  { name: 'Royal Indigo & Purple', value: 'from-blue-600 via-indigo-600 to-purple-600' },
-  { name: 'Ocean Teal & Emerald', value: 'from-teal-600 via-emerald-600 to-cyan-700' },
-  { name: 'Amber Sunset & Rose', value: 'from-amber-500 via-orange-600 to-rose-600' },
-  { name: 'Midnight Galaxy', value: 'from-slate-900 via-indigo-950 to-blue-900' },
-  { name: 'Vibrant Berry & Violet', value: 'from-fuchsia-600 via-purple-600 to-indigo-700' },
+  { name: 'Oxford Navy & Slate', value: 'from-slate-900 via-slate-800 to-blue-950' },
+  { name: 'Scholastic Deep Blue', value: 'from-blue-950 via-slate-900 to-indigo-950' },
+  { name: 'Curriculum Pine & Slate', value: 'from-emerald-950 via-slate-900 to-slate-900' },
+  { name: 'Heritage Charcoal & Stone', value: 'from-stone-900 via-slate-900 to-slate-950' },
+  { name: 'Academic Midnight', value: 'from-slate-950 via-slate-900 to-slate-800' },
 ];
 
 export const HeroSpotlight: React.FC = () => {
@@ -78,43 +78,39 @@ export const HeroSpotlight: React.FC = () => {
   return (
     <>
       <section 
-        className={`rounded-3xl p-6 sm:p-8 md:p-10 mb-8 text-white relative overflow-hidden shadow-xl bg-gradient-to-r ${spotlightData.bgGradient || 'from-blue-600 via-indigo-600 to-purple-600'} transition-colors duration-500`}
+        className={`rounded-3xl p-6 sm:p-8 md:p-9 mb-6 text-white relative overflow-hidden shadow-md bg-gradient-to-r ${spotlightData.bgGradient || 'from-slate-900 via-slate-800 to-blue-950'} transition-colors duration-500 border border-slate-700/60`}
         aria-label="Featured Book Spotlight"
       >
-        {/* Ambient Decorative Blurs */}
-        <div className="absolute -top-16 -right-16 w-80 h-80 bg-white/15 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-20 -left-20 w-72 h-72 bg-black/20 rounded-full blur-2xl pointer-events-none" />
-
         {/* Admin Edit Trigger Pill */}
         {canEdit && (
           <button
             type="button"
             onClick={() => setIsEditing(true)}
-            className="absolute top-4 right-4 z-20 px-3.5 py-1.5 bg-black/30 hover:bg-black/50 text-white rounded-full text-xs font-bold backdrop-blur-md border border-white/20 flex items-center gap-1.5 transition-all shadow-md cursor-pointer hover:scale-105 active:scale-95"
+            className="absolute top-4 right-4 z-20 px-3 py-1.5 bg-black/40 hover:bg-black/60 text-white rounded-xl text-xs font-semibold backdrop-blur-md border border-white/20 flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
             aria-label="Edit hero spotlight banner"
           >
-            <Edit3 className="w-3.5 h-3.5 text-amber-300" />
+            <Edit3 className="w-3.5 h-3.5 text-slate-300" />
             <span>Edit Spotlight</span>
           </button>
         )}
 
         <div className="relative z-10 grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-8 items-center">
           {/* Left Content Column */}
-          <div className="md:col-span-8 space-y-4 text-center md:text-left">
-            <div className="inline-flex items-center gap-1.5 bg-white/20 hover:bg-white/25 backdrop-blur-md rounded-full px-3.5 py-1 text-xs font-black tracking-wide text-amber-200 border border-white/20 shadow-xs">
-              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-              <span>{spotlightData.badgeText || '⭐ BOOK OF THE WEEK'}</span>
+          <div className="md:col-span-8 space-y-3.5 text-center md:text-left">
+            <div className="inline-flex items-center gap-1.5 bg-white/10 backdrop-blur-md rounded-full px-3 py-1 text-xs font-medium text-slate-200 border border-white/15 shadow-2xs">
+              <Bookmark className="w-3.5 h-3.5 text-blue-300" />
+              <span>{spotlightData.badgeText || 'Curriculum Spotlight'}</span>
             </div>
 
-            <h1 className="font-display font-black text-2xl sm:text-3xl md:text-4xl lg:text-5xl leading-tight text-white tracking-tight">
+            <h1 className="font-display font-bold text-2xl sm:text-3xl md:text-4xl leading-tight text-white tracking-tight">
               {spotlightData.title}
             </h1>
 
-            <p className="text-blue-100/90 text-sm sm:text-base font-semibold max-w-2xl leading-snug">
+            <p className="text-slate-200 text-xs sm:text-sm font-medium max-w-2xl leading-relaxed">
               {spotlightData.subtitle}
             </p>
 
-            <p className="text-white/80 text-xs sm:text-sm line-clamp-3 max-w-2xl leading-relaxed font-normal">
+            <p className="text-slate-300/90 text-xs sm:text-sm line-clamp-3 max-w-2xl leading-relaxed font-normal">
               {spotlightData.description}
             </p>
 
@@ -122,40 +118,37 @@ export const HeroSpotlight: React.FC = () => {
               <button
                 type="button"
                 onClick={handleOpenDetail}
-                className="bg-white hover:bg-blue-50 text-blue-900 font-extrabold px-6 py-3 rounded-full text-xs sm:text-sm shadow-xl flex items-center gap-2 transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer"
+                className="bg-white hover:bg-slate-100 text-slate-900 font-semibold px-5 py-2.5 rounded-xl text-xs shadow-sm flex items-center gap-2 transition duration-150 active:scale-98 cursor-pointer"
                 aria-label={`Explore ${spotlightData.title}`}
               >
-                <BookOpen className="w-4 h-4 text-blue-600" />
-                <span>Explore & Read Overview</span>
-                <ArrowRight className="w-3.5 h-3.5 text-blue-500" />
+                <BookOpen className="w-4 h-4 text-blue-700" />
+                <span>View Book Details</span>
+                <ArrowRight className="w-3.5 h-3.5 text-slate-500" />
               </button>
 
               {featuredBook?.hasAudio && (
                 <button
                   type="button"
                   onClick={handleOpenDetail}
-                  className="bg-white/15 hover:bg-white/25 backdrop-blur-md text-white font-bold px-4 py-3 rounded-full text-xs sm:text-sm border border-white/25 flex items-center gap-2 transition-all cursor-pointer"
+                  className="bg-white/10 hover:bg-white/20 backdrop-blur-md text-white font-medium px-4 py-2.5 rounded-xl text-xs border border-white/20 flex items-center gap-2 transition cursor-pointer"
                   aria-label="Listen to audiobook preview"
                 >
-                  <Headphones className="w-4 h-4 text-amber-300" />
-                  <span>Audio Preview Available</span>
+                  <Headphones className="w-4 h-4 text-slate-200" />
+                  <span>Audio Edition Available</span>
                 </button>
               )}
             </div>
           </div>
 
-          {/* Right Visual Column (3D Book Cover Mockup) */}
+          {/* Right Visual Column (Cover Presentation) */}
           <div className="md:col-span-4 flex justify-center md:justify-end">
             <div 
               onClick={handleOpenDetail}
-              className="group/cover relative cursor-pointer"
+              className="group/cover relative cursor-pointer select-none"
               title={`Click to view ${spotlightData.title}`}
             >
-              {/* Outer Glow */}
-              <div className="absolute -inset-2 bg-gradient-to-r from-amber-400/30 to-purple-500/30 rounded-3xl blur-xl opacity-75 group-hover/cover:opacity-100 transition-opacity duration-300" />
-
-              {/* 3D Floating Book Wrapper */}
-              <div className="relative aspect-[3/4] h-60 sm:h-72 rounded-2xl overflow-hidden shadow-2xl border-2 border-white/30 transform rotate-2 sm:rotate-3 group-hover/cover:rotate-0 group-hover/cover:scale-105 transition-all duration-300 bg-slate-900">
+              {/* Refined Book Wrapper without excessive tilt */}
+              <div className="relative aspect-[3/4] h-56 sm:h-64 rounded-xl overflow-hidden shadow-xl border border-white/20 bg-slate-900 group-hover/cover:scale-[1.02] transition-transform duration-200 ease-out">
                 {activeCover ? (
                   <img
                     src={activeCover}
@@ -164,15 +157,14 @@ export const HeroSpotlight: React.FC = () => {
                     referrerPolicy="no-referrer"
                   />
                 ) : (
-                  <div className="w-full h-full bg-indigo-950 p-4 flex flex-col justify-between text-white">
+                  <div className="w-full h-full bg-slate-800 p-4 flex flex-col justify-between text-white">
                     <span className="text-[10px] font-mono uppercase bg-white/10 px-2 py-0.5 rounded">Featured</span>
-                    <h3 className="font-display font-black text-sm">{spotlightData.title}</h3>
+                    <h3 className="font-display font-bold text-sm">{spotlightData.title}</h3>
                   </div>
                 )}
 
-                {/* Spine Highlight Shadow */}
-                <div className="absolute inset-y-0 left-0 w-3.5 bg-gradient-to-r from-black/50 via-white/10 to-transparent pointer-events-none" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
+                {/* Subtle Spine Highlight Shadow */}
+                <div className="absolute inset-y-0 left-0 w-2.5 bg-gradient-to-r from-black/40 via-white/10 to-transparent pointer-events-none" />
               </div>
             </div>
           </div>
@@ -183,54 +175,54 @@ export const HeroSpotlight: React.FC = () => {
       <AnimatePresence>
         {isEditing && (
           <div 
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs"
             role="dialog"
             aria-modal="true"
             aria-labelledby="edit-spotlight-modal-title"
           >
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              initial={{ opacity: 0, scale: 0.96, y: 16 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-white rounded-3xl max-w-xl w-full shadow-2xl overflow-hidden border border-slate-200"
+              exit={{ opacity: 0, scale: 0.96, y: 16 }}
+              className="bg-white rounded-2xl max-w-xl w-full shadow-2xl overflow-hidden border border-slate-200"
             >
-              <div className="p-5 bg-gradient-to-r from-slate-900 to-indigo-950 text-white flex items-center justify-between">
-                <div className="flex items-center gap-2">
+              <div className="p-5 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">
+                <div className="flex items-center gap-2.5">
                   <div className="p-2 bg-white/10 rounded-xl">
-                    <Edit3 className="w-4 h-4 text-amber-300" />
+                    <Edit3 className="w-4 h-4 text-slate-200" />
                   </div>
                   <div>
-                    <h2 id="edit-spotlight-modal-title" className="font-display font-black text-base">
-                      Edit Hero Spotlight Banner
+                    <h2 id="edit-spotlight-modal-title" className="font-display font-bold text-sm sm:text-base">
+                      Edit Featured Spotlight
                     </h2>
-                    <p className="text-xs text-slate-300">Customize the top banner shown to all scholars and visitors</p>
+                    <p className="text-xs text-slate-300">Select the curriculum title featured on the catalog portal</p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setIsEditing(false)}
-                  className="p-1.5 text-slate-300 hover:text-white rounded-full hover:bg-white/10 transition cursor-pointer"
+                  className="p-1.5 text-slate-300 hover:text-white rounded-lg hover:bg-white/10 transition cursor-pointer"
                   aria-label="Close modal"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              <form onSubmit={handleSave} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+              <form onSubmit={handleSave} className="p-6 space-y-4 max-h-[78vh] overflow-y-auto text-xs">
                 {/* Pick From Existing Library Books */}
                 <div>
-                  <label htmlFor="featured-book-select" className="block text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-1">
-                    Auto-Fill From Library Catalog
+                  <label htmlFor="featured-book-select" className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                    Auto-Fill From Catalog Holdings
                   </label>
                   <select
                     id="featured-book-select"
                     value={editForm.featuredBookId}
                     onChange={(e) => handleBookSelect(e.target.value)}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-800 outline-none focus:ring-1 focus:ring-slate-500"
                   >
                     {books.map(b => (
                       <option key={b.id} value={b.id}>
-                        {b.title} — {b.author} ({b.category})
+                        {b.title} ({b.author}, {b.category})
                       </option>
                     ))}
                   </select>
@@ -238,8 +230,8 @@ export const HeroSpotlight: React.FC = () => {
 
                 {/* Badge Text */}
                 <div>
-                  <label htmlFor="badge-text-input" className="block text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-1">
-                    Badge Pill Text
+                  <label htmlFor="badge-text-input" className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                    Spotlight Badge
                   </label>
                   <input
                     id="badge-text-input"
@@ -247,15 +239,15 @@ export const HeroSpotlight: React.FC = () => {
                     required
                     value={editForm.badgeText}
                     onChange={(e) => setEditForm({ ...editForm, badgeText: e.target.value })}
-                    placeholder="e.g. ⭐ BOOK OF THE WEEK"
-                    className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="e.g. FEATURED CURRICULUM TITLE"
+                    className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-medium text-slate-800 outline-none focus:ring-1 focus:ring-slate-500"
                   />
                 </div>
 
                 {/* Spotlight Title */}
                 <div>
-                  <label htmlFor="spotlight-title-input" className="block text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-1">
-                    Hero Headline / Title
+                  <label htmlFor="spotlight-title-input" className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                    Title Headline
                   </label>
                   <input
                     id="spotlight-title-input"
@@ -263,15 +255,15 @@ export const HeroSpotlight: React.FC = () => {
                     required
                     value={editForm.title}
                     onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
-                    placeholder="Book Title or Theme Highlight"
-                    className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Book Title"
+                    className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-medium text-slate-800 outline-none focus:ring-1 focus:ring-slate-500"
                   />
                 </div>
 
                 {/* Spotlight Subtitle */}
                 <div>
-                  <label htmlFor="spotlight-subtitle-input" className="block text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-1">
-                    Subtitle Hook
+                  <label htmlFor="spotlight-subtitle-input" className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                    Subtitle / Attribution
                   </label>
                   <input
                     id="spotlight-subtitle-input"
@@ -279,15 +271,15 @@ export const HeroSpotlight: React.FC = () => {
                     required
                     value={editForm.subtitle}
                     onChange={(e) => setEditForm({ ...editForm, subtitle: e.target.value })}
-                    placeholder="e.g. Featured Masterpiece & African Literature Spotlight"
-                    className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="e.g. By Chinua Achebe • African Literature"
+                    className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-medium text-slate-800 outline-none focus:ring-1 focus:ring-slate-500"
                   />
                 </div>
 
                 {/* Synopsis Description */}
                 <div>
-                  <label htmlFor="spotlight-desc-input" className="block text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-1">
-                    Synopsis / Summary Hook
+                  <label htmlFor="spotlight-desc-input" className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                    Synopsis / Summary
                   </label>
                   <textarea
                     id="spotlight-desc-input"
@@ -295,14 +287,14 @@ export const HeroSpotlight: React.FC = () => {
                     required
                     value={editForm.description}
                     onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                    placeholder="Compelling synopsis that encourages scholars to dive in..."
-                    className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Overview of the work..."
+                    className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-medium text-slate-800 outline-none focus:ring-1 focus:ring-slate-500"
                   />
                 </div>
 
                 {/* Cover Image URL */}
                 <div>
-                  <label htmlFor="spotlight-cover-input" className="block text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-1">
+                  <label htmlFor="spotlight-cover-input" className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wider mb-1">
                     Cover Image URL
                   </label>
                   <input
@@ -311,14 +303,14 @@ export const HeroSpotlight: React.FC = () => {
                     value={editForm.coverUrl || ''}
                     onChange={(e) => setEditForm({ ...editForm, coverUrl: e.target.value })}
                     placeholder="https://images.unsplash.com/..."
-                    className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-medium text-slate-800 outline-none focus:ring-1 focus:ring-slate-500"
                   />
                 </div>
 
-                {/* Gradient Palette Selection */}
+                {/* Palette Selection */}
                 <div>
-                  <label className="block text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-2">
-                    Background Color Gradient Palette
+                  <label className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wider mb-2">
+                    Atmospheric Tone Palette
                   </label>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {GRADIENT_PRESETS.map((preset) => (
@@ -326,8 +318,8 @@ export const HeroSpotlight: React.FC = () => {
                         type="button"
                         key={preset.value}
                         onClick={() => setEditForm({ ...editForm, bgGradient: preset.value })}
-                        className={`p-2.5 rounded-xl text-left text-xs font-bold text-white flex items-center justify-between bg-gradient-to-r ${preset.value} border-2 transition-all cursor-pointer ${
-                          editForm.bgGradient === preset.value ? 'border-amber-300 scale-102 ring-2 ring-blue-500' : 'border-transparent opacity-85 hover:opacity-100'
+                        className={`p-2.5 rounded-xl text-left text-xs font-semibold text-white flex items-center justify-between bg-gradient-to-r ${preset.value} border transition cursor-pointer ${
+                          editForm.bgGradient === preset.value ? 'border-amber-300 ring-2 ring-slate-400' : 'border-transparent opacity-90 hover:opacity-100'
                         }`}
                       >
                         <span className="truncate">{preset.name}</span>
@@ -338,22 +330,22 @@ export const HeroSpotlight: React.FC = () => {
                 </div>
 
                 {/* Form Action Buttons */}
-                <div className="pt-4 border-t border-slate-200 flex items-center justify-end gap-3">
+                <div className="pt-4 border-t border-slate-200 flex items-center justify-end gap-2">
                   <button
                     type="button"
                     onClick={() => setIsEditing(false)}
-                    className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-full cursor-pointer transition"
+                    className="px-4 py-2 font-semibold text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer transition"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-6 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-full shadow-md cursor-pointer transition flex items-center gap-1.5"
+                    className="px-5 py-2 font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-xl shadow-xs cursor-pointer transition flex items-center gap-1.5"
                   >
                     {saveSuccess ? (
                       <>
-                        <Check className="w-3.5 h-3.5 text-white" />
-                        <span>Saved Spotlight!</span>
+                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Saved</span>
                       </>
                     ) : (
                       <span>Save Spotlight</span>

@@ -15,7 +15,6 @@ import {
   UserCheck, 
   ShieldAlert, 
   Layers, 
-  Sparkles,
   ArrowRight,
   Filter,
   Trash2

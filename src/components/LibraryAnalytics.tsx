@@ -13,7 +13,6 @@ import {
   AlertCircle, 
   Plus, 
   Info, 
-  Sparkles, 
   Star, 
   Library, 
   Clock, 
@@ -366,7 +365,7 @@ export const LibraryAnalytics: React.FC = () => {
                     <div className="flex flex-col sm:flex-row justify-between items-start gap-4 pb-4 border-b border-slate-100">
                       <div>
                         <h4 className="font-display font-black text-sm uppercase text-indigo-950">
-                          Official Library Utilization Report — {adminSection === 'all' ? 'Consolidated School' : `${adminSection.toUpperCase()} SECTION`}
+                          Official Library Utilization Report: {adminSection === 'all' ? 'Consolidated School' : `${adminSection.toUpperCase()} Section`}
                         </h4>
                         <p className="text-[11px] text-slate-400 font-mono">Compiled on: 2026-07-02 • Ready for Management Review</p>
                       </div>
@@ -824,21 +823,17 @@ export const LibraryAnalytics: React.FC = () => {
       {currentRole === 'learner' && (
         <div className="space-y-8">
           
-          {/* Sparkly Learner Header */}
-          <div className="bg-gradient-to-r from-violet-600 via-indigo-600 to-indigo-800 rounded-3xl p-6 text-white border border-indigo-500/30 shadow-md relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
-              <Sparkles className="w-36 h-36" />
-            </div>
-            
+          {/* Learner Recommendations Header */}
+          <div className="bg-slate-900 rounded-3xl p-6 sm:p-8 text-white border border-slate-800 shadow-sm relative overflow-hidden">
             <div className="relative z-10 space-y-3">
-              <span className="inline-flex items-center gap-1 bg-white/20 text-yellow-300 border border-white/10 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider font-sans">
-                <Sparkles className="w-3.5 h-3.5 fill-yellow-300" /> Popular Picks & Interactive Trends
+              <span className="inline-flex items-center gap-1.5 bg-white/10 text-blue-300 border border-white/10 px-3 py-1 rounded-full text-xs font-medium">
+                <TrendingUp className="w-3.5 h-3.5 text-blue-400" /> Student Reading Activity
               </span>
-              <h2 className="font-display text-2xl sm:text-3xl font-black tracking-tight text-white leading-tight">
-                Hello, {currentLearnerName.split(' ')[0]}! Find What's Trending in Our Library 📚
+              <h2 className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-white leading-tight">
+                Reading Trends and Recommended Books
               </h2>
-              <p className="text-xs sm:text-sm text-slate-100 max-w-2xl leading-relaxed">
-                Check out the books that are absolutely loved by other students in school right now, and click on any book from our entire live inventory below to pick it and read!
+              <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed font-normal">
+                Discover popular titles borrowed across school classrooms and explore available reading materials.
               </p>
             </div>
           </div>

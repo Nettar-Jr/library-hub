@@ -25,7 +25,6 @@ import {
   ArrowUpDown,
   LayoutGrid,
   Rows,
-  Sparkles,
   RefreshCw,
   Mail,
   GraduationCap

@@ -59,6 +59,10 @@ function CatalogView() {
     loggedInLearner, 
     circulation, 
     currentLearnerName,
+    currentUser,
+    holds,
+    renewLoan,
+    releaseHold,
     isAdmin
   } = useApp();
 
@@ -66,70 +70,156 @@ function CatalogView() {
     (r) => r.learnerName === currentLearnerName && r.status !== 'returned'
   );
 
+  const learnerId = currentUser?.id || loggedInLearner?.id;
+  const myLearnerHolds = holds.filter(
+    (h) => h.userId === learnerId && h.status === 'active'
+  );
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {!isAdmin ? (
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
           {/* Primary Catalog */}
           <div className={loggedInLearner ? "lg:col-span-3" : "lg:col-span-4"}>
             <BookCatalog />
           </div>
 
-          {/* Learner Personal Loans Tray (Left/Side column if logged in) */}
+          {/* Learner Personal Station Panel (Right sticky column if logged in) */}
           {loggedInLearner && (
-            <div className="lg:col-span-1 space-y-6">
-              <div className="glass p-5 rounded-3xl shadow-sm space-y-4 border border-slate-200/80">
-                <div className="flex items-center gap-1.5 text-blue-900">
-                  <CheckSquare className="w-5 h-5" />
-                  <h3 className="font-display font-extrabold text-xs uppercase tracking-wider">
-                    My Active Book Loans
+            <aside className="lg:col-span-1 space-y-4 lg:sticky lg:top-24" aria-label="Learner Account & Circulation Status">
+              {/* Student Profile Card */}
+              <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-xs space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                  <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                    Student Account
+                  </span>
+                  <span className="text-[10px] font-mono font-semibold bg-blue-50 text-blue-800 px-2 py-0.5 rounded-md border border-blue-200/60">
+                    {loggedInLearner.libraryCardId || 'CARD-ACTIVE'}
+                  </span>
+                </div>
+                <div>
+                  <h3 className="font-display font-bold text-sm text-slate-900">
+                    {loggedInLearner.name}
                   </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {loggedInLearner.gradeOrYear || 'Secondary Student'} • {loggedInLearner.assignedTeacherName || 'General Curriculum'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Active Loans */}
+              <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-xs space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                  <div className="flex items-center gap-1.5 text-slate-900">
+                    <BookOpen className="w-4 h-4 text-blue-700" />
+                    <h4 className="font-display font-bold text-xs uppercase tracking-wider">
+                      Active Loans
+                    </h4>
+                  </div>
+                  <span className="text-[10px] font-semibold bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full font-mono">
+                    {myLearnerLoans.length} / 3 max
+                  </span>
                 </div>
 
-                <div className="space-y-3">
+                <div className="space-y-2.5">
                   {myLearnerLoans.map((loan) => (
-                    <div key={loan.id} className="p-3.5 bg-white rounded-xl border border-slate-100 text-xs space-y-2 shadow-2xs">
-                      <div>
-                        <h4 className="font-bold text-slate-800 italic line-clamp-1">{loan.bookTitle}</h4>
-                        <span className="text-[10px] text-slate-400 font-mono">Loan ID: {loan.id.split('-')[1]}</span>
-                      </div>
-                      <div className="flex justify-between items-center text-[10px] text-slate-500">
-                        <span>Due: {loan.dueDate}</span>
+                    <div key={loan.id} className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 text-xs space-y-2">
+                      <div className="flex items-start justify-between gap-1">
+                        <h5 className="font-bold text-slate-900 leading-snug line-clamp-2">{loan.bookTitle}</h5>
                         {loan.status === 'overdue' ? (
-                          <span className="bg-rose-50 text-rose-600 px-1.5 py-0.5 rounded font-bold animate-pulse">Overdue</span>
+                          <span className="bg-rose-100 text-rose-800 text-[10px] px-1.5 py-0.5 rounded font-semibold shrink-0">
+                            Overdue
+                          </span>
                         ) : (
-                          <span className="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded font-bold">Borrowed</span>
+                          <span className="bg-emerald-100 text-emerald-800 text-[10px] px-1.5 py-0.5 rounded font-semibold shrink-0">
+                            On Loan
+                          </span>
                         )}
+                      </div>
+                      <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-200/60">
+                        <span>Due {loan.dueDate}</span>
+                        <button
+                          type="button"
+                          onClick={() => renewLoan(loan.id)}
+                          className="text-[11px] font-semibold text-blue-700 hover:text-blue-800 hover:underline cursor-pointer"
+                        >
+                          Renew (+14d)
+                        </button>
                       </div>
                     </div>
                   ))}
 
                   {myLearnerLoans.length === 0 && (
-                    <p className="text-xs text-slate-400 text-center py-6 italic leading-snug">
-                      You have no outstanding book loans. Place a 24-Hour Hold on any available book to reserve it!
-                    </p>
+                    <div className="text-center py-5 px-3 bg-slate-50 border border-dashed border-slate-200 rounded-xl">
+                      <p className="text-xs text-slate-500 font-medium">No active book loans</p>
+                      <p className="text-[11px] text-slate-400 mt-1">Available catalog titles can be checked out for 14 days.</p>
+                    </div>
                   )}
                 </div>
               </div>
 
-              <div className="bg-blue-50/70 border border-blue-200/60 p-5 rounded-3xl space-y-3">
-                <h4 className="font-display font-extrabold text-xs text-blue-900 uppercase tracking-wider flex items-center gap-1">
-                  <CheckSquare className="w-4 h-4 text-blue-600" /> Active Student Account
-                </h4>
-                <p className="text-[11px] text-blue-800 leading-relaxed">
-                  You are signed in as <span className="font-bold">{loggedInLearner.name}</span>. You can search the catalog, place holds on books, and manage your active loans.
+              {/* Active Holds */}
+              <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-xs space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                  <div className="flex items-center gap-1.5 text-slate-900">
+                    <Lock className="w-4 h-4 text-amber-600" />
+                    <h4 className="font-display font-bold text-xs uppercase tracking-wider">
+                      Active Holds
+                    </h4>
+                  </div>
+                  <span className="text-[10px] font-semibold bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full font-mono">
+                    {myLearnerHolds.length}
+                  </span>
+                </div>
+
+                <div className="space-y-2.5">
+                  {myLearnerHolds.map((hold) => (
+                    <div key={hold.id} className="p-3 bg-amber-50/70 rounded-xl border border-amber-200/80 text-xs space-y-2">
+                      <div className="flex items-start justify-between gap-1">
+                        <h5 className="font-bold text-amber-950 leading-snug line-clamp-2">{hold.bookTitle}</h5>
+                        <span className="bg-amber-200 text-amber-900 text-[10px] px-1.5 py-0.5 rounded font-semibold shrink-0">
+                          Hold
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-[11px] text-amber-800 pt-1 border-t border-amber-200/60">
+                        <span>Until {hold.expiryDate}</span>
+                        <button
+                          type="button"
+                          onClick={() => releaseHold(hold.id)}
+                          className="text-[11px] font-semibold text-rose-700 hover:text-rose-800 hover:underline cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+
+                  {myLearnerHolds.length === 0 && (
+                    <div className="text-center py-5 px-3 bg-slate-50 border border-dashed border-slate-200 rounded-xl">
+                      <p className="text-xs text-slate-500 font-medium">No active holds</p>
+                      <p className="text-[11px] text-slate-400 mt-1">Place a 24-hour reserve on any title for desk pickup.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Circulation Policies Notice */}
+              <div className="bg-slate-50 border border-slate-200/80 p-3.5 rounded-2xl text-[11px] text-slate-600 space-y-1">
+                <p className="font-semibold text-slate-800">Circulation Policy</p>
+                <p className="leading-relaxed">
+                  Borrow up to 3 titles for 14 days. Holds expire after 24 hours if uncollected.
                 </p>
               </div>
-            </div>
+            </aside>
           )}
         </div>
       ) : (
-        <div className="space-y-10">
+        <div className="space-y-8">
           {/* Librarian Full View - Unified Dashboard */}
-          <section className="glass rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200/80">
+          <section className="bg-white rounded-3xl p-6 sm:p-8 shadow-xs border border-slate-200/90">
             <CirculationTracker />
           </section>
-          <section className="glass rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200/80">
+          <section className="bg-white rounded-3xl p-6 sm:p-8 shadow-xs border border-slate-200/90">
             <BookCatalog />
           </section>
         </div>
@@ -218,7 +308,7 @@ function CirculationView() {
           onClick={() => navigate('/admin')}
           className="bg-slate-900 text-white text-xs font-bold px-4 py-2.5 rounded-xl hover:bg-slate-800 transition cursor-pointer"
         >
-          Switch to Librarian Role
+          Sign In as Librarian
         </button>
       </div>
     );
@@ -249,7 +339,7 @@ function ModeratorView() {
           onClick={() => navigate('/admin')}
           className="bg-slate-900 text-white text-xs font-bold px-4 py-2.5 rounded-xl hover:bg-slate-800 transition cursor-pointer"
         >
-          Switch to Staff or Librarian Role
+          Sign In as Staff or Librarian
         </button>
       </div>
     );
@@ -274,13 +364,13 @@ function DeskView() {
       <div className="bg-white p-8 rounded-3xl border border-slate-200 text-center space-y-4 max-w-md mx-auto my-12 shadow-sm">
         <Lock className="w-10 h-10 text-amber-500 mx-auto" />
         <h3 className="font-display font-extrabold text-lg text-slate-900">Librarian Access Required</h3>
-        <p className="text-xs text-slate-500">The Circulation Desk is restricted to library administrative staff.</p>
+        <p className="text-xs text-slate-500">Circulation tools and desk utilities are restricted to library administrative staff.</p>
         <button
           type="button"
           onClick={() => navigate('/admin')}
           className="bg-slate-900 text-white text-xs font-bold px-4 py-2.5 rounded-xl hover:bg-slate-800 transition cursor-pointer"
         >
-          Switch to Librarian Role
+          Sign In as Librarian
         </button>
       </div>
     );
@@ -291,6 +381,33 @@ function DeskView() {
       <DeskUtilities />
     </div>
   );
+}
+
+/* -------------------------------------------------------------
+ * 8. Gallery View Component (Protected Student Work)
+ * ------------------------------------------------------------- */
+function GalleryView() {
+  const { currentUser } = useApp();
+  const navigate = useNavigate();
+
+  if (!currentUser) {
+    return (
+      <div className="bg-white p-8 rounded-3xl border border-slate-200 text-center space-y-4 max-w-md mx-auto my-12 shadow-sm">
+        <Lock className="w-10 h-10 text-amber-500 mx-auto" />
+        <h3 className="font-display font-extrabold text-lg text-slate-900">Sign-In Required</h3>
+        <p className="text-xs text-slate-500">You must be signed in with a school account to view student reading reviews and work.</p>
+        <button
+          type="button"
+          onClick={() => navigate('/login?redirect=/gallery')}
+          className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-5 py-2.5 rounded-xl transition cursor-pointer shadow-xs"
+        >
+          Sign In to Access
+        </button>
+      </div>
+    );
+  }
+
+  return <CreativeGallery />;
 }
 
 /* -------------------------------------------------------------
@@ -345,7 +462,7 @@ function AppContent() {
               <Route path="/home" element={<Navigate to="/" replace />} />
               <Route path="/catalog" element={<CatalogView />} />
               <Route path="/library" element={<Navigate to="/catalog" replace />} />
-              <Route path="/gallery" element={<CreativeGallery />} />
+              <Route path="/gallery" element={<GalleryView />} />
               <Route path="/announcements" element={<BulletinView />} />
               <Route path="/bulletin" element={<Navigate to="/announcements" replace />} />
               <Route path="/submit" element={<SubmitView />} />

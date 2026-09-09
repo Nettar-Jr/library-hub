@@ -142,9 +142,9 @@ export const AnnouncementBoard: React.FC = () => {
                   onChange={(e) => setCategory(e.target.value as Announcement['category'])}
                   className="w-full text-xs sm:text-sm font-medium bg-white border border-slate-200 rounded-xl p-2.5 outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
                 >
-                  <option value="info">General Update</option>
-                  <option value="alert">Urgent / Deadline</option>
-                  <option value="achievement">Academic Program</option>
+                  <option value="info">General Notice</option>
+                  <option value="alert">Urgent Notice</option>
+                  <option value="achievement">Academic Notice</option>
                 </select>
               </div>
             </div>
@@ -234,7 +234,7 @@ export const AnnouncementBoard: React.FC = () => {
 
         {filteredAnnouncements.length === 0 && (
           <div className="md:col-span-3 text-center py-12 bg-slate-50 border border-dashed border-slate-200 rounded-2xl p-6">
-            <p className="text-xs text-slate-500 font-medium">No announcements in this category.</p>
+            <p className="text-xs text-slate-500 font-medium">No library notices in this category.</p>
           </div>
         )}
       </section>

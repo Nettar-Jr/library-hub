@@ -17,7 +17,6 @@ import {
   Calendar, 
   User, 
   UserCheck, 
-  Sparkles, 
   Star,
   Filter,
   CheckCircle2

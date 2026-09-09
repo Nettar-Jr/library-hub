@@ -11,7 +11,6 @@ import {
   GraduationCap, 
   ShieldCheck, 
   ChevronDown, 
-  Sparkles, 
   Check, 
   Settings2, 
   UserCheck,
@@ -118,7 +117,7 @@ export const RoleSwitchBanner: React.FC = () => {
               </span>
               {currentUser && (
                 <span className="text-slate-400 font-medium text-[11px] hidden sm:inline">
-                  — {currentUser.name} {currentUser.gradeOrYear ? `(${currentUser.gradeOrYear})` : currentUser.department ? `(${currentUser.department})` : ''}
+                  · {currentUser.name} {currentUser.gradeOrYear ? `(${currentUser.gradeOrYear})` : currentUser.department ? `(${currentUser.department})` : ''}
                 </span>
               )}
             </div>
