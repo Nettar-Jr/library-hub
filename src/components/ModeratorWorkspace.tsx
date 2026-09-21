@@ -27,7 +27,11 @@ import {
   Square,
   GraduationCap,
   Users,
-  Award
+  Award,
+  UserCheck,
+  FileSignature,
+  BookmarkCheck,
+  Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -36,6 +40,7 @@ export const ModeratorWorkspace: React.FC = () => {
     submissions, 
     approveSubmission, 
     rejectSubmission, 
+    assignSubmissionTeacher,
     users, 
     currentUser, 
     isStaff, 
@@ -46,7 +51,8 @@ export const ModeratorWorkspace: React.FC = () => {
   // Selection and Filter states
   const [selectedSub, setSelectedSub] = useState<StudentSubmission | null>(null);
   const [activeTab, setActiveTab] = useState<'pending' | 'revision' | 'approved' | 'all'>('pending');
-  const [classFilterOnly, setClassFilterOnly] = useState(isStaff && !isAdmin);
+  const [teacherViewFilter, setTeacherViewFilter] = useState<'all' | 'assigned_to_me' | 'my_class'>('all');
+  const [adminViewFilter, setAdminViewFilter] = useState<'all' | 'needs_vetting' | 'assigned_to_teacher'>('all');
   
   // Batch multi-select state
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -56,9 +62,24 @@ export const ModeratorWorkspace: React.FC = () => {
   const [revisionFeedback, setRevisionFeedback] = useState('');
   const [subForRevision, setSubForRevision] = useState<StudentSubmission | null>(null);
   const [isBatchRevision, setIsBatchRevision] = useState(false);
+
+  // Assign Teacher Modal State
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [subForAssign, setSubForAssign] = useState<StudentSubmission | null>(null);
+  const [selectedTeacherId, setSelectedTeacherId] = useState('');
+  const [assignmentNotes, setAssignmentNotes] = useState('');
   
   // Notification toast
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'amber' } | null>(null);
+
+  // Comprehensive faculty specialist list with robust fallback
+  const facultyList = users.filter(u => u.role === 'staff' || u.role === 'teacher').length > 0
+    ? users.filter(u => u.role === 'staff' || u.role === 'teacher')
+    : [
+        { id: 'user-7', name: 'Mrs. Emily Cole', department: 'English Language & Literature', role: 'staff' as const, email: 'emily.cole@school.edu' },
+        { id: 'user-8', name: 'Mr. David Mensah', department: 'Natural Sciences & Robotics', role: 'staff' as const, email: 'david.mensah@school.edu' },
+        { id: 'user-9', name: 'Ms. Zainab Farooq', department: 'Creative Arts & World Languages', role: 'staff' as const, email: 'zainab.farooq@school.edu' },
+      ];
 
   // Helper to check if submission author belongs to logged-in teacher
   const isAuthorInMyClass = (authorName: string) => {
@@ -67,10 +88,24 @@ export const ModeratorWorkspace: React.FC = () => {
     return authorUser?.assignedTeacherId === currentUser.id;
   };
 
-  // Filter queues
+  // Filter queues based on role and active views
   const filteredSubmissions = submissions.filter((s) => {
-    if (classFilterOnly && isStaff && !isAdmin && currentUser) {
-      return isAuthorInMyClass(s.authorName);
+    if (isStaff && !isAdmin && currentUser) {
+      if (teacherViewFilter === 'assigned_to_me') {
+        return s.assignedTeacherId === currentUser.id;
+      }
+      if (teacherViewFilter === 'my_class') {
+        return isAuthorInMyClass(s.authorName);
+      }
+      return true;
+    }
+    if (isAdmin) {
+      if (adminViewFilter === 'needs_vetting') {
+        return !s.assignedTeacherId && s.status === 'pending';
+      }
+      if (adminViewFilter === 'assigned_to_teacher') {
+        return Boolean(s.assignedTeacherId);
+      }
     }
     return true;
   });
@@ -86,6 +121,11 @@ export const ModeratorWorkspace: React.FC = () => {
     return true;
   });
 
+  // Counts for role badges
+  const myAssignedCount = currentUser ? submissions.filter(s => s.assignedTeacherId === currentUser.id && s.status === 'pending').length : 0;
+  const myClassCount = currentUser ? submissions.filter(s => isAuthorInMyClass(s.authorName) && s.status === 'pending').length : 0;
+  const delegatedTotalCount = submissions.filter(s => Boolean(s.assignedTeacherId)).length;
+
   // Quick feedback presets for fast feedback
   const feedbackPresets = [
     { label: 'Grammar & Punctuation', text: 'Great creative start! Please review and correct punctuation and spelling in paragraph 2 before publishing.' },
@@ -97,6 +137,87 @@ export const ModeratorWorkspace: React.FC = () => {
     { label: 'Add Citations / Credits', text: 'Well-crafted project. Please add citations or credits for any sample media or cited research points.' },
     { label: 'School Guidelines Review', text: 'Please adjust certain expressions to align with our school community guidelines and resubmit.' }
   ];
+
+  // Subject vetting instruction presets for librarian delegation
+  const delegationPresets = [
+    { label: 'Literature & Creative Prose', text: 'Please evaluate the narrative arc, dialogue, and prose depth for age-appropriate literary quality.' },
+    { label: 'Science & STEM Accuracy', text: 'Please vet scientific accuracy, empirical methodology, and factual references in this manuscript.' },
+    { label: 'Poetry & Verse Analysis', text: 'Please review meter, emotional resonance, stanza structure, and thematic imagery.' },
+    { label: 'Visual Art & Design Technique', text: 'Please assess the visual composition, original artistic merit, and digital technique.' },
+    { label: 'Historical & Social Studies', text: 'Please check historical context, source citations, and social argumentation.' }
+  ];
+
+  // Open Assign Teacher Modal
+  const openAssignModal = (sub: StudentSubmission) => {
+    setSubForAssign(sub);
+    setSelectedTeacherId(sub.assignedTeacherId || facultyList[0]?.id || '');
+    setAssignmentNotes(sub.assignmentNotes || '');
+    setIsAssignModalOpen(true);
+  };
+
+  const closeAssignModal = () => {
+    setIsAssignModalOpen(false);
+    setSubForAssign(null);
+    setSelectedTeacherId('');
+    setAssignmentNotes('');
+  };
+
+  const handleConfirmAssignment = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!subForAssign) return;
+    const chosenTeacher = facultyList.find(t => t.id === selectedTeacherId) || facultyList[0];
+    if (!chosenTeacher) return;
+
+    assignSubmissionTeacher(
+      subForAssign.id,
+      chosenTeacher.id,
+      chosenTeacher.name,
+      chosenTeacher.department,
+      assignmentNotes.trim()
+    );
+
+    const assignedBy = currentUser?.name || (isAdmin ? 'Librarian Abdul Alabi' : 'Faculty Moderator');
+    const assignedAt = new Date().toISOString();
+
+    if (selectedSub?.id === subForAssign.id) {
+      setSelectedSub(prev => prev ? {
+        ...prev,
+        assignedTeacherId: chosenTeacher.id,
+        assignedTeacherName: chosenTeacher.name,
+        assignedTeacherDepartment: chosenTeacher.department,
+        assignedBy,
+        assignedAt,
+        assignmentNotes: assignmentNotes.trim()
+      } : null);
+    }
+
+    setNotification({
+      message: `Assigned "${subForAssign.title}" to ${chosenTeacher.name} (${chosenTeacher.department || 'Faculty Specialist'}) for subject vetting.`,
+      type: 'success'
+    });
+    setTimeout(() => setNotification(null), 5000);
+    closeAssignModal();
+  };
+
+  const handleRevokeAssignment = (sub: StudentSubmission) => {
+    assignSubmissionTeacher(sub.id, '', '', '', '');
+    if (selectedSub?.id === sub.id) {
+      setSelectedSub(prev => prev ? {
+        ...prev,
+        assignedTeacherId: undefined,
+        assignedTeacherName: undefined,
+        assignedTeacherDepartment: undefined,
+        assignedBy: undefined,
+        assignedAt: undefined,
+        assignmentNotes: undefined
+      } : null);
+    }
+    setNotification({
+      message: `Teacher assignment revoked for "${sub.title}". It has returned to the Librarian moderation desk.`,
+      type: 'amber'
+    });
+    setTimeout(() => setNotification(null), 5000);
+  };
 
   const handleApprove = (id: string, title: string) => {
     approveSubmission(id);
@@ -193,47 +314,90 @@ export const ModeratorWorkspace: React.FC = () => {
           <div className="flex items-center gap-2">
             <h2 className="font-display text-xl sm:text-2xl font-black tracking-tight text-slate-900 flex items-center gap-2">
               <ShieldAlert className="w-6 h-6 text-amber-500" />
-              {isAdmin ? 'Librarian Institutional Moderation' : 'Teacher Classroom Moderation'}
+              {isAdmin ? 'Librarian Institutional Moderation' : 'Faculty Subject Moderation'}
             </h2>
             <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
               isAdmin ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-900'
             }`}>
-              {isAdmin ? 'Admin View' : 'Teacher View'}
+              {isAdmin ? 'Librarian Admin' : 'Teacher View'}
             </span>
           </div>
           <p className="text-xs sm:text-sm text-slate-600 mt-1">
             {isAdmin 
-              ? 'Review, provide constructive feedback, and approve original student literature and art school-wide.'
-              : `Review submissions from your assigned class scholars, provide encouraging feedback, and publish them.`
+              ? 'Review submissions, approve student works, or delegate to subject teachers for professional vetting.'
+              : `Review submissions from your class or those delegated to you by the librarian for subject expertise.`
             }
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           {isAdmin && (
-            <button
-              type="button"
-              onClick={() => setIsRosterModalOpen(true)}
-              className="bg-indigo-900 hover:bg-indigo-800 text-white text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs transition"
-            >
-              <Users className="w-4 h-4 text-amber-400" />
-              <span>Manage Class Rosters</span>
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => setIsRosterModalOpen(true)}
+                className="bg-indigo-900 hover:bg-indigo-800 text-white text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs transition"
+              >
+                <Users className="w-4 h-4 text-amber-400" />
+                <span>Class Rosters</span>
+              </button>
+
+              <div className="flex items-center bg-slate-100 p-1 rounded-xl text-[11px] font-bold border border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setAdminViewFilter('all')}
+                  className={`px-2.5 py-1 rounded-lg transition cursor-pointer ${
+                    adminViewFilter === 'all' ? 'bg-white text-indigo-950 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  All Queue
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAdminViewFilter('assigned_to_teacher')}
+                  className={`px-2.5 py-1 rounded-lg transition cursor-pointer flex items-center gap-1 ${
+                    adminViewFilter === 'assigned_to_teacher' ? 'bg-white text-indigo-950 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <GraduationCap className="w-3.5 h-3.5 text-indigo-700" />
+                  <span>Delegated ({delegatedTotalCount})</span>
+                </button>
+              </div>
+            </>
           )}
 
           {isStaff && !isAdmin && (
-            <button
-              type="button"
-              onClick={() => setClassFilterOnly(!classFilterOnly)}
-              className={`text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 cursor-pointer transition border ${
-                classFilterOnly 
-                  ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs' 
-                  : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
-              }`}
-            >
-              <GraduationCap className="w-4 h-4" />
-              <span>{classFilterOnly ? 'Showing My Class Only' : 'Showing All School Works'}</span>
-            </button>
+            <div className="flex items-center bg-slate-100 p-1 rounded-xl text-[11px] font-bold border border-slate-200">
+              <button
+                type="button"
+                onClick={() => setTeacherViewFilter('all')}
+                className={`px-2.5 py-1 rounded-lg transition cursor-pointer ${
+                  teacherViewFilter === 'all' ? 'bg-white text-indigo-950 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                All Works
+              </button>
+              <button
+                type="button"
+                onClick={() => setTeacherViewFilter('assigned_to_me')}
+                className={`px-2.5 py-1 rounded-lg transition cursor-pointer flex items-center gap-1 ${
+                  teacherViewFilter === 'assigned_to_me' ? 'bg-white text-indigo-950 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Award className="w-3 h-3 text-amber-600" />
+                <span>Assigned to Me ({myAssignedCount})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setTeacherViewFilter('my_class')}
+                className={`px-2.5 py-1 rounded-lg transition cursor-pointer flex items-center gap-1 ${
+                  teacherViewFilter === 'my_class' ? 'bg-white text-indigo-950 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <GraduationCap className="w-3 h-3 text-emerald-600" />
+                <span>My Class ({myClassCount})</span>
+              </button>
+            </div>
           )}
 
           <div className="bg-amber-100 text-amber-950 border border-amber-300 text-xs font-bold px-3 py-1.5 rounded-xl font-mono flex items-center gap-1.5">
@@ -449,6 +613,22 @@ export const ModeratorWorkspace: React.FC = () => {
                     </p>
                   </div>
 
+                  {/* Teacher Assignment Indicator in List */}
+                  {sub.assignedTeacherName && (
+                    <div className="flex items-center gap-1.5 pt-0.5">
+                      {currentUser && sub.assignedTeacherId === currentUser.id ? (
+                        <span className="bg-amber-100 text-amber-950 border border-amber-300 font-black text-[9px] px-2 py-0.5 rounded-full flex items-center gap-1 animate-pulse">
+                          <Award className="w-2.5 h-2.5 text-amber-700" /> Assigned to You
+                        </span>
+                      ) : (
+                        <span className="bg-indigo-50 text-indigo-900 border border-indigo-200 font-bold text-[9px] px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <GraduationCap className="w-2.5 h-2.5 text-indigo-600" />
+                          Vetting: {sub.assignedTeacherName}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
                   {sub.moderationFeedback && (
                     <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-[11px] text-rose-950 font-medium line-clamp-2">
                       <span className="font-bold">Feedback: </span>"{sub.moderationFeedback}"
@@ -520,6 +700,92 @@ export const ModeratorWorkspace: React.FC = () => {
                       <span>Approve & Publish</span>
                     </button>
                   </div>
+                </div>
+
+                {/* SPECIALIST TEACHER VETTING & DELEGATION SECTION */}
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-3">
+                  <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+                    <div className="flex items-start gap-2.5">
+                      <div className="p-2 bg-indigo-100 text-indigo-950 rounded-xl mt-0.5">
+                        <GraduationCap className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="font-display font-black text-xs text-slate-900 uppercase tracking-wider">
+                          Subject Specialist Vetting & Delegation
+                        </h4>
+                        <p className="text-[11px] text-slate-500 max-w-md">
+                          {selectedSub.assignedTeacherName 
+                            ? `This piece has been delegated to ${selectedSub.assignedTeacherName} (${selectedSub.assignedTeacherDepartment || 'Faculty Specialist'}) for subject vetting.`
+                            : 'If the librarian is not professionally fit to vet this work (e.g. poetry, science research, or visual art), delegate it to a specialist teacher.'
+                          }
+                        </p>
+                      </div>
+                    </div>
+
+                    {isAdmin && (
+                      <div className="flex items-center gap-2">
+                        {selectedSub.assignedTeacherName ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => openAssignModal(selectedSub)}
+                              className="px-3 py-1.5 bg-indigo-900 hover:bg-indigo-800 text-white rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer transition shadow-2xs"
+                            >
+                              <UserCheck className="w-3.5 h-3.5" />
+                              <span>Reassign Teacher</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRevokeAssignment(selectedSub)}
+                              className="px-2.5 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-semibold cursor-pointer transition"
+                              title="Revoke delegation and handle vetting directly"
+                            >
+                              Revoke
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => openAssignModal(selectedSub)}
+                            className="px-3.5 py-2 bg-indigo-950 hover:bg-indigo-900 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs transition"
+                          >
+                            <UserCheck className="w-4 h-4 text-amber-400" />
+                            <span>Assign Teacher to Vet</span>
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {selectedSub.assignedTeacherName && (
+                    <div className="bg-white border border-indigo-200 rounded-xl p-3.5 text-xs space-y-1.5">
+                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 text-[11px] text-slate-600">
+                        <span>
+                          Assigned Subject Reviewer: <strong className="text-slate-900">{selectedSub.assignedTeacherName}</strong> 
+                          <span className="text-slate-500 font-sans"> • {selectedSub.assignedTeacherDepartment || 'Faculty Staff'}</span>
+                        </span>
+                        <span className="text-[10px] font-mono text-slate-400">
+                          Delegated by {selectedSub.assignedBy || 'Librarian'} {selectedSub.assignedAt ? `on ${new Date(selectedSub.assignedAt).toLocaleDateString()}` : ''}
+                        </span>
+                      </div>
+                      {selectedSub.assignmentNotes && (
+                        <div className="bg-indigo-50/60 p-2.5 rounded-lg border border-indigo-100 text-xs text-indigo-950">
+                          <span className="font-bold text-[10px] uppercase tracking-wider text-indigo-800 block mb-0.5">Vetting Guidance / Instructions:</span>
+                          <p className="italic">"{selectedSub.assignmentNotes}"</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Highlight if current logged in user is the assigned teacher */}
+                  {currentUser && selectedSub.assignedTeacherId === currentUser.id && (
+                    <div className="bg-amber-50 border border-amber-200 p-3 rounded-xl text-xs text-amber-950 flex items-center gap-2">
+                      <Award className="w-4 h-4 text-amber-700 flex-shrink-0" />
+                      <span>
+                        <strong>You are the assigned subject specialist for this manuscript.</strong> You can review its content, request revisions, or grant institutional publication approval.
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Cover Image if available */}
@@ -656,6 +922,131 @@ export const ModeratorWorkspace: React.FC = () => {
                   >
                     <Send className="w-3.5 h-3.5" />
                     <span>Send Revision Request</span>
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ASSIGN TEACHER MODAL (LIBRARIAN DELEGATION) */}
+      <AnimatePresence>
+        {isAssignModalOpen && subForAssign && (
+          <div 
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="assign-modal-title"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 space-y-5 shadow-2xl border border-slate-200"
+            >
+              <div className="flex justify-between items-start">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2.5 bg-indigo-100 text-indigo-950 rounded-2xl">
+                    <UserCheck className="w-5 h-5 text-indigo-900" />
+                  </div>
+                  <div>
+                    <h3 id="assign-modal-title" className="font-display font-black text-lg text-slate-900">
+                      Assign Subject Teacher to Vet Work
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Delegate approval to a faculty member professionally fit to vet this genre.
+                    </p>
+                  </div>
+                </div>
+                <button 
+                  onClick={closeAssignModal}
+                  className="p-1.5 text-slate-400 hover:text-slate-700 rounded-full cursor-pointer"
+                  aria-label="Close assignment modal"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Manuscript Summary */}
+              <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 text-xs space-y-1">
+                <div className="flex items-center justify-between text-[11px] font-mono text-slate-500">
+                  <span className="uppercase font-bold text-indigo-900">{subForAssign.category.replace('-', ' ')}</span>
+                  <span>{subForAssign.gradeOrYear}</span>
+                </div>
+                <h4 className="font-display font-bold text-slate-900 text-sm">{subForAssign.title}</h4>
+                <p className="text-slate-600 text-xs">Author: <strong>{subForAssign.authorName}</strong></p>
+              </div>
+
+              <form onSubmit={handleConfirmAssignment} className="space-y-4 text-xs">
+                {/* Teacher Selection Dropdown */}
+                <div className="space-y-1.5">
+                  <label htmlFor="teacher-select" className="block font-bold text-slate-800 uppercase tracking-wider text-[11px]">
+                    Select Faculty Specialist *
+                  </label>
+                  <select
+                    id="teacher-select"
+                    value={selectedTeacherId}
+                    onChange={(e) => setSelectedTeacherId(e.target.value)}
+                    className="w-full border border-slate-300 rounded-xl p-3 text-xs bg-white text-slate-900 font-medium outline-none focus:ring-2 focus:ring-indigo-900"
+                    required
+                  >
+                    {facultyList.map((teacher) => (
+                      <option key={teacher.id} value={teacher.id}>
+                        {teacher.name} — {teacher.department || 'Faculty Teacher'} ({teacher.email})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Preset Guidance Notes */}
+                <div className="space-y-1.5">
+                  <span className="block text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                    Quick Vetting Instructions Presets:
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {delegationPresets.map((preset, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setAssignmentNotes(preset.text)}
+                        className="text-[11px] bg-slate-100 hover:bg-indigo-50 hover:text-indigo-950 font-medium px-2.5 py-1 rounded-lg border border-slate-200 transition cursor-pointer"
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Custom Vetting Instructions Textarea */}
+                <div className="space-y-1.5">
+                  <label htmlFor="assignment-notes" className="block font-bold text-slate-800 uppercase tracking-wider text-[11px]">
+                    Instructions / Guidance for Teacher
+                  </label>
+                  <textarea
+                    id="assignment-notes"
+                    rows={3}
+                    value={assignmentNotes}
+                    onChange={(e) => setAssignmentNotes(e.target.value)}
+                    placeholder="Specify what technical or pedagogical aspects the teacher should assess (e.g., scientific accuracy, poetic meter, historical sources)..."
+                    className="w-full text-xs border border-slate-300 rounded-xl p-3 outline-none focus:ring-2 focus:ring-indigo-900 font-sans"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={closeAssignModal}
+                    className="px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="bg-indigo-950 hover:bg-indigo-900 text-white font-bold py-2.5 px-5 rounded-xl text-xs flex items-center gap-1.5 shadow-xs cursor-pointer"
+                  >
+                    <UserCheck className="w-4 h-4 text-amber-400" />
+                    <span>Confirm & Delegate Vetting</span>
                   </button>
                 </div>
               </form>

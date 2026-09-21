@@ -10,7 +10,16 @@ import {
   isSupabaseConfigured, 
   fetchBooksFromSupabase, 
   insertBookToSupabase, 
-  deleteBookFromSupabase 
+  deleteBookFromSupabase,
+  fetchSubmissionsFromSupabase,
+  insertSubmissionToSupabase,
+  updateSubmissionInSupabase,
+  fetchCirculationFromSupabase,
+  insertCirculationToSupabase,
+  updateCirculationInSupabase,
+  fetchHoldsFromSupabase,
+  insertHoldToSupabase,
+  updateHoldInSupabase
 } from '../services/supabase';
 
 export interface EmailLog {
@@ -138,6 +147,7 @@ interface AppContextType {
   updateSubmission: (id: string, title: string, category: StudentSubmission['category'], content: string, imageUrl?: string) => void;
   approveSubmission: (id: string) => void;
   rejectSubmission: (id: string, feedback: string) => void;
+  assignSubmissionTeacher: (submissionId: string, teacherId: string, teacherName: string, teacherDepartment?: string, assignmentNotes?: string) => void;
   toggleLike: (id: string) => void;
   addComment: (submissionId: string, content: string, authorName?: string, rating?: number) => void;
   addAnnouncement: (title: string, content: string, category: Announcement['category']) => void;
@@ -393,7 +403,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [submissions, setSubmissions] = useState<StudentSubmission[]>(() => {
     const saved = localStorage.getItem('p_submissions');
-    return saved ? JSON.parse(saved) : initialSubmissions;
+    if (saved) {
+      try {
+        const parsed: StudentSubmission[] = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          // Delete any and every legacy hard-coded sample work
+          const legacySampleIds = new Set(['sub-1', 'sub-2', 'sub-3', 'sub-4', 'sub-5', 'sub-6']);
+          return parsed.filter(s => !legacySampleIds.has(s.id) && !s.id.match(/^sub-[1-6]$/));
+        }
+      } catch {
+        return [];
+      }
+    }
+    return [];
   });
 
   const [announcements, setAnnouncements] = useState<Announcement[]>(() => {
@@ -463,9 +485,51 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const refreshSubmissions = async () => {
+    if (!isSupabaseConfigured) return;
+    try {
+      const { data, error } = await fetchSubmissionsFromSupabase();
+      if (!error && data) {
+        setSubmissions(data);
+        localStorage.setItem('p_submissions', JSON.stringify(data));
+      }
+    } catch (err) {
+      console.warn('Could not sync submissions from Supabase:', err);
+    }
+  };
+
+  const refreshCirculation = async () => {
+    if (!isSupabaseConfigured) return;
+    try {
+      const { data, error } = await fetchCirculationFromSupabase();
+      if (!error && data) {
+        setCirculation(data);
+        localStorage.setItem('p_circulation', JSON.stringify(data));
+      }
+    } catch (err) {
+      console.warn('Could not sync circulation from Supabase:', err);
+    }
+  };
+
+  const refreshHolds = async () => {
+    if (!isSupabaseConfigured) return;
+    try {
+      const { data, error } = await fetchHoldsFromSupabase();
+      if (!error && data) {
+        setHolds(data);
+        localStorage.setItem('p_holds', JSON.stringify(data));
+      }
+    } catch (err) {
+      console.warn('Could not sync holds from Supabase:', err);
+    }
+  };
+
   useEffect(() => {
     if (isSupabaseConfigured) {
       refreshBooks();
+      refreshSubmissions();
+      refreshCirculation();
+      refreshHolds();
     }
   }, []);
 
@@ -897,7 +961,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       alertSent: false,
     };
 
-    setCirculation((prev) => [newRecord, ...prev]);
+    setCirculation((prev) => {
+      const updated = [newRecord, ...prev];
+      localStorage.setItem('p_circulation', JSON.stringify(updated));
+      return updated;
+    });
+
+    if (isSupabaseConfigured) {
+      insertCirculationToSupabase(newRecord).catch((err) => {
+        console.warn('Could not insert circulation record to Supabase:', err);
+      });
+    }
+
     return { success: true, message: `Successfully checked out "${book.title}" to ${learnerName}. Due date: ${formatDate(dueDate)}` };
   };
 
@@ -907,13 +982,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Update circulation record
     const todayStr = new Date().toISOString().split('T')[0];
-    setCirculation((prev) =>
-      prev.map((r) =>
+    setCirculation((prev) => {
+      const updated = prev.map((r) =>
         r.id === recordId
           ? { ...r, status: 'returned' as const, returnDate: todayStr }
           : r
-      )
-    );
+      );
+      localStorage.setItem('p_circulation', JSON.stringify(updated));
+      return updated;
+    });
+
+    if (isSupabaseConfigured) {
+      updateCirculationInSupabase(recordId, { status: 'returned', returnDate: todayStr }).catch((err) => {
+        console.warn('Could not update circulation return in Supabase:', err);
+      });
+    }
 
     // Increment available copies back
     setBooks((prev) =>
@@ -937,11 +1020,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     content: string,
     imageUrl?: string
   ) => {
-    const authorName = currentRole === 'learner' ? currentLearnerName.split('(')[0].trim() : 'Guest Learner';
-    const gradeOrYear = currentRole === 'learner' ? currentLearnerName.match(/\(([^)]+)\)/)?.[1] || 'Year 9' : 'Primary 6';
+    const authorName = currentRole === 'learner' 
+      ? (loggedInLearner?.name || currentLearnerName.split('(')[0].trim()) 
+      : (currentUser?.name || 'Student Scholar');
+    const gradeOrYear = currentRole === 'learner' 
+      ? (loggedInLearner?.gradeOrYear || currentLearnerName.match(/\(([^)]+)\)/)?.[1] || 'Year 9') 
+      : 'Year 9';
 
     const newSub: StudentSubmission = {
-      id: `sub-${Date.now()}`,
+      id: `sub-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       authorName,
       gradeOrYear,
       title,
@@ -954,7 +1041,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       comments: [],
     };
 
-    setSubmissions((prev) => [newSub, ...prev]);
+    setSubmissions((prev) => {
+      const updated = [newSub, ...prev];
+      localStorage.setItem('p_submissions', JSON.stringify(updated));
+      return updated;
+    });
+
+    if (isSupabaseConfigured) {
+      insertSubmissionToSupabase(newSub).catch((err) => {
+        console.warn('Could not insert submission to Supabase cloud table:', err);
+      });
+    }
   };
 
   const updateSubmission = (
@@ -964,35 +1061,90 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     content: string,
     imageUrl?: string
   ) => {
-    setSubmissions((prev) =>
-      prev.map((s) =>
-        s.id === id
-          ? {
-              ...s,
-              title,
-              category,
-              content,
-              imageUrl,
-              status: 'pending' as const, // Resubmitting sets it back to pending for review!
-              createdAt: new Date().toISOString(),
-            }
-          : s
-      )
-    );
+    const updates = {
+      title,
+      category,
+      content,
+      imageUrl,
+      status: 'pending' as const, // Resubmitting sets it back to pending for review!
+      createdAt: new Date().toISOString(),
+    };
+
+    setSubmissions((prev) => {
+      const updated = prev.map((s) => (s.id === id ? { ...s, ...updates } : s));
+      localStorage.setItem('p_submissions', JSON.stringify(updated));
+      return updated;
+    });
+
+    if (isSupabaseConfigured) {
+      updateSubmissionInSupabase(id, updates).catch((err) => {
+        console.warn('Could not update submission in Supabase:', err);
+      });
+    }
   };
 
   const approveSubmission = (id: string) => {
-    setSubmissions((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, status: 'approved' as const } : s))
-    );
+    setSubmissions((prev) => {
+      const updated = prev.map((s) => (s.id === id ? { ...s, status: 'approved' as const } : s));
+      localStorage.setItem('p_submissions', JSON.stringify(updated));
+      return updated;
+    });
+
+    if (isSupabaseConfigured) {
+      updateSubmissionInSupabase(id, { status: 'approved' }).catch((err) => {
+        console.warn('Could not approve submission in Supabase:', err);
+      });
+    }
   };
 
   const rejectSubmission = (id: string, feedback: string) => {
-    setSubmissions((prev) =>
-      prev.map((s) =>
+    setSubmissions((prev) => {
+      const updated = prev.map((s) =>
         s.id === id ? { ...s, status: 'rejected' as const, moderationFeedback: feedback } : s
-      )
-    );
+      );
+      localStorage.setItem('p_submissions', JSON.stringify(updated));
+      return updated;
+    });
+
+    if (isSupabaseConfigured) {
+      updateSubmissionInSupabase(id, { status: 'rejected', moderationFeedback: feedback }).catch((err) => {
+        console.warn('Could not reject submission in Supabase:', err);
+      });
+    }
+  };
+
+  const assignSubmissionTeacher = (
+    submissionId: string,
+    teacherId: string,
+    teacherName: string,
+    teacherDepartment?: string,
+    assignmentNotes?: string
+  ) => {
+    const assignedBy = currentRole === 'librarian' || isAdmin 
+      ? (currentUser?.name || 'Librarian Abdul Alabi') 
+      : (currentUser?.name || 'Librarian');
+    const assignedAt = new Date().toISOString();
+
+    const updates = {
+      assignedTeacherId: teacherId,
+      assignedTeacherName: teacherName,
+      assignedTeacherDepartment: teacherDepartment,
+      assignedBy,
+      assignedAt,
+      assignmentNotes: assignmentNotes || '',
+    };
+
+    setSubmissions((prev) => {
+      const updated = prev.map((s) => (s.id === submissionId ? { ...s, ...updates } : s));
+      localStorage.setItem('p_submissions', JSON.stringify(updated));
+      return updated;
+    });
+
+    if (isSupabaseConfigured) {
+      updateSubmissionInSupabase(submissionId, updates).catch((err) => {
+        console.warn('Could not assign teacher in Supabase:', err);
+      });
+    }
   };
 
   const toggleLike = (id: string) => {
@@ -1102,7 +1254,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       status: 'active'
     };
 
-    setHolds(prev => [newHold, ...prev]);
+    setHolds(prev => {
+      const updated = [newHold, ...prev];
+      localStorage.setItem('p_holds', JSON.stringify(updated));
+      return updated;
+    });
+
+    if (isSupabaseConfigured) {
+      insertHoldToSupabase(newHold).catch((err) => {
+        console.warn('Could not sync hold to Supabase:', err);
+      });
+    }
 
     // Decrease available copies by 1
     setBooks(prev => prev.map(b => b.id === bookId ? { ...b, availableCopies: Math.max(0, b.availableCopies - 1) } : b));
@@ -1117,7 +1279,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const hold = holds.find(h => h.id === holdId);
     if (!hold) return;
 
-    setHolds(prev => prev.map(h => h.id === holdId ? { ...h, status: 'released' as const } : h));
+    setHolds(prev => {
+      const updated = prev.map(h => h.id === holdId ? { ...h, status: 'released' as const } : h);
+      localStorage.setItem('p_holds', JSON.stringify(updated));
+      return updated;
+    });
+
+    if (isSupabaseConfigured) {
+      updateHoldInSupabase(holdId, 'released').catch((err) => {
+        console.warn('Could not update hold in Supabase:', err);
+      });
+    }
 
     // Restore copy
     setBooks(prev => prev.map(b => b.id === hold.bookId ? { ...b, availableCopies: Math.min(b.totalCopies, b.availableCopies + 1) } : b));
@@ -1319,6 +1491,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateSubmission,
         approveSubmission,
         rejectSubmission,
+        assignSubmissionTeacher,
         toggleLike,
         addComment,
         addAnnouncement,

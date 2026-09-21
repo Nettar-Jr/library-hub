@@ -201,11 +201,17 @@ CREATE TABLE IF NOT EXISTS public.student_submissions (
   user_id UUID REFERENCES public.library_users(id) ON DELETE SET NULL,
   grade_or_year TEXT NOT NULL,
   title TEXT NOT NULL,
-  category TEXT NOT NULL CHECK (category IN ('short-story', 'poetry', 'academic-essay', 'digital-art')),
+  category TEXT NOT NULL CHECK (category IN ('short-story', 'poetry', 'academic-essay', 'digital-art', 'audio-podcast', 'video-multimedia')),
   content TEXT NOT NULL,
   image_url TEXT,
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
   moderation_feedback TEXT,
+  assigned_teacher_id TEXT,
+  assigned_teacher_name TEXT,
+  assigned_teacher_department TEXT,
+  assigned_by TEXT,
+  assigned_at TIMESTAMPTZ,
+  assignment_notes TEXT,
   likes_count INT DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT now()
 );

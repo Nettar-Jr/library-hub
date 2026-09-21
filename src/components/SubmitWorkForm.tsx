@@ -87,7 +87,7 @@ export const SubmitWorkForm: React.FC = () => {
     return author.includes(query) || query.includes(author);
   });
 
-  const displaySubmissions = mySubmissions.length > 0 ? mySubmissions : submissions;
+  const displaySubmissions = mySubmissions;
   const revisionCount = displaySubmissions.filter(s => s.status === 'rejected').length;
 
   // Real-time validation checks
@@ -764,6 +764,18 @@ export const SubmitWorkForm: React.FC = () => {
                     <p className="text-xs text-slate-600 line-clamp-3 font-serif leading-relaxed italic">
                       "{sub.content}"
                     </p>
+
+                    {sub.assignedTeacherName && (
+                      <div className="bg-indigo-50/70 border border-indigo-200 p-2.5 rounded-xl text-xs text-indigo-950 flex items-center justify-between">
+                        <span className="font-semibold text-[11px] text-indigo-900">
+                          Assigned Subject Reviewer: <strong>{sub.assignedTeacherName}</strong>
+                          {sub.assignedTeacherDepartment ? ` (${sub.assignedTeacherDepartment})` : ''}
+                        </span>
+                        <span className="text-[10px] font-mono text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-full">
+                          Vetting in progress
+                        </span>
+                      </div>
+                    )}
 
                     {sub.moderationFeedback && (
                       <div className="bg-rose-50 border border-rose-200 p-3 rounded-xl text-xs text-rose-950 space-y-1">

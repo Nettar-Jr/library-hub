@@ -30,9 +30,14 @@ import {
   AlertCircle,
   Database,
   RefreshCw,
-  Trash2
+  Trash2,
+  Camera,
+  Sparkles,
+  Barcode
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { CameraBarcodeScanner } from './CameraBarcodeScanner';
+import { lookupBookByISBN } from '../utils/isbnLookup';
 
 const CATEGORY_TABS = [
   { id: 'ALL', label: 'All Resources' },
@@ -84,6 +89,8 @@ export const BookCatalog: React.FC = () => {
   const [actionToast, setActionToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const [isAddBookModalOpen, setIsAddBookModalOpen] = useState(false);
+  const [showCatalogCameraScanner, setShowCatalogCameraScanner] = useState(false);
+  const [isLookingUpISBN, setIsLookingUpISBN] = useState(false);
   const [newBookForm, setNewBookForm] = useState<Partial<Book>>({
     title: '',
     author: '',
@@ -830,13 +837,88 @@ export const BookCatalog: React.FC = () => {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setIsAddBookModalOpen(false)}
+                  onClick={() => {
+                    setIsAddBookModalOpen(false);
+                    setShowCatalogCameraScanner(false);
+                  }}
                   className="p-1.5 text-slate-300 hover:text-white rounded-lg hover:bg-white/10 transition cursor-pointer"
                   aria-label="Close modal"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
+
+              {/* Quick ISBN Camera Scanner Toggle Banner */}
+              <div className="bg-gradient-to-r from-blue-900 to-indigo-950 p-4 border-b border-blue-800/60 flex items-center justify-between gap-3 text-white">
+                <div className="flex items-center gap-2">
+                  <Barcode className="w-5 h-5 text-cyan-400" />
+                  <div>
+                    <span className="font-bold text-xs block text-cyan-100">Scan Barcode / ISBN</span>
+                    <span className="text-[10px] text-slate-300">Point camera or scan gun to auto-populate metadata</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowCatalogCameraScanner(!showCatalogCameraScanner)}
+                  className="px-3 py-1.5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer transition shadow-xs"
+                >
+                  <Camera className="w-3.5 h-3.5" />
+                  <span>{showCatalogCameraScanner ? 'Hide Camera' : 'Scan via Camera'}</span>
+                </button>
+              </div>
+
+              {/* Live Camera Scanner when open */}
+              <AnimatePresence>
+                {showCatalogCameraScanner && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="p-4 bg-slate-950 border-b border-slate-800"
+                  >
+                    <CameraBarcodeScanner
+                      onScan={async (decoded) => {
+                        const clean = decoded.replace(/[^0-9X]/gi, '');
+                        if (clean.length === 10 || clean.length === 13) {
+                          setShowCatalogCameraScanner(false);
+                          setIsLookingUpISBN(true);
+                          showToast('success', `Scanned ISBN: ${clean}. Fetching book info...`);
+                          try {
+                            const res = await lookupBookByISBN(clean);
+                            if (res.success && res.book) {
+                              setNewBookForm(prev => ({
+                                ...prev,
+                                isbn: clean,
+                                title: res.book!.title || prev.title,
+                                author: res.book!.authors.join(', ') || prev.author,
+                                description: res.book!.description || prev.description,
+                                coverImage: res.book!.coverUrl || prev.coverImage,
+                                deweyCode: res.book!.deweyCode || prev.deweyCode,
+                                category: res.book!.subjects?.[0]?.includes('Sci') ? 'STEM & Space' : prev.category
+                              }));
+                              showToast('success', `Auto-filled "${res.book.title}" via Open Library!`);
+                            } else {
+                              setNewBookForm(prev => ({ ...prev, isbn: clean }));
+                              showToast('error', res.error || 'ISBN scanned! Please fill remaining details.');
+                            }
+                          } catch (err: any) {
+                            showToast('error', `Lookup error: ${err.message}`);
+                          } finally {
+                            setIsLookingUpISBN(false);
+                          }
+                        } else {
+                          setNewBookForm(prev => ({ ...prev, isbn: decoded }));
+                          showToast('success', `Scanned Barcode: ${decoded}`);
+                          setShowCatalogCameraScanner(false);
+                        }
+                      }}
+                      onClose={() => setShowCatalogCameraScanner(false)}
+                      title="Optical ISBN Scanner"
+                      subtitle="Scan the barcode on the back cover of any physical book"
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               {/* Form Content */}
               <form onSubmit={handleCreateBook} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto text-xs">
@@ -928,17 +1010,60 @@ export const BookCatalog: React.FC = () => {
                   </div>
 
                   <div>
-                    <label htmlFor="new-book-isbn" className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                      ISBN
-                    </label>
-                    <input
-                      id="new-book-isbn"
-                      type="text"
-                      value={newBookForm.isbn}
-                      onChange={(e) => setNewBookForm({ ...newBookForm, isbn: e.target.value })}
-                      placeholder="e.g. 978-0385474542"
-                      className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-medium text-slate-800 outline-none focus:ring-1 focus:ring-slate-500"
-                    />
+                    <div className="flex items-center justify-between mb-1">
+                      <label htmlFor="new-book-isbn" className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wider">
+                        ISBN
+                      </label>
+                      {newBookForm.isbn && (
+                        <button
+                          type="button"
+                          disabled={isLookingUpISBN}
+                          onClick={async () => {
+                            const clean = (newBookForm.isbn || '').replace(/[^0-9X]/gi, '');
+                            if (clean.length === 10 || clean.length === 13) {
+                              setIsLookingUpISBN(true);
+                              showToast('success', `Querying Open Library for ISBN ${clean}...`);
+                              try {
+                                const res = await lookupBookByISBN(clean);
+                                if (res.success && res.book) {
+                                  setNewBookForm(prev => ({
+                                    ...prev,
+                                    title: res.book!.title || prev.title,
+                                    author: res.book!.authors.join(', ') || prev.author,
+                                    description: res.book!.description || prev.description,
+                                    coverImage: res.book!.coverUrl || prev.coverImage,
+                                    deweyCode: res.book!.deweyCode || prev.deweyCode,
+                                  }));
+                                  showToast('success', `Auto-populated "${res.book.title}"!`);
+                                } else {
+                                  showToast('error', res.error || 'ISBN lookup yielded no results');
+                                }
+                              } catch (err: any) {
+                                showToast('error', `Lookup failed: ${err.message}`);
+                              } finally {
+                                setIsLookingUpISBN(false);
+                              }
+                            } else {
+                              showToast('error', 'Please enter a valid 10 or 13-digit ISBN');
+                            }
+                          }}
+                          className="text-[10px] text-blue-600 hover:text-blue-800 font-bold flex items-center gap-1 cursor-pointer"
+                        >
+                          <Sparkles className="w-3 h-3" />
+                          <span>{isLookingUpISBN ? 'Looking up...' : 'Auto-Fill Details'}</span>
+                        </button>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <input
+                        id="new-book-isbn"
+                        type="text"
+                        value={newBookForm.isbn}
+                        onChange={(e) => setNewBookForm({ ...newBookForm, isbn: e.target.value })}
+                        placeholder="e.g. 978-0385474542"
+                        className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-medium text-slate-800 outline-none focus:ring-1 focus:ring-slate-500"
+                      />
+                    </div>
                   </div>
                 </div>
 

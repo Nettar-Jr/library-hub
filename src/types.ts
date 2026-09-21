@@ -168,6 +168,13 @@ export interface StudentSubmission {
   likesCount: number;
   likedByCurrentUser?: boolean;
   comments: Comment[];
+  // Teacher delegation / vetting assignment
+  assignedTeacherId?: string;
+  assignedTeacherName?: string;
+  assignedTeacherDepartment?: string;
+  assignedBy?: string;
+  assignedAt?: string;
+  assignmentNotes?: string;
 }
 
 export interface Announcement {
