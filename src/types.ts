@@ -117,10 +117,12 @@ export interface LibraryUser {
   id: string;
   name: string;
   role: 'learner' | 'staff' | 'admin' | 'student' | 'teacher' | 'librarian';
-  gradeOrYear?: string; // e.g., 'Year 9', 'Primary 5'
+  gradeOrYear?: string; // e.g., '9E', 'Year 9', 'Primary 5'
   department?: string;  // e.g., 'English Department', 'Science Department'
   libraryCardId: string; // e.g. 'LIB-STUD-1001'
+  admissionNumber?: string; // e.g. 'PIS/SS/23/2345'
   email: string;
+  password?: string; // Hashed or stored credential for authentication
   avatar?: string;
   assignedTeacherId?: string; // ID of assigned teacher/advisor
   assignedTeacherName?: string; // Name of assigned teacher/advisor

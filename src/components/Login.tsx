@@ -19,6 +19,7 @@ import {
   Loader2 
 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { queryUserFromSupabase, isSupabaseConfigured } from '../services/supabase';
 
 interface LoginProps {
   targetTab?: string;
@@ -87,7 +88,7 @@ export const Login: React.FC<LoginProps> = ({ targetTab, adminMode }) => {
   };
 
   // Submit Handler
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
@@ -101,13 +102,35 @@ export const Login: React.FC<LoginProps> = ({ targetTab, adminMode }) => {
 
     setIsLoading(true);
 
-    // Brief simulation for realistic authentication feedback
-    setTimeout(() => {
+    try {
+      // 1. First attempt to authenticate against Supabase database if configured
+      let cloudUser = null;
+      if (isSupabaseConfigured) {
+        try {
+          const { data, error: sbError } = await queryUserFromSupabase(trimmedUsername);
+          if (!sbError && data) {
+            cloudUser = data;
+          }
+        } catch (dbErr) {
+          console.warn('Supabase query error during login:', dbErr);
+        }
+      }
+
+      // Check against cloud user or fallback to local users state
+      const targetUser = cloudUser || users.find(
+        (u) => 
+          u.email.toLowerCase() === trimmedUsername.toLowerCase() ||
+          u.libraryCardId.toLowerCase() === trimmedUsername.toLowerCase() ||
+          (u.admissionNumber && u.admissionNumber.toLowerCase() === trimmedUsername.toLowerCase()) ||
+          u.name.toLowerCase() === trimmedUsername.toLowerCase()
+      );
+
       if (isAdminPath) {
         // Administrative Sign-In Verification
+        // Allow hardcoded fallback admin or targetUser with matching password
         const isStandardAdmin = 
           (trimmedUsername.toLowerCase() === 'admin' || trimmedUsername.toLowerCase() === 'librarian') && 
-          (trimmedPassword === 'admin123' || trimmedPassword === 'admin');
+          (trimmedPassword === 'admin123' || trimmedPassword === 'admin' || trimmedPassword === 'Admin321');
 
         if (isStandardAdmin) {
           setIsLibrarianLoggedIn(true);
@@ -117,23 +140,23 @@ export const Login: React.FC<LoginProps> = ({ targetTab, adminMode }) => {
           return;
         }
 
-        // Check if matching staff user in school roster
-        const matchedStaff = users.find(
-          (u) => 
-            (u.email.toLowerCase() === trimmedUsername.toLowerCase() ||
-             u.libraryCardId.toLowerCase() === trimmedUsername.toLowerCase() ||
-             u.name.toLowerCase() === trimmedUsername.toLowerCase())
-        );
+        if (targetUser) {
+          // If password is set on the account, verify it matches
+          if (targetUser.password && targetUser.password !== trimmedPassword) {
+            setError('Incorrect password. Please verify your credentials.');
+            setIsLoading(false);
+            return;
+          }
 
-        if (matchedStaff) {
-          if (matchedStaff.role === 'admin') {
+          if (targetUser.role === 'admin' || targetUser.role === 'librarian') {
             setIsLibrarianLoggedIn(true);
+            setCurrentUser(targetUser);
             setActiveTab(targetTab || 'circulation');
             navigate(resolveTargetRoute(targetTab, true));
             setIsLoading(false);
             return;
-          } else if (matchedStaff.role === 'staff') {
-            setCurrentUser(matchedStaff);
+          } else if (targetUser.role === 'staff' || targetUser.role === 'teacher') {
+            setCurrentUser(targetUser);
             setActiveTab(targetTab || 'circulation');
             navigate(resolveTargetRoute(targetTab, true));
             setIsLoading(false);
@@ -145,29 +168,14 @@ export const Login: React.FC<LoginProps> = ({ targetTab, adminMode }) => {
           }
         }
 
-        setError('Invalid administrative credentials. Please verify your username and password, or contact the school administrator.');
+        setError('Invalid administrative credentials. Please verify your email/username and password, or contact the school administrator.');
         setIsLoading(false);
       } else {
         // Student & Faculty Member Sign-In Verification
-        const matchedUser = users.find(
-          (u) => 
-            u.libraryCardId.toLowerCase() === trimmedUsername.toLowerCase() ||
-            u.email.toLowerCase() === trimmedUsername.toLowerCase()
-        );
-
-        if (matchedUser) {
-          setCurrentUser(matchedUser);
-          setLoggedInLearner(matchedUser);
-          setActiveTab(targetTab || 'library');
-          navigate(resolveTargetRoute(targetTab, false));
-          setIsLoading(false);
-          return;
-        }
-
-        // Also allow admin credentials on regular login for convenience
+        // Convenience check for admin credentials on regular login
         if (
           (trimmedUsername.toLowerCase() === 'admin' || trimmedUsername.toLowerCase() === 'librarian') &&
-          (trimmedPassword === 'admin123' || trimmedPassword === 'admin')
+          (trimmedPassword === 'admin123' || trimmedPassword === 'admin' || trimmedPassword === 'Admin321')
         ) {
           setIsLibrarianLoggedIn(true);
           setActiveTab(targetTab || 'catalog');
@@ -176,10 +184,37 @@ export const Login: React.FC<LoginProps> = ({ targetTab, adminMode }) => {
           return;
         }
 
-        setError('Library card ID or school email not found. Please check your credentials or contact the library desk.');
+        if (targetUser) {
+          // For students, their password is their admission number (or password field)
+          const expectedPassword = targetUser.password || targetUser.admissionNumber;
+          if (expectedPassword && expectedPassword !== trimmedPassword) {
+            setError('Incorrect password. For students, your password is your admission number (e.g. PIS/SS/23/2345).');
+            setIsLoading(false);
+            return;
+          }
+
+          if (targetUser.role === 'admin' || targetUser.role === 'librarian') {
+            setIsLibrarianLoggedIn(true);
+            setCurrentUser(targetUser);
+            setActiveTab(targetTab || 'catalog');
+            navigate(resolveTargetRoute(targetTab, true));
+          } else {
+            setCurrentUser(targetUser);
+            setLoggedInLearner(targetUser);
+            setActiveTab(targetTab || 'library');
+            navigate(resolveTargetRoute(targetTab, false));
+          }
+          setIsLoading(false);
+          return;
+        }
+
+        setError('School email, admission number, or Library Card ID not found. Please check your credentials or contact the library desk.');
         setIsLoading(false);
       }
-    }, 300);
+    } catch (err: any) {
+      setError(err?.message || 'Authentication failed. Please try again.');
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -292,7 +327,7 @@ export const Login: React.FC<LoginProps> = ({ targetTab, adminMode }) => {
             {/* Username / Identifier Input */}
             <div className="space-y-1.5">
               <label htmlFor="login-username" className="block text-xs font-semibold text-slate-700">
-                {isAdminPath ? 'Staff Username or School Email' : 'School Email or Library Card ID'}
+                {isAdminPath ? 'Staff Username or School Email' : 'School Email, Admission Number, or Library Card ID'}
               </label>
               <div className="relative">
                 {isAdminPath ? (
@@ -305,7 +340,7 @@ export const Login: React.FC<LoginProps> = ({ targetTab, adminMode }) => {
                   type="text"
                   required
                   autoComplete="username"
-                  placeholder={isAdminPath ? "e.g. librarian or staff@premier-international.edu" : "e.g. LIB-STUD-1001 or student@school.edu"}
+                  placeholder={isAdminPath ? "e.g. alabia@premierinternationalschool.org or admin" : "e.g. chidio@premierinternationalschool.org or PIS/SS/23/2345"}
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:bg-white focus:border-slate-400 focus:ring-2 focus:ring-slate-100 transition-all text-slate-900 placeholder:text-slate-400 font-medium"
@@ -316,7 +351,7 @@ export const Login: React.FC<LoginProps> = ({ targetTab, adminMode }) => {
             {/* Password Input with Show/Hide Toggle */}
             <div className="space-y-1.5">
               <label htmlFor="login-password" className="block text-xs font-semibold text-slate-700">
-                Password
+                {isAdminPath ? 'Password' : 'Password (Students use Admission Number, e.g. PIS/SS/23/2345)'}
               </label>
               <div className="relative">
                 <KeyRound className="absolute left-3 top-3 text-slate-400 w-4 h-4 pointer-events-none" />
@@ -325,7 +360,7 @@ export const Login: React.FC<LoginProps> = ({ targetTab, adminMode }) => {
                   type={showPassword ? 'text' : 'password'}
                   required
                   autoComplete="current-password"
-                  placeholder="••••••••"
+                  placeholder={isAdminPath ? "••••••••" : "e.g. PIS/SS/23/2345"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full pl-9 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:bg-white focus:border-slate-400 focus:ring-2 focus:ring-slate-100 transition-all text-slate-900 placeholder:text-slate-400 font-medium"

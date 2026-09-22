@@ -20,9 +20,11 @@ import {
   Check,
   CheckCircle2,
   AlertCircle,
-  Trash2
+  Trash2,
+  Printer
 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { PhysicalPrintTools } from './PhysicalPrintTools';
 
 interface BookDetailModalProps {
   book: Book;
@@ -52,6 +54,7 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({ book, onClose 
   const [reviewComment, setReviewComment] = useState('');
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [isSavedToShelf, setIsSavedToShelf] = useState(false);
+  const [showSpinePrint, setShowSpinePrint] = useState(false);
 
   const modalRef = useRef<HTMLDivElement>(null);
 
@@ -309,18 +312,30 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({ book, onClose 
             </button>
 
             {(isAdmin || currentRole === 'STAFF' || currentRole === 'ADMIN') && (
-              <button
-                type="button"
-                onClick={async () => {
-                  await deleteBook(book.id);
-                  onClose();
-                }}
-                className="px-3 py-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 transition cursor-pointer"
-                title="Delete title from library catalog"
-              >
-                <Trash2 className="w-4 h-4 text-rose-600" />
-                <span className="hidden sm:inline">Delete</span>
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => setShowSpinePrint(true)}
+                  className="px-3 py-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 transition cursor-pointer"
+                  title="Print spine label for this book"
+                >
+                  <Printer className="w-4 h-4 text-indigo-600" />
+                  <span className="hidden sm:inline">Print Label</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await deleteBook(book.id);
+                    onClose();
+                  }}
+                  className="px-3 py-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 transition cursor-pointer"
+                  title="Delete title from library catalog"
+                >
+                  <Trash2 className="w-4 h-4 text-rose-600" />
+                  <span className="hidden sm:inline">Delete</span>
+                </button>
+              </>
             )}
           </div>
 
@@ -540,6 +555,16 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({ book, onClose 
           </button>
         </div>
       </motion.div>
+
+      {/* Physical Print Tools Modal for this book */}
+      {showSpinePrint && (
+        <PhysicalPrintTools
+          isModal={true}
+          initialTab="spine"
+          preselectedBookIds={[book.id]}
+          onClose={() => setShowSpinePrint(false)}
+        />
+      )}
     </div>
   );
 };

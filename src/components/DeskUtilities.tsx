@@ -30,11 +30,16 @@ import {
   Camera,
   SearchCode,
   Sparkles,
-  ExternalLink
+  ExternalLink,
+  Tag,
+  Receipt,
+  FileSpreadsheet
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CameraBarcodeScanner } from './CameraBarcodeScanner';
 import { lookupBookByISBN } from '../utils/isbnLookup';
+import { PhysicalPrintTools } from './PhysicalPrintTools';
+import { CsvBatchImport } from './CsvBatchImport';
 
 export const DeskUtilities: React.FC = () => {
   const { 
@@ -54,7 +59,10 @@ export const DeskUtilities: React.FC = () => {
     addBook
   } = useApp();
 
-  const [activeSubTab, setActiveSubTab] = useState<'users' | 'scanner' | 'emails'>('users');
+  const [activeSubTab, setActiveSubTab] = useState<'users' | 'scanner' | 'print' | 'import' | 'emails'>('users');
+  const [importInitialTab, setImportInitialTab] = useState<'roster' | 'catalog'>('roster');
+  const [printSelectedUserId, setPrintSelectedUserId] = useState<string | undefined>(undefined);
+  const [printInitialTab, setPrintInitialTab] = useState<'spine' | 'slips'>('spine');
   
   // Create User Form State
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -583,6 +591,40 @@ export const DeskUtilities: React.FC = () => {
           Desk Barcode Scanner
         </button>
         <button
+          onClick={() => {
+            setActiveSubTab('print');
+            setPrintInitialTab('spine');
+          }}
+          className={`flex items-center gap-2 px-5 py-3 font-sans text-xs sm:text-sm font-bold tracking-wide border-b-2 cursor-pointer transition-all ${
+            activeSubTab === 'print'
+              ? 'border-cyan-500 text-cyan-700 bg-cyan-50/20'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Printer className="w-4 h-4 text-indigo-600" />
+          <span>Physical Print Tools</span>
+          <span className="text-[10px] bg-indigo-100 text-indigo-800 font-mono font-bold px-1.5 py-0.5 rounded-full">
+            Spine & Slips
+          </span>
+        </button>
+        <button
+          onClick={() => {
+            setActiveSubTab('import');
+            setImportInitialTab('roster');
+          }}
+          className={`flex items-center gap-2 px-5 py-3 font-sans text-xs sm:text-sm font-bold tracking-wide border-b-2 cursor-pointer transition-all ${
+            activeSubTab === 'import'
+              ? 'border-cyan-500 text-cyan-700 bg-cyan-50/20'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+          <span>CSV Batch Import</span>
+          <span className="text-[10px] bg-emerald-100 text-emerald-800 font-mono font-bold px-1.5 py-0.5 rounded-full">
+            Roster & Catalog
+          </span>
+        </button>
+        <button
           onClick={() => setActiveSubTab('emails')}
           className={`flex items-center gap-2 px-5 py-3 font-sans text-xs sm:text-sm font-bold tracking-wide border-b-2 cursor-pointer transition-all ${
             activeSubTab === 'emails'
@@ -620,6 +662,18 @@ export const DeskUtilities: React.FC = () => {
               >
                 <Printer className="w-3.5 h-3.5" />
                 Print Badges ({selectedUserIds.length} Selected)
+              </button>
+
+              <button
+                onClick={() => {
+                  setImportInitialTab('roster');
+                  setActiveSubTab('import');
+                }}
+                className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-3.5 rounded-xl text-xs cursor-pointer transition-all shadow-xs"
+                title="Batch import students and staff from CSV"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5" />
+                Import Roster CSV
               </button>
 
               <button
@@ -1171,9 +1225,25 @@ export const DeskUtilities: React.FC = () => {
 
                   {/* active borrowings */}
                   <div className="space-y-3">
-                    <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono">
-                      Current Borrows Registered to This Badge
-                    </h4>
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono">
+                        Current Borrows Registered to This Badge
+                      </h4>
+                      {scannedUserCirculations.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPrintSelectedUserId(scannedUser.id);
+                            setPrintInitialTab('slips');
+                            setActiveSubTab('print');
+                          }}
+                          className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/80 rounded-lg text-[10px] font-bold transition cursor-pointer"
+                        >
+                          <Receipt className="w-3 h-3 text-emerald-600" />
+                          <span>Print Checkout Slip</span>
+                        </button>
+                      )}
+                    </div>
 
                     <div className="space-y-2">
                       {scannedUserCirculations.map(record => {
@@ -1418,6 +1488,23 @@ export const DeskUtilities: React.FC = () => {
             )}
           </div>
 
+        </div>
+      )}
+
+      {/* SUBTAB CONTENT: PHYSICAL PRINT TOOLS (SPINE LABELS & CHECKOUT SLIPS) */}
+      {activeSubTab === 'print' && (
+        <div>
+          <PhysicalPrintTools
+            initialTab={printInitialTab}
+            preselectedUserId={printSelectedUserId}
+          />
+        </div>
+      )}
+
+      {/* SUBTAB CONTENT: CSV BATCH IMPORT (ROSTER & CATALOG) */}
+      {activeSubTab === 'import' && (
+        <div className="space-y-6 print:hidden">
+          <CsvBatchImport initialTab={importInitialTab} />
         </div>
       )}
 

@@ -97,3 +97,42 @@ body {
   white-space: nowrap;
   border-width: 0;
 }
+
+/* ====================================================================
+   PRINT STYLES FOR SPINE LABELS, BARCODES & CHECKOUT SLIPS
+   ==================================================================== */
+@media print {
+  @page {
+    margin: 0.25in;
+    size: auto;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  header, nav, footer, .print-hidden, .print\:hidden {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  /* Prevent page breaks inside labels or receipt segments */
+  .break-inside-avoid,
+  .print-avoid-break {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+}
+
+@media screen {
+  .print-only {
+    display: none !important;
+  }
+}
+

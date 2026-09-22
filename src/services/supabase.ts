@@ -4,7 +4,7 @@
  */
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { Book, StudentSubmission, CirculationRecord, BookHold } from '../types';
+import { Book, StudentSubmission, CirculationRecord, BookHold, LibraryUser } from '../types';
 
 // Load Vite environment variables
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
@@ -620,3 +620,192 @@ export async function updateHoldInSupabase(
     return { success: false, error: err.message || 'Unknown network error' };
   }
 }
+
+/**
+ * Maps a Supabase row to LibraryUser interface
+ */
+export function mapRowToUser(row: Record<string, any>): LibraryUser {
+  return {
+    id: String(row.id),
+    name: row.name || row.full_name || 'Unnamed User',
+    role: row.role || 'learner',
+    email: row.email || '',
+    password: row.password || '',
+    admissionNumber: row.admission_number || row.admissionNumber || '',
+    gradeOrYear: row.grade_or_year || row.gradeOrYear || row.class || '',
+    department: row.department || '',
+    libraryCardId: row.library_card_id || row.libraryCardId || `LIB-${String(row.id).slice(-4)}`,
+    avatar: row.avatar || row.avatar_url || '',
+    assignedTeacherId: row.assigned_teacher_id || row.assignedTeacherId || '',
+    assignedTeacherName: row.assigned_teacher_name || row.assignedTeacherName || '',
+    createdAt: row.created_at ? String(row.created_at).split('T')[0] : new Date().toISOString().split('T')[0],
+  };
+}
+
+/**
+ * Fetch all library users from Supabase
+ */
+export async function fetchUsersFromSupabase(): Promise<{ data: LibraryUser[] | null; error: string | null }> {
+  const client = getSupabaseClient();
+  if (!client) {
+    return { data: null, error: 'Supabase is not configured' };
+  }
+
+  try {
+    const { data, error } = await client
+      .from('library_users')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      return { data: null, error: error.message };
+    }
+
+    return { data: (data || []).map(mapRowToUser), error: null };
+  } catch (err: any) {
+    return { data: null, error: err.message || 'Unknown network error' };
+  }
+}
+
+/**
+ * Insert a new library user into Supabase
+ */
+export async function insertUserToSupabase(
+  user: LibraryUser
+): Promise<{ data: LibraryUser | null; error: string | null }> {
+  const client = getSupabaseClient();
+  if (!client) {
+    return { data: null, error: 'Supabase is not configured' };
+  }
+
+  try {
+    const payload = {
+      id: user.id,
+      name: user.name,
+      role: user.role,
+      email: user.email.toLowerCase().trim(),
+      password: user.password || '',
+      admission_number: user.admissionNumber || null,
+      grade_or_year: user.gradeOrYear || null,
+      department: user.department || null,
+      library_card_id: user.libraryCardId,
+      avatar: user.avatar || null,
+      assigned_teacher_id: user.assignedTeacherId || null,
+      assigned_teacher_name: user.assignedTeacherName || null,
+    };
+
+    const { data, error } = await client
+      .from('library_users')
+      .insert([payload])
+      .select()
+      .single();
+
+    if (error) {
+      return { data: null, error: error.message };
+    }
+
+    return { data: mapRowToUser(data), error: null };
+  } catch (err: any) {
+    return { data: null, error: err.message || 'Unknown network error' };
+  }
+}
+
+/**
+ * Update an existing library user in Supabase
+ */
+export async function updateUserInSupabase(
+  userId: string,
+  updates: Partial<LibraryUser>
+): Promise<{ success: boolean; error: string | null }> {
+  const client = getSupabaseClient();
+  if (!client) {
+    return { success: false, error: 'Supabase is not configured' };
+  }
+
+  try {
+    const payload: Record<string, any> = {};
+    if (updates.name !== undefined) payload.name = updates.name;
+    if (updates.role !== undefined) payload.role = updates.role;
+    if (updates.email !== undefined) payload.email = updates.email.toLowerCase().trim();
+    if (updates.password !== undefined) payload.password = updates.password;
+    if (updates.admissionNumber !== undefined) payload.admission_number = updates.admissionNumber;
+    if (updates.gradeOrYear !== undefined) payload.grade_or_year = updates.gradeOrYear;
+    if (updates.department !== undefined) payload.department = updates.department;
+    if (updates.libraryCardId !== undefined) payload.library_card_id = updates.libraryCardId;
+    if (updates.avatar !== undefined) payload.avatar = updates.avatar;
+    if (updates.assignedTeacherId !== undefined) payload.assigned_teacher_id = updates.assignedTeacherId;
+    if (updates.assignedTeacherName !== undefined) payload.assigned_teacher_name = updates.assignedTeacherName;
+
+    const { error } = await client
+      .from('library_users')
+      .update(payload)
+      .eq('id', userId);
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, error: null };
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Unknown network error' };
+  }
+}
+
+/**
+ * Delete a library user from Supabase
+ */
+export async function deleteUserFromSupabase(userId: string): Promise<{ success: boolean; error: string | null }> {
+  const client = getSupabaseClient();
+  if (!client) {
+    return { success: false, error: 'Supabase is not configured' };
+  }
+
+  try {
+    const { error } = await client
+      .from('library_users')
+      .delete()
+      .eq('id', userId);
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, error: null };
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Unknown network error' };
+  }
+}
+
+/**
+ * Query user from Supabase by identifier (email, admission number, or library card ID)
+ */
+export async function queryUserFromSupabase(identifier: string): Promise<{ data: LibraryUser | null; error: string | null }> {
+  const client = getSupabaseClient();
+  if (!client) {
+    return { data: null, error: 'Supabase is not configured' };
+  }
+
+  const cleanId = identifier.trim();
+  const cleanLower = cleanId.toLowerCase();
+
+  try {
+    const { data, error } = await client
+      .from('library_users')
+      .select('*')
+      .or(`email.ilike.${cleanLower},admission_number.ilike.${cleanId},library_card_id.ilike.${cleanId}`)
+      .limit(1);
+
+    if (error) {
+      return { data: null, error: error.message };
+    }
+
+    if (data && data.length > 0) {
+      return { data: mapRowToUser(data[0]), error: null };
+    }
+
+    return { data: null, error: null };
+  } catch (err: any) {
+    return { data: null, error: err.message || 'Unknown network error' };
+  }
+}
+

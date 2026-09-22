@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0F172A"/>
+      <stop offset="50%" stop-color="#1E293B"/>
+      <stop offset="100%" stop-color="#0284C7"/>
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FCD34D"/>
+      <stop offset="100%" stop-color="#F59E0B"/>
+    </linearGradient>
+    <linearGradient id="pageGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#E2E8F0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background with rounded corners -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)"/>
+  
+  <!-- Outer glowing accent ring -->
+  <rect x="16" y="16" width="480" height="480" rx="96" fill="none" stroke="#38BDF8" stroke-width="4" stroke-opacity="0.3"/>
+
+  <!-- Open Book Symbol (Safe Zone: centered within 80% circle) -->
+  <g transform="translate(256, 270)">
+    <!-- Book Spine Glow -->
+    <path d="M 0,-110 L 0,110" stroke="url(#goldGrad)" stroke-width="8" stroke-linecap="round"/>
+
+    <!-- Left Pages Stack -->
+    <path d="M 0,90 C -60,65 -130,65 -175,85 L -175,-75 C -130,-95 -60,-95 0,-70 Z" 
+          fill="url(#pageGrad)" stroke="#CBD5E1" stroke-width="4"/>
+    <path d="M 0,100 C -60,75 -130,75 -170,95 L -170,-65 C -130,-85 -60,-85 0,-60 Z" 
+          fill="none" stroke="#94A3B8" stroke-width="2" stroke-opacity="0.5"/>
+
+    <!-- Right Pages Stack -->
+    <path d="M 0,90 C 60,65 130,65 175,85 L 175,-75 C 130,-95 60,-95 0,-70 Z" 
+          fill="url(#pageGrad)" stroke="#CBD5E1" stroke-width="4"/>
+    <path d="M 0,100 C 60,75 130,75 170,95 L 170,-65 C 130,-85 60,-85 0,-60 Z" 
+          fill="none" stroke="#94A3B8" stroke-width="2" stroke-opacity="0.5"/>
+
+    <!-- Bookmark Ribbon in Gold -->
+    <path d="M -5,-70 L -5,35 L 15,15 L 35,35 L 35,-70 Z" fill="url(#goldGrad)"/>
+
+    <!-- Star / Spark of Knowledge floating above book -->
+    <g transform="translate(0, -145)">
+      <polygon points="0,-35 10,-10 35,0 10,10 0,35 -10,10 -35,0 -10,-10" fill="url(#goldGrad)"/>
+      <circle cx="0" cy="0" r="6" fill="#FFFFFF"/>
+    </g>
+
+    <!-- Side spark dots -->
+    <circle cx="-65" cy="-135" r="4" fill="#38BDF8"/>
+    <circle cx="65" cy="-135" r="4" fill="#38BDF8"/>
+  </g>
+</svg>

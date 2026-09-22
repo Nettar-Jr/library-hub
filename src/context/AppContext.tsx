@@ -10,6 +10,7 @@ import {
   isSupabaseConfigured, 
   fetchBooksFromSupabase, 
   insertBookToSupabase, 
+  updateBookInSupabase,
   deleteBookFromSupabase,
   fetchSubmissionsFromSupabase,
   insertSubmissionToSupabase,
@@ -19,8 +20,17 @@ import {
   updateCirculationInSupabase,
   fetchHoldsFromSupabase,
   insertHoldToSupabase,
-  updateHoldInSupabase
+  updateHoldInSupabase,
+  fetchUsersFromSupabase,
+  insertUserToSupabase,
+  updateUserInSupabase
 } from '../services/supabase';
+import {
+  getPendingOfflineMutations,
+  enqueueOfflineMutation,
+  dequeueOfflineMutation,
+  setLastSyncTimestamp,
+} from '../services/offlineSync';
 
 export interface EmailLog {
   id: string;
@@ -116,6 +126,10 @@ interface AppContextType {
   // Custom states and actions
   users: LibraryUser[];
   createUser: (userData: Omit<LibraryUser, 'id' | 'createdAt' | 'libraryCardId'>) => LibraryUser;
+  addUsersBatch: (
+    usersList: Omit<LibraryUser, 'id' | 'createdAt'>[],
+    options?: { updateDuplicates?: boolean }
+  ) => { addedCount: number; updatedCount: number; skippedCount: number };
   assignLearnerToTeacher: (learnerId: string, teacherId: string | null) => { success: boolean; message: string };
   assignMultipleLearnersToTeacher: (learnerIds: string[], teacherId: string) => { success: boolean; message: string };
   isRosterModalOpen: boolean;
@@ -137,9 +151,14 @@ interface AppContextType {
   isLoadingCloudBooks: boolean;
   cloudSyncStatus: 'synced' | 'connecting' | 'syncing' | 'local' | 'empty' | 'error';
   refreshBooks: () => Promise<void>;
+  refreshUsers: () => Promise<void>;
   deleteBook: (bookId: string) => Promise<{ success: boolean; message: string }>;
   clearSampleBooks: () => void;
   addBook: (book: Omit<Book, 'id' | 'readsCount'>) => void;
+  addBooksBatch: (
+    booksList: Omit<Book, 'id' | 'readsCount'>[],
+    options?: { updateDuplicates?: boolean }
+  ) => Promise<{ addedCount: number; updatedCount: number; skippedCount: number }>;
   checkoutBook: (bookId: string, learnerName: string, days?: number) => { success: boolean; message: string };
   returnBook: (recordId: string) => void;
   sendOverdueAlert: (recordId: string) => void;
@@ -152,117 +171,50 @@ interface AppContextType {
   addComment: (submissionId: string, content: string, authorName?: string, rating?: number) => void;
   addAnnouncement: (title: string, content: string, category: Announcement['category']) => void;
   restockBook: (bookId: string, quantity: number) => void;
+  // Offline & Service Worker Sync
+  isOnline: boolean;
+  pendingOfflineChangesCount: number;
+  isSyncingOfflineChanges: boolean;
+  syncPendingOfflineChanges: () => Promise<{ success: boolean; syncedCount: number; errors: string[] }>;
 }
 
 export const defaultAdminUser: LibraryUser = {
   id: 'user-admin-1',
-  name: 'Librarian Abdul Alabi',
+  name: 'Alabi Abdulmumuni',
   role: 'admin',
   department: 'Library Administration & Curation',
   libraryCardId: 'LIB-ADMIN-0001',
-  email: 'abdul.alabi@premier-international.edu',
+  email: 'alabia@premierinternationalschool.org',
+  password: 'Admin321',
   avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
   createdAt: '2025-09-01',
 };
 
 const initialUsers: LibraryUser[] = [
   {
-    id: 'user-1',
+    id: 'user-student-1',
     name: 'Chidi Okafor',
     role: 'learner',
-    gradeOrYear: 'Year 9',
-    libraryCardId: 'LIB-STUD-1001',
-    email: 'chidi.okafor@school.edu',
-    assignedTeacherId: 'user-5',
-    assignedTeacherName: 'Mrs. Emily Cole',
+    gradeOrYear: '9E',
+    admissionNumber: 'PIS/SS/23/2345',
+    password: 'PIS/SS/23/2345',
+    libraryCardId: 'LIB-STUD-2345',
+    email: 'chidio@premierinternationalschool.org',
+    assignedTeacherId: 'user-staff-1',
+    assignedTeacherName: 'David Mensah',
     avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=200',
     createdAt: '2026-01-10',
   },
   {
-    id: 'user-2',
-    name: 'Amina Bello',
-    role: 'learner',
-    gradeOrYear: 'Primary 5',
-    libraryCardId: 'LIB-STUD-1002',
-    email: 'amina.bello@school.edu',
-    assignedTeacherId: 'user-6',
-    assignedTeacherName: 'Mr. David Mensah',
-    avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=200',
-    createdAt: '2026-01-12',
-  },
-  {
-    id: 'user-3',
-    name: 'Sarah J.',
-    role: 'learner',
-    gradeOrYear: 'Primary 4',
-    libraryCardId: 'LIB-STUD-1003',
-    email: 'sarah.j@school.edu',
-    assignedTeacherId: 'user-5',
-    assignedTeacherName: 'Mrs. Emily Cole',
-    avatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&q=80&w=200',
-    createdAt: '2026-01-15',
-  },
-  {
-    id: 'user-4',
-    name: 'Tunde Williams',
-    role: 'learner',
-    gradeOrYear: 'Year 11',
-    libraryCardId: 'LIB-STUD-1004',
-    email: 'tunde.williams@school.edu',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200',
-    createdAt: '2026-01-18',
-  },
-  {
-    id: 'user-7',
-    name: 'Kemi Adebayo',
-    role: 'learner',
-    gradeOrYear: 'Year 8',
-    libraryCardId: 'LIB-STUD-1005',
-    email: 'kemi.adebayo@school.edu',
-    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200',
-    createdAt: '2026-01-20',
-  },
-  {
-    id: 'user-8',
-    name: 'Daniel Okon',
-    role: 'learner',
-    gradeOrYear: 'Year 10',
-    libraryCardId: 'LIB-STUD-1006',
-    email: 'daniel.okon@school.edu',
-    assignedTeacherId: 'user-6',
-    assignedTeacherName: 'Mr. David Mensah',
-    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=200',
-    createdAt: '2026-01-22',
-  },
-  {
-    id: 'user-5',
-    name: 'Mrs. Emily Cole',
-    role: 'staff',
-    department: 'English & Literature Department',
-    libraryCardId: 'LIB-TEACH-2001',
-    email: 'emily.cole@school.edu',
-    avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=200',
-    createdAt: '2026-01-05',
-  },
-  {
-    id: 'user-6',
-    name: 'Mr. David Mensah',
+    id: 'user-staff-1',
+    name: 'David Mensah',
     role: 'staff',
     department: 'Science & STEM Department',
-    libraryCardId: 'LIB-TEACH-2002',
-    email: 'david.mensah@school.edu',
+    libraryCardId: 'LIB-TEACH-2001',
+    email: 'davidm@premierinternationalschool.org',
+    password: 'StaffPass123',
     avatar: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=200',
     createdAt: '2026-01-08',
-  },
-  {
-    id: 'user-9',
-    name: 'Ms. Zainab Farooq',
-    role: 'staff',
-    department: 'Creative Arts & World Languages',
-    libraryCardId: 'LIB-TEACH-2003',
-    email: 'zainab.farooq@school.edu',
-    avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&q=80&w=200',
-    createdAt: '2026-01-14',
   },
   defaultAdminUser,
 ];
@@ -524,12 +476,140 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const refreshUsers = async () => {
+    if (!isSupabaseConfigured) return;
+    try {
+      const { data, error } = await fetchUsersFromSupabase();
+      if (!error && data && data.length > 0) {
+        setUsers(data);
+        localStorage.setItem('p_users_v3', JSON.stringify(data));
+      }
+    } catch (err) {
+      console.warn('Could not sync users from Supabase:', err);
+    }
+  };
+
+  // Offline network status and mutation sync state
+  const [isOnline, setIsOnline] = useState<boolean>(() => typeof navigator !== 'undefined' ? navigator.onLine : true);
+  const [pendingOfflineChangesCount, setPendingOfflineChangesCount] = useState<number>(() => getPendingOfflineMutations().length);
+  const [isSyncingOfflineChanges, setIsSyncingOfflineChanges] = useState<boolean>(false);
+
+  const syncPendingOfflineChanges = async (): Promise<{ success: boolean; syncedCount: number; errors: string[] }> => {
+    const queue = getPendingOfflineMutations();
+    if (queue.length === 0) {
+      return { success: true, syncedCount: 0, errors: [] };
+    }
+
+    setIsSyncingOfflineChanges(true);
+    let synced = 0;
+    const errors: string[] = [];
+
+    for (const item of queue) {
+      try {
+        if (isSupabaseConfigured) {
+          switch (item.type) {
+            case 'ADD_BOOK': {
+              const res = await insertBookToSupabase(item.payload);
+              if (res.error) throw new Error(res.error);
+              break;
+            }
+            case 'UPDATE_BOOK': {
+              const res = await updateBookInSupabase(item.payload.id, item.payload.updates);
+              if (res.error) throw new Error(res.error);
+              break;
+            }
+            case 'DELETE_BOOK': {
+              const res = await deleteBookFromSupabase(item.payload.id);
+              if (res.error) throw new Error(res.error);
+              break;
+            }
+            case 'CHECKOUT_BOOK': {
+              const res = await insertCirculationToSupabase(item.payload);
+              if (res.error) throw new Error(res.error);
+              break;
+            }
+            case 'RETURN_BOOK': {
+              const res = await updateCirculationInSupabase(item.payload.id, item.payload.updates);
+              if (res.error) throw new Error(res.error);
+              break;
+            }
+            case 'RENEW_BOOK':
+            case 'FLAG_LOST': {
+              const res = await updateCirculationInSupabase(item.payload.id, item.payload.updates);
+              if (res.error) throw new Error(res.error);
+              break;
+            }
+            case 'ADD_HOLD': {
+              const res = await insertHoldToSupabase(item.payload);
+              if (res.error) throw new Error(res.error);
+              break;
+            }
+            case 'ADD_SUBMISSION': {
+              const res = await insertSubmissionToSupabase(item.payload);
+              if (res.error) throw new Error(res.error);
+              break;
+            }
+          }
+        }
+        // Dequeue mutation
+        dequeueOfflineMutation(item.id);
+        synced++;
+      } catch (err: any) {
+        console.warn(`Failed to sync queued mutation ${item.id}:`, err);
+        errors.push(err.message || 'Sync failed');
+      }
+    }
+
+    setLastSyncTimestamp();
+    setIsSyncingOfflineChanges(false);
+    setPendingOfflineChangesCount(getPendingOfflineMutations().length);
+
+    if (isSupabaseConfigured && synced > 0) {
+      refreshBooks();
+      refreshCirculation();
+      refreshHolds();
+      refreshSubmissions();
+    }
+
+    return { success: errors.length === 0, syncedCount: synced, errors };
+  };
+
+  // Sync event listeners for reconnection and queue updates
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      syncPendingOfflineChanges();
+    };
+    const handleOffline = () => {
+      setIsOnline(false);
+    };
+    const handleQueueUpdated = (e: any) => {
+      setPendingOfflineChangesCount(e.detail?.count ?? getPendingOfflineMutations().length);
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('offline-queue-updated', handleQueueUpdated);
+
+    // Initial check on load
+    if (typeof navigator !== 'undefined' && navigator.onLine && getPendingOfflineMutations().length > 0) {
+      syncPendingOfflineChanges();
+    }
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('offline-queue-updated', handleQueueUpdated);
+    };
+  }, []);
+
   useEffect(() => {
     if (isSupabaseConfigured) {
       refreshBooks();
       refreshSubmissions();
       refreshCirculation();
       refreshHolds();
+      refreshUsers();
     }
   }, []);
 
@@ -794,6 +874,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } : null);
     }
 
+    if (isSupabaseConfigured) {
+      updateUserInSupabase(learnerId, {
+        assignedTeacherId: teacherId || undefined,
+        assignedTeacherName: teacherName,
+      }).catch(err => console.warn('Could not sync teacher assignment to Supabase:', err));
+    }
+
     const msg = teacherName 
       ? `Assigned ${learner.name} to ${teacherName} successfully.`
       : `Removed teacher assignment from ${learner.name}.`;
@@ -863,8 +950,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Optimistic local state update
     setBooks((prev) => [newBook, ...prev]);
 
-    // Persist to Supabase if connected
-    if (isSupabaseConfigured) {
+    // Persist to Supabase if connected, or queue for offline sync
+    if (!navigator.onLine || !isSupabaseConfigured) {
+      enqueueOfflineMutation('ADD_BOOK', newBookData, `Add "${newBookData.title}"`);
+    } else {
       try {
         const { data, error } = await insertBookToSupabase(newBookData);
         if (data) {
@@ -872,12 +961,76 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setBooks((prev) => prev.map((b) => (b.id === tempId ? data : b)));
           setCloudSyncStatus('synced');
         } else if (error) {
-          console.warn('Could not insert to Supabase, retained in local storage:', error);
+          console.warn('Could not insert to Supabase, queuing for offline sync:', error);
+          enqueueOfflineMutation('ADD_BOOK', newBookData, `Add "${newBookData.title}"`);
         }
       } catch (err) {
-        console.error('Failed to save to Supabase:', err);
+        console.error('Failed to save to Supabase, queuing for offline sync:', err);
+        enqueueOfflineMutation('ADD_BOOK', newBookData, `Add "${newBookData.title}"`);
       }
     }
+  };
+
+  const addBooksBatch = async (
+    booksList: Omit<Book, 'id' | 'readsCount'>[],
+    options?: { updateDuplicates?: boolean }
+  ): Promise<{ addedCount: number; updatedCount: number; skippedCount: number }> => {
+    let added = 0;
+    let updated = 0;
+    let skipped = 0;
+    const shouldUpdate = options?.updateDuplicates ?? true;
+
+    const updatedCatalog: Book[] = [...books];
+
+    for (const item of booksList) {
+      const cleanNewISBN = (item.isbn || '').replace(/[^0-9X]/gi, '').toLowerCase();
+      const existingIndex = updatedCatalog.findIndex((b) => {
+        const cleanExistingISBN = (b.isbn || '').replace(/[^0-9X]/gi, '').toLowerCase();
+        return (
+          (cleanNewISBN && cleanExistingISBN && cleanNewISBN === cleanExistingISBN) ||
+          b.title.trim().toLowerCase() === item.title.trim().toLowerCase()
+        );
+      });
+
+      if (existingIndex !== -1) {
+        if (shouldUpdate) {
+          const prevBook = updatedCatalog[existingIndex];
+          const newTotal = prevBook.totalCopies + (item.totalCopies || 1);
+          const newAvail = prevBook.availableCopies + (item.availableCopies ?? item.totalCopies ?? 1);
+          updatedCatalog[existingIndex] = {
+            ...prevBook,
+            totalCopies: newTotal,
+            availableCopies: newAvail,
+            category: item.category || prevBook.category,
+            deweyCode: item.deweyCode || prevBook.deweyCode,
+            deweyClass: item.deweyClass || prevBook.deweyClass,
+            description: item.description || prevBook.description,
+            readingLevel: item.readingLevel || prevBook.readingLevel,
+            ageRange: item.ageRange || prevBook.ageRange,
+            hasAudio: item.hasAudio || prevBook.hasAudio,
+            usageType: item.usageType || prevBook.usageType,
+            coverImage: item.coverImage || prevBook.coverImage,
+          };
+          updated++;
+        } else {
+          skipped++;
+        }
+      } else {
+        const newBook: Book = {
+          ...item,
+          id: `book-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+          readsCount: 0,
+        };
+        updatedCatalog.unshift(newBook);
+        added++;
+      }
+    }
+
+    setBooks(updatedCatalog);
+    localStorage.setItem('p_books_v3', JSON.stringify(updatedCatalog));
+    localStorage.setItem('p_books', JSON.stringify(updatedCatalog));
+
+    return { addedCount: added, updatedCount: updated, skippedCount: skipped };
   };
 
   const deleteBook = async (bookId: string): Promise<{ success: boolean; message: string }> => {
@@ -891,11 +1044,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem('p_circulation', JSON.stringify(updatedCirc));
       return updatedCirc;
     });
-    if (isSupabaseConfigured) {
+    if (!navigator.onLine || !isSupabaseConfigured) {
+      enqueueOfflineMutation('DELETE_BOOK', { id: bookId }, `Delete Title (${bookId})`);
+    } else {
       try {
         await deleteBookFromSupabase(bookId);
       } catch (err) {
-        console.warn('Failed to delete from Supabase:', err);
+        console.warn('Failed to delete from Supabase, queued for offline sync:', err);
+        enqueueOfflineMutation('DELETE_BOOK', { id: bookId }, `Delete Title (${bookId})`);
       }
     }
     return { success: true, message: 'Title removed from catalog.' };
@@ -967,9 +1123,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return updated;
     });
 
-    if (isSupabaseConfigured) {
+    if (!navigator.onLine || !isSupabaseConfigured) {
+      enqueueOfflineMutation('CHECKOUT_BOOK', newRecord, `Checkout "${book.title}" to ${learnerName}`);
+    } else {
       insertCirculationToSupabase(newRecord).catch((err) => {
-        console.warn('Could not insert circulation record to Supabase:', err);
+        console.warn('Could not insert circulation record to Supabase, queuing for offline sync:', err);
+        enqueueOfflineMutation('CHECKOUT_BOOK', newRecord, `Checkout "${book.title}" to ${learnerName}`);
       });
     }
 
@@ -992,9 +1151,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return updated;
     });
 
-    if (isSupabaseConfigured) {
-      updateCirculationInSupabase(recordId, { status: 'returned', returnDate: todayStr }).catch((err) => {
-        console.warn('Could not update circulation return in Supabase:', err);
+    const updates = { status: 'returned' as const, returnDate: todayStr };
+    if (!navigator.onLine || !isSupabaseConfigured) {
+      enqueueOfflineMutation('RETURN_BOOK', { id: recordId, updates }, `Return "${record.bookTitle}"`);
+    } else {
+      updateCirculationInSupabase(recordId, updates).catch((err) => {
+        console.warn('Could not update circulation return in Supabase, queuing for offline sync:', err);
+        enqueueOfflineMutation('RETURN_BOOK', { id: recordId, updates }, `Return "${record.bookTitle}"`);
       });
     }
 
@@ -1047,9 +1210,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return updated;
     });
 
-    if (isSupabaseConfigured) {
+    if (!navigator.onLine || !isSupabaseConfigured) {
+      enqueueOfflineMutation('ADD_SUBMISSION', newSub, `Submit "${title}" by ${authorName}`);
+    } else {
       insertSubmissionToSupabase(newSub).catch((err) => {
-        console.warn('Could not insert submission to Supabase cloud table:', err);
+        console.warn('Could not insert submission to Supabase cloud table, queuing for offline sync:', err);
+        enqueueOfflineMutation('ADD_SUBMISSION', newSub, `Submit "${title}" by ${authorName}`);
       });
     }
   };
@@ -1214,8 +1380,83 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       libraryCardId: cardId,
       createdAt: new Date().toISOString().split('T')[0]
     };
-    setUsers(prev => [newUser, ...prev]);
+    setUsers(prev => {
+      const updated = [newUser, ...prev];
+      localStorage.setItem('p_users_v3', JSON.stringify(updated));
+      return updated;
+    });
+
+    if (isSupabaseConfigured) {
+      insertUserToSupabase(newUser).catch(err => {
+        console.warn('Could not insert user to Supabase:', err);
+      });
+    }
+
     return newUser;
+  };
+
+  const addUsersBatch = (
+    usersList: Omit<LibraryUser, 'id' | 'createdAt'>[],
+    options?: { updateDuplicates?: boolean }
+  ): { addedCount: number; updatedCount: number; skippedCount: number } => {
+    let added = 0;
+    let updated = 0;
+    let skipped = 0;
+    const shouldUpdate = options?.updateDuplicates ?? true;
+
+    const updatedUsers = [...users];
+
+    for (const item of usersList) {
+      const cleanEmail = (item.email || '').trim().toLowerCase();
+      const cleanCard = (item.libraryCardId || '').trim().toLowerCase();
+
+      const existingIndex = updatedUsers.findIndex((u) => {
+        const uEmail = (u.email || '').trim().toLowerCase();
+        const uCard = (u.libraryCardId || '').trim().toLowerCase();
+        return (
+          (cleanEmail && uEmail && cleanEmail === uEmail) ||
+          (cleanCard && uCard && cleanCard === uCard) ||
+          u.name.trim().toLowerCase() === item.name.trim().toLowerCase()
+        );
+      });
+
+      if (existingIndex !== -1) {
+        if (shouldUpdate) {
+          const prevUser = updatedUsers[existingIndex];
+          updatedUsers[existingIndex] = {
+            ...prevUser,
+            name: item.name || prevUser.name,
+            role: item.role || prevUser.role,
+            gradeOrYear: item.gradeOrYear !== undefined ? item.gradeOrYear : prevUser.gradeOrYear,
+            department: item.department !== undefined ? item.department : prevUser.department,
+            libraryCardId: item.libraryCardId || prevUser.libraryCardId,
+            assignedTeacherId: item.assignedTeacherId || prevUser.assignedTeacherId,
+            assignedTeacherName: item.assignedTeacherName || prevUser.assignedTeacherName,
+          };
+          updated++;
+        } else {
+          skipped++;
+        }
+      } else {
+        const randNum = Math.floor(1000 + Math.random() * 9000);
+        const cardId = item.libraryCardId || (
+          item.role === 'student' ? `LIB-STUD-${randNum}` : `LIB-TEACH-${randNum}`
+        );
+        const newUser: LibraryUser = {
+          ...item,
+          id: `user-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+          libraryCardId: cardId,
+          createdAt: new Date().toISOString().split('T')[0],
+        };
+        updatedUsers.unshift(newUser);
+        added++;
+      }
+    }
+
+    setUsers(updatedUsers);
+    localStorage.setItem('p_users_v3', JSON.stringify(updatedUsers));
+
+    return { addedCount: added, updatedCount: updated, skippedCount: skipped };
   };
 
   // 2. Holds: Reserve a book for 24h
@@ -1260,9 +1501,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return updated;
     });
 
-    if (isSupabaseConfigured) {
+    if (!navigator.onLine || !isSupabaseConfigured) {
+      enqueueOfflineMutation('ADD_HOLD', newHold, `Hold on "${book.title}" for ${user.name}`);
+    } else {
       insertHoldToSupabase(newHold).catch((err) => {
-        console.warn('Could not sync hold to Supabase:', err);
+        console.warn('Could not sync hold to Supabase, queuing for offline sync:', err);
+        enqueueOfflineMutation('ADD_HOLD', newHold, `Hold on "${book.title}" for ${user.name}`);
       });
     }
 
@@ -1462,6 +1706,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         logout,
         users,
         createUser,
+        addUsersBatch,
         assignLearnerToTeacher,
         assignMultipleLearnersToTeacher,
         isRosterModalOpen,
@@ -1481,9 +1726,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isLoadingCloudBooks,
         cloudSyncStatus,
         refreshBooks,
+        refreshUsers,
         deleteBook,
         clearSampleBooks,
         addBook,
+        addBooksBatch,
         checkoutBook,
         returnBook,
         sendOverdueAlert,
@@ -1496,6 +1743,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addComment,
         addAnnouncement,
         restockBook,
+        isOnline,
+        pendingOfflineChangesCount,
+        isSyncingOfflineChanges,
+        syncPendingOfflineChanges,
       }}
     >
       {children}

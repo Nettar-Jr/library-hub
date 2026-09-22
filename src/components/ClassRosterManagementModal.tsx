@@ -45,8 +45,10 @@ export const ClassRosterManagementModal: React.FC = () => {
   const [newUserName, setNewUserName] = useState('');
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserRole, setNewUserRole] = useState<'learner' | 'staff'>('learner');
-  const [newUserGrade, setNewUserGrade] = useState('Year 8');
-  const [newUserDepartment, setNewUserDepartment] = useState('Languages & Humanities');
+  const [newUserGrade, setNewUserGrade] = useState('9E');
+  const [newUserAdmissionNumber, setNewUserAdmissionNumber] = useState('');
+  const [newUserPassword, setNewUserPassword] = useState('');
+  const [newUserDepartment, setNewUserDepartment] = useState('English & Literature Department');
   const [newUserTeacherId, setNewUserTeacherId] = useState('');
 
   if (!isRosterModalOpen) return null;
@@ -135,6 +137,10 @@ export const ClassRosterManagementModal: React.FC = () => {
       role: newUserRole,
       gradeOrYear: newUserRole === 'learner' ? newUserGrade : undefined,
       department: newUserRole === 'staff' ? newUserDepartment : undefined,
+      admissionNumber: newUserRole === 'learner' ? newUserAdmissionNumber.trim() || undefined : undefined,
+      password: newUserRole === 'learner' 
+        ? (newUserAdmissionNumber.trim() || undefined) 
+        : (newUserPassword.trim() || undefined),
       assignedTeacherId: newUserRole === 'learner' ? newUserTeacherId || undefined : undefined,
       assignedTeacherName: newUserRole === 'learner' ? teacher?.name : undefined,
     });
@@ -146,6 +152,8 @@ export const ClassRosterManagementModal: React.FC = () => {
     setIsAddingUser(false);
     setNewUserName('');
     setNewUserEmail('');
+    setNewUserAdmissionNumber('');
+    setNewUserPassword('');
     setNewUserTeacherId('');
     setTimeout(() => setFeedbackMessage(null), 3500);
   };
@@ -314,7 +322,7 @@ export const ClassRosterManagementModal: React.FC = () => {
                   <span className="text-[10px] text-indigo-300">Generates unique barcode card ID automatically</span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
                   <div>
                     <label className="block text-[10px] font-bold uppercase tracking-wider text-indigo-300 mb-1">
                       Full Name *
@@ -358,38 +366,78 @@ export const ClassRosterManagementModal: React.FC = () => {
                   </div>
 
                   {newUserRole === 'learner' ? (
-                    <div>
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-indigo-300 mb-1">
-                        Grade / Year
-                      </label>
-                      <select
-                        value={newUserGrade}
-                        onChange={(e) => setNewUserGrade(e.target.value)}
-                        className="w-full text-xs font-semibold bg-indigo-900 border border-indigo-700 text-white rounded-xl px-3 py-2 focus:ring-2 focus:ring-amber-400 outline-none cursor-pointer"
-                      >
-                        <option value="Primary 3">Primary 3</option>
-                        <option value="Primary 4">Primary 4</option>
-                        <option value="Primary 5">Primary 5</option>
-                        <option value="Year 7">Year 7</option>
-                        <option value="Year 8">Year 8</option>
-                        <option value="Year 9">Year 9</option>
-                        <option value="Year 10">Year 10</option>
-                        <option value="Year 11">Year 11</option>
-                      </select>
-                    </div>
+                    <>
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-indigo-300 mb-1">
+                          Class / Grade (e.g. 7-12 D, G, E)
+                        </label>
+                        <select
+                          value={newUserGrade}
+                          onChange={(e) => setNewUserGrade(e.target.value)}
+                          className="w-full text-xs font-semibold bg-indigo-900 border border-indigo-700 text-white rounded-xl px-3 py-2 focus:ring-2 focus:ring-amber-400 outline-none cursor-pointer"
+                        >
+                          <option value="7D">7D</option>
+                          <option value="7G">7G</option>
+                          <option value="7E">7E</option>
+                          <option value="8D">8D</option>
+                          <option value="8G">8G</option>
+                          <option value="8E">8E</option>
+                          <option value="9D">9D</option>
+                          <option value="9G">9G</option>
+                          <option value="9E">9E</option>
+                          <option value="10D">10D</option>
+                          <option value="10G">10G</option>
+                          <option value="10E">10E</option>
+                          <option value="11D">11D</option>
+                          <option value="11G">11G</option>
+                          <option value="11E">11E</option>
+                          <option value="12D">12D</option>
+                          <option value="12G">12G</option>
+                          <option value="12E">12E</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-indigo-300 mb-1">
+                          Admission Number (Password)
+                        </label>
+                        <input
+                          type="text"
+                          value={newUserAdmissionNumber}
+                          onChange={(e) => setNewUserAdmissionNumber(e.target.value)}
+                          placeholder="e.g. PIS/SS/23/2345"
+                          className="w-full text-xs font-semibold bg-indigo-900 border border-indigo-700 text-white rounded-xl px-3 py-2 focus:ring-2 focus:ring-amber-400 outline-none"
+                        />
+                      </div>
+                    </>
                   ) : (
-                    <div>
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-indigo-300 mb-1">
-                        Faculty Department
-                      </label>
-                      <input
-                        type="text"
-                        value={newUserDepartment}
-                        onChange={(e) => setNewUserDepartment(e.target.value)}
-                        placeholder="e.g. Science Department"
-                        className="w-full text-xs font-semibold bg-indigo-900 border border-indigo-700 text-white rounded-xl px-3 py-2 focus:ring-2 focus:ring-amber-400 outline-none"
-                      />
-                    </div>
+                    <>
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-indigo-300 mb-1">
+                          Faculty Department
+                        </label>
+                        <input
+                          type="text"
+                          value={newUserDepartment}
+                          onChange={(e) => setNewUserDepartment(e.target.value)}
+                          placeholder="e.g. Science Department"
+                          className="w-full text-xs font-semibold bg-indigo-900 border border-indigo-700 text-white rounded-xl px-3 py-2 focus:ring-2 focus:ring-amber-400 outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-indigo-300 mb-1">
+                          Password
+                        </label>
+                        <input
+                          type="password"
+                          value={newUserPassword}
+                          onChange={(e) => setNewUserPassword(e.target.value)}
+                          placeholder="Staff password"
+                          className="w-full text-xs font-semibold bg-indigo-900 border border-indigo-700 text-white rounded-xl px-3 py-2 focus:ring-2 focus:ring-amber-400 outline-none"
+                        />
+                      </div>
+                    </>
                   )}
                 </div>
 
@@ -495,7 +543,8 @@ export const ClassRosterManagementModal: React.FC = () => {
                       />
                     </th>
                     <th className="py-3 px-4">Learner / Scholar</th>
-                    <th className="py-3 px-4">Grade / Year</th>
+                    <th className="py-3 px-4">Grade / Class</th>
+                    <th className="py-3 px-4">Admission No.</th>
                     <th className="py-3 px-4">Library Card ID</th>
                     <th className="py-3 px-4">Assigned Teacher</th>
                     <th className="py-3 px-4 text-right">Quick Assignment</th>
@@ -532,6 +581,9 @@ export const ClassRosterManagementModal: React.FC = () => {
                           <span className="px-2.5 py-1 bg-slate-100 text-slate-700 rounded-full font-bold text-[10px]">
                             {learner.gradeOrYear || 'Unspecified'}
                           </span>
+                        </td>
+                        <td className="py-3 px-4 font-mono text-[11px] font-semibold text-slate-700">
+                          {learner.admissionNumber || '—'}
                         </td>
                         <td className="py-3 px-4 font-mono text-[11px] text-slate-500">
                           {learner.libraryCardId || 'N/A'}

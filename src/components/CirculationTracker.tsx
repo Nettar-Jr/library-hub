@@ -27,15 +27,19 @@ import {
   Rows,
   RefreshCw,
   Mail,
-  GraduationCap
+  GraduationCap,
+  Printer,
+  Receipt,
+  Tag
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { triggerBorrowCelebration } from '../utils/confetti';
+import { PhysicalPrintTools } from './PhysicalPrintTools';
 
 const ITEMS_PER_PAGE = 8;
 
 export const CirculationTracker: React.FC = () => {
-  const { circulation, books, returnBook, sendOverdueAlert, checkoutBook } = useApp();
+  const { circulation, books, returnBook, sendOverdueAlert, checkoutBook, users } = useApp();
   
   // Local States
   const [filter, setFilter] = useState<'all' | 'borrowed' | 'overdue' | 'returned'>('all');
@@ -52,8 +56,22 @@ export const CirculationTracker: React.FC = () => {
   const [grade, setGrade] = useState('Year 9');
   const [loanDuration, setLoanDuration] = useState(14);
 
+  // Print Modal state
+  const [printModalConfig, setPrintModalConfig] = useState<{
+    isOpen: boolean;
+    initialTab: 'spine' | 'slips';
+    preselectedUserId?: string;
+  }>({
+    isOpen: false,
+    initialTab: 'slips',
+  });
+
   // Status message
-  const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [msg, setMsg] = useState<{ 
+    type: 'success' | 'error'; 
+    text: string;
+    actionUserId?: string;
+  } | null>(null);
 
   const handleCheckoutSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,10 +82,18 @@ export const CirculationTracker: React.FC = () => {
     
     if (res.success) {
       triggerBorrowCelebration();
-      setMsg({ type: 'success', text: `🎉 ${res.message}` });
+      const matchedUser = users.find(u => 
+        u.name.toLowerCase() === studentName.trim().toLowerCase() ||
+        fullName.toLowerCase().includes(u.name.toLowerCase())
+      );
+      setMsg({ 
+        type: 'success', 
+        text: `🎉 ${res.message}`,
+        actionUserId: matchedUser?.id
+      });
       setSelectedBookId('');
       setStudentName('');
-      setTimeout(() => setMsg(null), 5000);
+      setTimeout(() => setMsg(null), 8000);
       setShowCheckoutForm(false);
     } else {
       setMsg({ type: 'error', text: res.message });
@@ -185,6 +211,17 @@ export const CirculationTracker: React.FC = () => {
               <span>Table</span>
             </button>
           </div>
+
+          <button
+            type="button"
+            onClick={() => setPrintModalConfig({ isOpen: true, initialTab: 'slips' })}
+            className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2 px-3.5 rounded-full text-xs transition cursor-pointer border border-slate-200"
+            title="Open physical print tools for spine labels and checkout slips"
+          >
+            <Printer className="w-3.5 h-3.5 text-indigo-600" />
+            <span className="hidden sm:inline">Print Slips & Labels</span>
+            <span className="sm:hidden">Print</span>
+          </button>
 
           <button
             type="button"
@@ -359,13 +396,27 @@ export const CirculationTracker: React.FC = () => {
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className={`p-4 rounded-2xl border text-xs font-bold ${
+            className={`p-4 rounded-2xl border text-xs font-bold flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 ${
               msg.type === 'success'
                 ? 'bg-emerald-50 border-emerald-300 text-emerald-950'
                 : 'bg-rose-50 border-rose-300 text-rose-950'
             }`}
           >
-            {msg.text}
+            <span>{msg.text}</span>
+            {msg.actionUserId && (
+              <button
+                type="button"
+                onClick={() => setPrintModalConfig({
+                  isOpen: true,
+                  initialTab: 'slips',
+                  preselectedUserId: msg.actionUserId
+                })}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer flex-shrink-0"
+              >
+                <Receipt className="w-3.5 h-3.5" />
+                <span>Print Checkout Slip</span>
+              </button>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
@@ -509,6 +560,25 @@ export const CirculationTracker: React.FC = () => {
                         <span>Check In</span>
                       </button>
 
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const matchedUser = users.find(u => 
+                            u.name.toLowerCase() === record.learnerName.toLowerCase() ||
+                            record.learnerName.toLowerCase().includes(u.name.toLowerCase())
+                          );
+                          setPrintModalConfig({
+                            isOpen: true,
+                            initialTab: 'slips',
+                            preselectedUserId: matchedUser?.id
+                          });
+                        }}
+                        className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-full text-xs font-bold transition flex items-center justify-center cursor-pointer"
+                        title="Print checkout slip"
+                      >
+                        <Receipt className="w-3.5 h-3.5 text-indigo-600" />
+                      </button>
+
                       {isOverdue && (
                         <button
                           type="button"
@@ -522,8 +592,26 @@ export const CirculationTracker: React.FC = () => {
                       )}
                     </>
                   ) : (
-                    <div className="w-full text-center py-1.5 text-xs text-slate-400 font-bold bg-slate-50 rounded-full">
-                      ✓ Completed on {record.returnDate || 'record'}
+                    <div className="w-full flex items-center justify-between py-1 px-2 text-xs text-slate-400 font-bold bg-slate-50 rounded-full">
+                      <span>✓ Completed on {record.returnDate || 'record'}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const matchedUser = users.find(u => 
+                            u.name.toLowerCase() === record.learnerName.toLowerCase() ||
+                            record.learnerName.toLowerCase().includes(u.name.toLowerCase())
+                          );
+                          setPrintModalConfig({
+                            isOpen: true,
+                            initialTab: 'slips',
+                            preselectedUserId: matchedUser?.id
+                          });
+                        }}
+                        className="p-1 hover:bg-slate-200 text-slate-600 rounded-full cursor-pointer"
+                        title="Print receipt / record"
+                      >
+                        <Receipt className="w-3 h-3 text-indigo-600" />
+                      </button>
                     </div>
                   )}
                 </div>
@@ -589,16 +677,37 @@ export const CirculationTracker: React.FC = () => {
                         </span>
                       )}
                     </td>
-                    <td className="p-4 text-right">
-                      {record.status !== 'returned' && (
+                    <td className="p-4 text-right whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-1.5">
                         <button
                           type="button"
-                          onClick={() => handleReturn(record.id, record.bookId)}
-                          className="px-3 py-1 bg-emerald-600 text-white rounded-full text-xs font-bold hover:bg-emerald-700 cursor-pointer"
+                          onClick={() => {
+                            const matchedUser = users.find(u => 
+                              u.name.toLowerCase() === record.learnerName.toLowerCase() ||
+                              record.learnerName.toLowerCase().includes(u.name.toLowerCase())
+                            );
+                            setPrintModalConfig({
+                              isOpen: true,
+                              initialTab: 'slips',
+                              preselectedUserId: matchedUser?.id
+                            });
+                          }}
+                          className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-full text-xs font-semibold flex items-center gap-1 cursor-pointer transition"
+                          title="Print checkout slip"
                         >
-                          Check In
+                          <Receipt className="w-3 h-3 text-indigo-600" />
+                          <span>Slip</span>
                         </button>
-                      )}
+                        {record.status !== 'returned' && (
+                          <button
+                            type="button"
+                            onClick={() => handleReturn(record.id, record.bookId)}
+                            className="px-3 py-1 bg-emerald-600 text-white rounded-full text-xs font-bold hover:bg-emerald-700 cursor-pointer transition"
+                          >
+                            Check In
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -636,6 +745,16 @@ export const CirculationTracker: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Physical Print Tools Modal */}
+      {printModalConfig.isOpen && (
+        <PhysicalPrintTools
+          isModal={true}
+          initialTab={printModalConfig.initialTab}
+          preselectedUserId={printModalConfig.preselectedUserId}
+          onClose={() => setPrintModalConfig(prev => ({ ...prev, isOpen: false }))}
+        />
+      )}
 
     </div>
   );

@@ -33,11 +33,16 @@ import {
   Trash2,
   Camera,
   Sparkles,
-  Barcode
+  Barcode,
+  Printer,
+  FileSpreadsheet,
+  WifiOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CameraBarcodeScanner } from './CameraBarcodeScanner';
 import { lookupBookByISBN } from '../utils/isbnLookup';
+import { PhysicalPrintTools } from './PhysicalPrintTools';
+import { CsvBatchImport } from './CsvBatchImport';
 
 const CATEGORY_TABS = [
   { id: 'ALL', label: 'All Resources' },
@@ -75,7 +80,9 @@ export const BookCatalog: React.FC = () => {
     circulation,
     holds,
     currentLearnerName,
-    checkoutBook
+    checkoutBook,
+    isOnline,
+    pendingOfflineChangesCount
   } = useApp();
 
   const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
@@ -87,6 +94,8 @@ export const BookCatalog: React.FC = () => {
   const [myActivityFilter, setMyActivityFilter] = useState<'ALL' | 'LOANS' | 'HOLDS'>('ALL');
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [actionToast, setActionToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [isPrintLabelsOpen, setIsPrintLabelsOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   const [isAddBookModalOpen, setIsAddBookModalOpen] = useState(false);
   const [showCatalogCameraScanner, setShowCatalogCameraScanner] = useState(false);
@@ -494,6 +503,26 @@ export const BookCatalog: React.FC = () => {
 
                 <button
                   type="button"
+                  onClick={() => setIsPrintLabelsOpen(true)}
+                  className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 text-xs font-semibold rounded-xl flex items-center gap-1.5 cursor-pointer transition"
+                  title="Print spine labels and pocket cards for books"
+                >
+                  <Printer className="w-3.5 h-3.5 text-indigo-600" />
+                  <span className="hidden sm:inline">Print Labels</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsImportModalOpen(true)}
+                  className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-semibold rounded-xl flex items-center gap-1.5 cursor-pointer transition shadow-2xs"
+                  title="Batch import catalog books from CSV or spreadsheet"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                  <span className="hidden sm:inline">Import CSV</span>
+                </button>
+
+                <button
+                  type="button"
                   onClick={() => setIsAddBookModalOpen(true)}
                   className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer transition active:scale-95"
                 >
@@ -646,6 +675,26 @@ export const BookCatalog: React.FC = () => {
           </div>
         )}
       </section>
+
+      {/* Offline Mode Banner */}
+      {!isOnline && (
+        <div 
+          id="catalog-offline-banner" 
+          className="mb-4 p-3.5 bg-amber-50 border border-amber-200 rounded-2xl flex flex-wrap items-center justify-between gap-2 text-xs text-amber-900 shadow-2xs animate-in fade-in"
+        >
+          <div className="flex items-center gap-2.5">
+            <WifiOff className="w-4 h-4 text-amber-700 shrink-0" />
+            <span>
+              <strong>Offline Catalog Active:</strong> Instant search, Dewey Decimal categories, and circulation operate seamlessly from your device's offline cache. Changes are preserved and will automatically sync upon reconnection.
+            </span>
+          </div>
+          {pendingOfflineChangesCount > 0 && (
+            <span className="font-bold text-amber-900 bg-amber-200/80 px-2.5 py-1 rounded-xl shrink-0 text-[11px]">
+              {pendingOfflineChangesCount} pending {pendingOfflineChangesCount === 1 ? 'change' : 'changes'}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* 3A. Collections / Carousel View */}
       {activeMode === 'CAROUSEL' ? (
@@ -1186,6 +1235,27 @@ export const BookCatalog: React.FC = () => {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Physical Print Tools Modal for Spine Labels */}
+      {isPrintLabelsOpen && (
+        <PhysicalPrintTools
+          isModal={true}
+          initialTab="spine"
+          onClose={() => setIsPrintLabelsOpen(false)}
+        />
+      )}
+
+      {/* CSV Batch Import Modal for Books */}
+      {isImportModalOpen && (
+        <CsvBatchImport
+          isModal={true}
+          initialTab="catalog"
+          onClose={() => setIsImportModalOpen(false)}
+          onImportComplete={() => {
+            showToast('success', 'Catalog batch import completed successfully!');
+          }}
+        />
+      )}
     </main>
   );
 };

@@ -25,6 +25,8 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { OfflineSyncIndicator } from './OfflineSyncIndicator';
+import { PWAInstallButton } from './PWAInstallButton';
 
 export const Navbar: React.FC = () => {
   const { 
@@ -39,7 +41,9 @@ export const Navbar: React.FC = () => {
     setIsRosterModalOpen,
     submissions,
     books,
-    logout 
+    logout,
+    syncPendingOfflineChanges,
+    isSyncingOfflineChanges
   } = useApp();
 
   const navigate = useNavigate();
@@ -299,6 +303,11 @@ export const Navbar: React.FC = () => {
 
         {/* ZONE C: Action & User Profile Zone */}
         <div className="flex items-center gap-2">
+          {/* PWA Install Button */}
+          <PWAInstallButton variant="compact" />
+
+          {/* Offline Sync Status & Manual Trigger */}
+          <OfflineSyncIndicator onSyncNow={syncPendingOfflineChanges} isSyncing={isSyncingOfflineChanges} />
           
           {/* LOGGED OUT: Only a clean, prominent Sign In button */}
           {!currentUser ? (

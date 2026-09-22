@@ -38,3 +38,5 @@ export const triggerMilestoneCelebration = () => {
     // Fallback
   }
 };
+
+export const triggerConfetti = triggerMilestoneCelebration;
