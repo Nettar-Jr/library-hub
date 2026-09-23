@@ -17,7 +17,9 @@ import {
   BookOpen,
   Eye,
   UserX,
-  LogIn
+  LogIn,
+  Building2,
+  Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -32,7 +34,9 @@ export const RoleSwitchBanner: React.FC = () => {
     isAdmin,
     isStaff,
     isLearner,
-    isLoggedIn
+    isLoggedIn,
+    activeSection,
+    setActiveSection
   } = useApp();
 
   const [isOpen, setIsOpen] = useState(false);
@@ -277,23 +281,46 @@ export const RoleSwitchBanner: React.FC = () => {
                     ))}
                   </div>
 
-                  {/* Admin */}
+                  {/* Admin Librarians */}
                   <div className="space-y-1 pt-1 border-t border-slate-100">
                     <span className="text-[10px] font-black text-amber-700 uppercase tracking-wider block">
-                      Librarian (Admin)
+                      Librarians (Admin)
                     </span>
                     <div
                       onClick={() => {
-                        switchRolePreset('ADMIN');
+                        const alabi = users.find(u => u.email === 'alabia@premierinternationalschool.org');
+                        switchRolePreset('ADMIN', alabi?.id);
                         setIsOpen(false);
                       }}
                       className={`flex items-center justify-between p-1.5 rounded-xl cursor-pointer text-xs hover:bg-amber-50 transition ${
-                        isLoggedIn && userRole === 'ADMIN' ? 'bg-amber-100/70 font-bold' : ''
+                        isLoggedIn && currentUser?.email === 'alabia@premierinternationalschool.org' ? 'bg-amber-100/70 font-bold' : ''
                       }`}
                     >
-                      <div>
-                        <span className="text-slate-900 font-semibold">Librarian Abdul Alabi</span>
-                        <span className="block text-[10px] text-slate-500">Chief Library Administrator</span>
+                      <div className="flex items-center gap-1.5">
+                        <Building2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                        <div>
+                          <span className="text-slate-900 font-semibold">Alabi Abdulmumuni</span>
+                          <span className="block text-[10px] text-slate-500">School Librarian • Global Staff</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div
+                      onClick={() => {
+                        const veronica = users.find(u => u.email === 'adelekev@premierinternationslschool.org');
+                        switchRolePreset('ADMIN', veronica?.id);
+                        setIsOpen(false);
+                      }}
+                      className={`flex items-center justify-between p-1.5 rounded-xl cursor-pointer text-xs hover:bg-amber-50 transition ${
+                        isLoggedIn && currentUser?.email === 'adelekev@premierinternationslschool.org' ? 'bg-amber-100/70 font-bold' : ''
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <div>
+                          <span className="text-slate-900 font-semibold">Adeleke Veronica</span>
+                          <span className="block text-[10px] text-slate-500">School Librarian • Global Staff</span>
+                        </div>
                       </div>
                     </div>
                   </div>

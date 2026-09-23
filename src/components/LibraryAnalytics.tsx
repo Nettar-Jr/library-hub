@@ -27,7 +27,9 @@ import {
   Search,
   CheckCircle,
   Bookmark,
-  ShieldAlert
+  ShieldAlert,
+  Building2,
+  Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -55,11 +57,13 @@ const DDC_CLASSES: DDCClassInfo[] = [
 ];
 
 export const LibraryAnalytics: React.FC = () => {
-  const { books, circulation, currentRole, restockBook, currentLearnerName, checkoutBook } = useApp();
+  const { books, allBooks, circulation, allCirculation, currentRole, restockBook, currentLearnerName, checkoutBook, activeSection, setActiveSection } = useApp();
   
   // Administrative selection state
-  // 'all' = Consolidated View, 'primary' = Primary School Librarian desk, 'secondary' = Secondary School Librarian desk
-  const [adminSection, setAdminSection] = useState<'all' | 'primary' | 'secondary'>('all');
+  // 'all' = Consolidated View, 'primary' = Primary School Librarian desk (Adeleke Veronica), 'college' = College Librarian desk (Alabi Abdulmumuni)
+  const [adminSection, setAdminSection] = useState<'all' | 'primary' | 'college'>(
+    activeSection === 'primary' ? 'primary' : activeSection === 'college' ? 'college' : 'all'
+  );
   
   const [selectedDdc, setSelectedDdc] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -71,23 +75,18 @@ export const LibraryAnalytics: React.FC = () => {
   const [isReportOpen, setIsReportOpen] = useState(false);
   const [reportLog, setReportLog] = useState<string | null>(null);
 
+  // Sync with global activeSection if it changes
+  React.useEffect(() => {
+    if (activeSection === 'college' || activeSection === 'primary' || activeSection === 'all') {
+      setAdminSection(activeSection);
+    }
+  }, [activeSection]);
+
   // Filter books based on active Section (for Admins)
   const getFilteredBooksForAdmin = () => {
-    if (adminSection === 'all') return books;
-    if (adminSection === 'primary') {
-      // Primary Section books are child-friendly categories
-      return books.filter(b => 
-        ['Children\'s Fiction', 'Humor / Children\'s', 'Fantasy', 'Science & Cosmos'].includes(b.category) ||
-        b.deweyClass === '200' || b.deweyClass === '400'
-      );
-    }
-    if (adminSection === 'secondary') {
-      // Secondary Section books are academic/advanced categories
-      return books.filter(b => 
-        ['African Literature', 'Classics', 'Computer Science', 'Philosophy', 'Social Sciences', 'Technology', 'History'].includes(b.category)
-      );
-    }
-    return books;
+    const source = allBooks || books;
+    if (adminSection === 'all') return source;
+    return source.filter(b => (b.section || 'college') === adminSection);
   };
 
   const adminBooks = getFilteredBooksForAdmin();
@@ -201,40 +200,6 @@ export const LibraryAnalytics: React.FC = () => {
                 <p className="text-xs sm:text-sm text-slate-300 max-w-2xl">
                   Analyze library usage metrics by academic departments, locate neglected subjects, generate reports for class teachers, and replenish critical book stock.
                 </p>
-              </div>
-
-              {/* Librarian Section Desks Switcher */}
-              <div className="bg-slate-850/90 p-1 rounded-xl border border-slate-700/60 flex flex-wrap gap-1">
-                <button
-                  onClick={() => setAdminSection('all')}
-                  className={`px-3 py-2 rounded-lg text-xs font-bold font-sans transition-all cursor-pointer ${
-                    adminSection === 'all' 
-                      ? 'bg-amber-400 text-slate-950 shadow-sm' 
-                      : 'text-slate-300 hover:text-white hover:bg-slate-800'
-                  }`}
-                >
-                  All Sections (Combined)
-                </button>
-                <button
-                  onClick={() => setAdminSection('primary')}
-                  className={`px-3 py-2 rounded-lg text-xs font-bold font-sans transition-all cursor-pointer ${
-                    adminSection === 'primary' 
-                      ? 'bg-amber-400 text-slate-950 shadow-sm' 
-                      : 'text-slate-300 hover:text-white hover:bg-slate-800'
-                  }`}
-                >
-                  Primary Librarian Desk
-                </button>
-                <button
-                  onClick={() => setAdminSection('secondary')}
-                  className={`px-3 py-2 rounded-lg text-xs font-bold font-sans transition-all cursor-pointer ${
-                    adminSection === 'secondary' 
-                      ? 'bg-amber-400 text-slate-950 shadow-sm' 
-                      : 'text-slate-300 hover:text-white hover:bg-slate-800'
-                  }`}
-                >
-                  Secondary Librarian Desk
-                </button>
               </div>
             </div>
           </div>

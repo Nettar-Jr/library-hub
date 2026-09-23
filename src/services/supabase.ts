@@ -69,6 +69,7 @@ export function mapRowToBook(row: Record<string, any>): Book {
     usageType: row.usage_type || row.format === 'reserve' ? 'reserve' : 'circulation',
     rating: Number(row.rating ?? 5.0),
     pageCount: Number(row.page_count ?? row.pageCount ?? 200),
+    section: (row.section === 'primary' || row.section === 'college') ? row.section : 'college',
   };
 }
 
@@ -130,6 +131,7 @@ export async function insertBookToSupabase(
       is_audiobook: Boolean(book.hasAudio || book.isAudiobook),
       is_new: Boolean(book.isNew),
       format: book.usageType || 'circulation',
+      section: book.section || 'college',
     };
 
     const { data, error } = await client
@@ -638,6 +640,11 @@ export function mapRowToUser(row: Record<string, any>): LibraryUser {
     avatar: row.avatar || row.avatar_url || '',
     assignedTeacherId: row.assigned_teacher_id || row.assignedTeacherId || '',
     assignedTeacherName: row.assigned_teacher_name || row.assignedTeacherName || '',
+    section: (row.section === 'primary' || row.section === 'college') ? row.section : (
+      (row.grade_or_year && (row.grade_or_year.toLowerCase().includes('primary') || row.grade_or_year.toLowerCase().includes('nursery')))
+        ? 'primary'
+        : 'college'
+    ),
     createdAt: row.created_at ? String(row.created_at).split('T')[0] : new Date().toISOString().split('T')[0],
   };
 }
@@ -692,6 +699,7 @@ export async function insertUserToSupabase(
       avatar: user.avatar || null,
       assigned_teacher_id: user.assignedTeacherId || null,
       assigned_teacher_name: user.assignedTeacherName || null,
+      section: user.section || 'college',
     };
 
     const { data, error } = await client
@@ -735,6 +743,7 @@ export async function updateUserInSupabase(
     if (updates.avatar !== undefined) payload.avatar = updates.avatar;
     if (updates.assignedTeacherId !== undefined) payload.assigned_teacher_id = updates.assignedTeacherId;
     if (updates.assignedTeacherName !== undefined) payload.assigned_teacher_name = updates.assignedTeacherName;
+    if (updates.section !== undefined) payload.section = updates.section;
 
     const { error } = await client
       .from('library_users')

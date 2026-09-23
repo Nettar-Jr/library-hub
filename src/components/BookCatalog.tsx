@@ -36,7 +36,8 @@ import {
   Barcode,
   Printer,
   FileSpreadsheet,
-  WifiOff
+  WifiOff,
+  Building2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CameraBarcodeScanner } from './CameraBarcodeScanner';
@@ -82,7 +83,11 @@ export const BookCatalog: React.FC = () => {
     currentLearnerName,
     checkoutBook,
     isOnline,
-    pendingOfflineChangesCount
+    pendingOfflineChangesCount,
+    activeSection,
+    setActiveSection,
+    allBooks,
+    isStaff
   } = useApp();
 
   const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
@@ -105,6 +110,7 @@ export const BookCatalog: React.FC = () => {
     author: '',
     isbn: '',
     category: 'African Literature',
+    section: activeSection === 'primary' ? 'primary' : 'college',
     totalCopies: 5,
     availableCopies: 5,
     description: '',
@@ -309,6 +315,7 @@ export const BookCatalog: React.FC = () => {
       author: newBookForm.author,
       isbn: newBookForm.isbn || `978-${Math.floor(1000000000 + Math.random() * 9000000000)}`,
       category: newBookForm.category || 'African Literature',
+      section: (newBookForm.section as any) || (activeSection === 'primary' ? 'primary' : 'college'),
       totalCopies: Number(newBookForm.totalCopies) || 5,
       availableCopies: Number(newBookForm.availableCopies) || 5,
       description: newBookForm.description || '',
@@ -347,11 +354,107 @@ export const BookCatalog: React.FC = () => {
   const isLearner = currentRole === 'LEARNER' || currentRole === 'learner' || currentRole === 'student' || !!loggedInLearner;
   const isFilterActive = searchQuery || selectedCategory !== 'ALL' || availabilityFilter !== 'ALL' || formatFilter !== 'ALL' || myActivityFilter !== 'ALL';
 
+  const primaryBooksCount = useMemo(() => (allBooks || []).filter(b => b.section === 'primary').length, [allBooks]);
+  const collegeBooksCount = useMemo(() => (allBooks || []).filter(b => (b.section || 'college') === 'college').length, [allBooks]);
+  const totalBooksCount = (allBooks || []).length;
+
   return (
     <main className="max-w-7xl mx-auto px-2 sm:px-4 py-4 sm:py-6 space-y-6">
       
       {/* 1. Curated Hero Spotlight (shown in default collection view when no active search) */}
       {!searchQuery && !hasSecondaryFilters && <HeroSpotlight />}
+
+      {/* Global Staff Inventory Control Bar (Only Staff / Admin can see Primary and Secondary Inventory) */}
+      {(isAdmin || isStaff) && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 bg-slate-900 text-white rounded-2xl shadow-xs border border-slate-800">
+          <div className="flex items-center gap-2">
+            <Building2 className="w-4 h-4 text-amber-400 shrink-0" />
+            <div>
+              <span className="text-xs font-bold uppercase tracking-wider text-amber-300 mr-2">
+                Global Staff Access:
+              </span>
+              <span className="text-xs text-slate-300">
+                Primary & Secondary Library Inventory
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1 bg-slate-800/90 p-1 rounded-xl border border-slate-700">
+            <button
+              type="button"
+              onClick={() => setActiveSection('all')}
+              className={`px-3 py-1 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
+                activeSection === 'all'
+                  ? 'bg-amber-400 text-slate-950 shadow-xs'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-700/60'
+              }`}
+            >
+              <span>All Holdings</span>
+              <span className="text-[10px] font-mono opacity-80">({totalBooksCount})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveSection('primary')}
+              className={`px-3 py-1 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
+                activeSection === 'primary'
+                  ? 'bg-amber-400 text-slate-950 shadow-xs'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-700/60'
+              }`}
+            >
+              <span>Primary</span>
+              <span className="text-[10px] font-mono opacity-80">({primaryBooksCount})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveSection('college')}
+              className={`px-3 py-1 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
+                activeSection === 'college'
+                  ? 'bg-amber-400 text-slate-950 shadow-xs'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-700/60'
+              }`}
+            >
+              <span>College / Secondary</span>
+              <span className="text-[10px] font-mono opacity-80">({collegeBooksCount})</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Student / Learner Scoped Collection Banner (Learners can ONLY see their assigned school inventory) */}
+      {!isAdmin && !isStaff && isLearner && (currentUser || loggedInLearner) && (
+        <div className="flex items-center justify-between px-4 py-2.5 bg-blue-50/80 border border-blue-200/70 rounded-2xl text-xs text-blue-950">
+          <div className="flex items-center gap-2">
+            <BookOpen className="w-4 h-4 text-blue-700 shrink-0" />
+            <span className="font-bold">
+              {(currentUser?.section || loggedInLearner?.section) === 'primary' 
+                ? 'Primary School Library Catalog' 
+                : 'College / Secondary Library Catalog'}
+            </span>
+            <span className="text-blue-400 hidden sm:inline">•</span>
+            <span className="text-blue-700 hidden sm:inline">
+              Curated reading resources for {loggedInLearner?.gradeOrYear || currentUser?.gradeOrYear || 'Learner'}
+            </span>
+          </div>
+          <span className="text-[11px] font-mono font-semibold text-blue-800 bg-white px-2 py-0.5 rounded-md border border-blue-200">
+            {filteredBooks.length} titles
+          </span>
+        </div>
+      )}
+
+      {/* Guest notice */}
+      {!isAdmin && !isStaff && !isLearner && (
+        <div className="flex items-center justify-between px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-2xl text-xs text-slate-700">
+          <div className="flex items-center gap-2">
+            <BookOpen className="w-4 h-4 text-slate-600 shrink-0" />
+            <span className="font-semibold">Premier International School Catalog Discovery</span>
+          </div>
+          <span className="text-[11px] text-slate-500 hidden sm:inline">
+            Staff sign-in required for combined cross-sectional inventory
+          </span>
+        </div>
+      )}
 
       {/* Action Toast */}
       {actionToast && (
@@ -1001,7 +1104,7 @@ export const BookCatalog: React.FC = () => {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label htmlFor="new-book-category" className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wider mb-1">
                       Subject Category

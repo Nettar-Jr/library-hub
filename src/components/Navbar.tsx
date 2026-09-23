@@ -22,7 +22,9 @@ import {
   LogIn,
   Bell,
   Home,
-  CheckCircle2
+  CheckCircle2,
+  Building2,
+  Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { OfflineSyncIndicator } from './OfflineSyncIndicator';
@@ -34,6 +36,8 @@ export const Navbar: React.FC = () => {
     isLearner,
     isStaff,
     isAdmin,
+    activeSection,
+    setActiveSection,
     activeView,
     setActiveView,
     searchQuery,
@@ -148,7 +152,7 @@ export const Navbar: React.FC = () => {
     : (currentUser?.gradeOrYear ? `Grade ${currentUser.gradeOrYear}` : 'Student');
 
   return (
-    <header className="sticky top-3 z-40 px-3 sm:px-6 w-full max-w-7xl mx-auto mb-6">
+    <header className="sticky top-2 z-40 px-1.5 sm:px-3 w-full max-w-[90rem] mx-auto mb-4">
       {/* Main Clean Navbar Pill */}
       <div className="w-full h-16 rounded-2xl bg-white border border-slate-200 shadow-xs px-4 sm:px-6 flex items-center justify-between gap-3 sm:gap-6 transition-all">
         
@@ -303,6 +307,8 @@ export const Navbar: React.FC = () => {
 
         {/* ZONE C: Action & User Profile Zone */}
         <div className="flex items-center gap-2">
+          {/* Quick Member / Admin Access */}
+
           {/* PWA Install Button */}
           <PWAInstallButton variant="compact" />
 
@@ -419,17 +425,6 @@ export const Navbar: React.FC = () => {
                       >
                         <Library className="w-4 h-4 text-slate-500" />
                         <span>Catalog</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleNavClick('BULLETIN', '/announcements')}
-                        className={`w-full flex items-center gap-2.5 p-2 rounded-xl text-xs font-semibold transition cursor-pointer text-left ${
-                          activeView === 'BULLETIN' ? 'bg-blue-50 text-blue-700' : 'hover:bg-slate-50 text-slate-700'
-                        }`}
-                      >
-                        <Bell className="w-4 h-4 text-slate-500" />
-                        <span>Library Notices</span>
                       </button>
                     </div>
 

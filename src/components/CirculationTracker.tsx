@@ -30,7 +30,9 @@ import {
   GraduationCap,
   Printer,
   Receipt,
-  Tag
+  Tag,
+  Building2,
+  Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { triggerBorrowCelebration } from '../utils/confetti';
@@ -39,7 +41,7 @@ import { PhysicalPrintTools } from './PhysicalPrintTools';
 const ITEMS_PER_PAGE = 8;
 
 export const CirculationTracker: React.FC = () => {
-  const { circulation, books, returnBook, sendOverdueAlert, checkoutBook, users } = useApp();
+  const { circulation, books, returnBook, sendOverdueAlert, checkoutBook, users, activeSection, setActiveSection } = useApp();
   
   // Local States
   const [filter, setFilter] = useState<'all' | 'borrowed' | 'overdue' | 'returned'>('all');
@@ -171,7 +173,7 @@ export const CirculationTracker: React.FC = () => {
       {/* Top Banner & Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="bg-teal-100 text-teal-800 text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full">
               Circulation Desk
             </span>

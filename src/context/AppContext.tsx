@@ -4,7 +4,7 @@
  */
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Book, CirculationRecord, StudentSubmission, Announcement, UserRole, AppRole, LibraryUser, User, NavView, BookHold, BookReview, HeroSpotlightData, CatalogViewMode } from '../types';
+import { Book, CirculationRecord, StudentSubmission, Announcement, UserRole, AppRole, LibraryUser, User, NavView, BookHold, BookReview, HeroSpotlightData, CatalogViewMode, LibrarySection } from '../types';
 import { initialBooks, initialCirculation, initialSubmissions, initialAnnouncements, initialHeroSpotlight } from '../data';
 import { 
   isSupabaseConfigured, 
@@ -106,6 +106,12 @@ interface AppContextType {
   setCurrentRole: (role: UserRole) => void;
   activeTab: string;
   setActiveTab: (tab: string) => void;
+  // Section & Multi-Branch Scoping
+  activeSection: LibrarySection;
+  setActiveSection: (sec: LibrarySection) => void;
+  allBooks: Book[];
+  allCirculation: CirculationRecord[];
+  allUsers: LibraryUser[];
   books: Book[];
   circulation: CirculationRecord[];
   submissions: StudentSubmission[];
@@ -169,7 +175,7 @@ interface AppContextType {
   assignSubmissionTeacher: (submissionId: string, teacherId: string, teacherName: string, teacherDepartment?: string, assignmentNotes?: string) => void;
   toggleLike: (id: string) => void;
   addComment: (submissionId: string, content: string, authorName?: string, rating?: number) => void;
-  addAnnouncement: (title: string, content: string, category: Announcement['category']) => void;
+  addAnnouncement: (title: string, content: string, category: Announcement['category'], section?: LibrarySection) => void;
   restockBook: (bookId: string, quantity: number) => void;
   // Offline & Service Worker Sync
   isOnline: boolean;
@@ -182,11 +188,25 @@ export const defaultAdminUser: LibraryUser = {
   id: 'user-admin-1',
   name: 'Alabi Abdulmumuni',
   role: 'admin',
-  department: 'Library Administration & Curation',
+  department: 'School Library Administration',
   libraryCardId: 'LIB-ADMIN-0001',
   email: 'alabia@premierinternationalschool.org',
   password: 'Admin321',
+  section: 'all',
   avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
+  createdAt: '2025-09-01',
+};
+
+export const primaryAdminUser: LibraryUser = {
+  id: 'user-admin-2',
+  name: 'Adeleke Veronica',
+  role: 'admin',
+  department: 'School Library Administration',
+  libraryCardId: 'LIB-ADMIN-0002',
+  email: 'adelekev@premierinternationslschool.org',
+  password: 'Adelekev',
+  section: 'all',
+  avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=200',
   createdAt: '2025-09-01',
 };
 
@@ -195,28 +215,44 @@ const initialUsers: LibraryUser[] = [
     id: 'user-student-1',
     name: 'Chidi Okafor',
     role: 'learner',
-    gradeOrYear: '9E',
+    gradeOrYear: 'Year 9E',
     admissionNumber: 'PIS/SS/23/2345',
     password: 'PIS/SS/23/2345',
     libraryCardId: 'LIB-STUD-2345',
     email: 'chidio@premierinternationalschool.org',
     assignedTeacherId: 'user-staff-1',
     assignedTeacherName: 'David Mensah',
+    section: 'college',
     avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=200',
     createdAt: '2026-01-10',
+  },
+  {
+    id: 'user-student-2',
+    name: 'Zainab Bello',
+    role: 'learner',
+    gradeOrYear: 'Primary 5B',
+    admissionNumber: 'PIS/PRI/24/1102',
+    password: 'PIS/PRI/24/1102',
+    libraryCardId: 'LIB-PUPIL-1102',
+    email: 'zainabb@premierinternationalschool.org',
+    section: 'primary',
+    avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=200',
+    createdAt: '2026-01-12',
   },
   {
     id: 'user-staff-1',
     name: 'David Mensah',
     role: 'staff',
-    department: 'Science & STEM Department',
+    department: 'Science & STEM Faculty',
     libraryCardId: 'LIB-TEACH-2001',
     email: 'davidm@premierinternationalschool.org',
     password: 'StaffPass123',
+    section: 'all',
     avatar: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=200',
     createdAt: '2026-01-08',
   },
   defaultAdminUser,
+  primaryAdminUser,
 ];
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -401,6 +437,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [currentLearnerName, setCurrentLearnerName] = useState<string>(() => {
     return localStorage.getItem('p_learner_name') || 'Chidi Okafor (Year 9)';
   });
+
+  // Active Library Section for multi-branch scoping (college vs primary)
+  const [activeSection, setActiveSectionState] = useState<LibrarySection>(() => {
+    const saved = localStorage.getItem('p_active_section');
+    if (saved === 'college' || saved === 'primary' || saved === 'all') return saved;
+    const userStr = localStorage.getItem('p_current_user');
+    if (userStr) {
+      try {
+        const u = JSON.parse(userStr);
+        if (u.section === 'primary' || u.section === 'college') return u.section;
+      } catch {
+        // ignore
+      }
+    }
+    return 'college';
+  });
+
+  const setActiveSection = (section: LibrarySection) => {
+    setActiveSectionState(section);
+    localStorage.setItem('p_active_section', section);
+  };
 
   // Supabase Cloud State
   const [isCloudConnected] = useState<boolean>(isSupabaseConfigured);
@@ -679,12 +736,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setIsLibrarianLoggedInState(true);
       setCurrentRole('admin');
       setCurrentUserState(defaultAdminUser);
+      setActiveSection('all'); // Staff is global: sees both primary and secondary inventory
     } else if (role === 'STAFF') {
       setIsLibrarianLoggedInState(true);
       setCurrentRole('staff');
-      const teacher = users.find(u => u.role === 'staff' || u.role === 'teacher') || initialUsers[6];
+      const teacher = users.find(u => u.role === 'staff' || u.role === 'teacher') || initialUsers[2];
       setCurrentUserState(teacher);
       setLoggedInLearnerState(teacher);
+      setActiveSection('all'); // Staff is global: sees both primary and secondary inventory
     } else {
       setIsLibrarianLoggedInState(false);
       setCurrentRole('learner');
@@ -692,12 +751,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setCurrentUserState(student);
       setLoggedInLearnerState(student);
       setCurrentLearnerName(`${student.name} (${student.gradeOrYear || 'Student'})`);
+      const learnerSec = student.section === 'primary' ? 'primary' : 'college';
+      setActiveSection(learnerSec);
     }
   };
 
   const setCurrentUser = (user: LibraryUser | null) => {
     setCurrentUserState(user);
     if (user) {
+      const isStaffOrAdmin = user.role === 'admin' || user.role === 'librarian' || user.role === 'staff' || user.role === 'teacher';
+      if (isStaffOrAdmin) {
+        // Staff is global: only staff can see primary and secondary inventory
+        setActiveSection('all');
+      } else {
+        // Learner/student: strictly locked to their own school section
+        const learnerSec = (user.section === 'primary' || (user.gradeOrYear && user.gradeOrYear.toLowerCase().includes('primary'))) ? 'primary' : 'college';
+        setActiveSection(learnerSec);
+      }
+
       if (user.role === 'admin' || user.role === 'librarian') {
         setUserRoleState('ADMIN');
         setIsLibrarianLoggedInState(true);
@@ -794,6 +865,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const avatar = ('avatarUrl' in user && user.avatarUrl) ? user.avatarUrl : ('avatar' in user ? user.avatar : undefined);
     const assignedTeacher = ('assignedStaffId' in user && user.assignedStaffId) ? user.assignedStaffId : ('assignedTeacherId' in user ? user.assignedTeacherId : undefined);
 
+    const isUserStaffOrAdmin = normRole === 'ADMIN' || normRole === 'STAFF';
+
     const fullUser: LibraryUser = {
       id: user.id,
       name: user.name,
@@ -805,13 +878,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       avatar: avatar,
       assignedTeacherId: assignedTeacher,
       assignedTeacherName: user.assignedTeacherName,
+      section: isUserStaffOrAdmin 
+        ? 'all' 
+        : (('section' in user && user.section) ? user.section : (user.gradeOrYear && (user.gradeOrYear.toLowerCase().includes('primary') || user.gradeOrYear.toLowerCase().includes('nursery')) ? 'primary' : 'college')),
       createdAt: user.createdAt || new Date().toISOString().split('T')[0],
     };
 
     setCurrentUser(fullUser);
     setUserRole(normRole);
-    if (normRole === 'ADMIN' || normRole === 'STAFF') {
+    if (isUserStaffOrAdmin) {
       setIsLibrarianLoggedInState(true);
+      setActiveSection('all');
     } else {
       setIsLibrarianLoggedInState(false);
     }
@@ -942,31 +1019,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Actions implementation
   const addBook = async (newBookData: Omit<Book, 'id' | 'readsCount'>) => {
     const tempId = `book-${Date.now()}`;
+    const loggedInBranch: 'college' | 'primary' | undefined = 
+      currentUser?.section === 'primary' || currentUser?.section === 'college'
+        ? currentUser.section
+        : (currentUser?.email === 'adelekev@premierinternationslschool.org' ? 'primary' :
+           currentUser?.email === 'alabia@premierinternationalschool.org' ? 'college' : undefined);
+
+    const resolvedSection: 'college' | 'primary' = (newBookData.section === 'primary' || newBookData.section === 'college')
+      ? newBookData.section
+      : (loggedInBranch || (activeSection === 'primary' ? 'primary' : 'college'));
     const newBook: Book = {
       ...newBookData,
       id: tempId,
       readsCount: 0,
+      section: resolvedSection,
     };
     // Optimistic local state update
     setBooks((prev) => [newBook, ...prev]);
 
+    const bookPayload = {
+      ...newBookData,
+      section: resolvedSection,
+    };
+
     // Persist to Supabase if connected, or queue for offline sync
     if (!navigator.onLine || !isSupabaseConfigured) {
-      enqueueOfflineMutation('ADD_BOOK', newBookData, `Add "${newBookData.title}"`);
+      enqueueOfflineMutation('ADD_BOOK', bookPayload, `Add "${newBookData.title}"`);
     } else {
       try {
-        const { data, error } = await insertBookToSupabase(newBookData);
+        const { data, error } = await insertBookToSupabase(bookPayload);
         if (data) {
           // Replace temp optimistic book with server-generated ID and record
           setBooks((prev) => prev.map((b) => (b.id === tempId ? data : b)));
           setCloudSyncStatus('synced');
         } else if (error) {
           console.warn('Could not insert to Supabase, queuing for offline sync:', error);
-          enqueueOfflineMutation('ADD_BOOK', newBookData, `Add "${newBookData.title}"`);
+          enqueueOfflineMutation('ADD_BOOK', bookPayload, `Add "${newBookData.title}"`);
         }
       } catch (err) {
         console.error('Failed to save to Supabase, queuing for offline sync:', err);
-        enqueueOfflineMutation('ADD_BOOK', newBookData, `Add "${newBookData.title}"`);
+        enqueueOfflineMutation('ADD_BOOK', bookPayload, `Add "${newBookData.title}"`);
       }
     }
   };
@@ -1016,8 +1108,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           skipped++;
         }
       } else {
+        const loggedInBranch: 'college' | 'primary' | undefined = 
+          currentUser?.section === 'primary' || currentUser?.section === 'college'
+            ? currentUser.section
+            : (currentUser?.email === 'adelekev@premierinternationslschool.org' ? 'primary' :
+               currentUser?.email === 'alabia@premierinternationalschool.org' ? 'college' : undefined);
+
+        const itemSection: 'college' | 'primary' = (item.section === 'primary' || item.section === 'college')
+          ? item.section
+          : (loggedInBranch || (activeSection === 'primary' ? 'primary' : 'college'));
         const newBook: Book = {
           ...item,
+          section: itemSection,
           id: `book-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
           readsCount: 0,
         };
@@ -1115,6 +1217,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       dueDate: formatDate(dueDate),
       status: 'borrowed',
       alertSent: false,
+      section: book.section || (activeSection === 'primary' ? 'primary' : 'college'),
     };
 
     setCirculation((prev) => {
@@ -1348,13 +1451,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
   };
 
-  const addAnnouncement = (title: string, content: string, category: Announcement['category']) => {
+  const addAnnouncement = (title: string, content: string, category: Announcement['category'], section?: LibrarySection) => {
     const newAnn: Announcement = {
       id: `ann-${Date.now()}`,
       title,
       content,
       date: new Date().toISOString().split('T')[0],
       category,
+      section: section || (activeSection === 'primary' ? 'primary' : activeSection === 'college' ? 'college' : 'all'),
     };
     setAnnouncements((prev) => [newAnn, ...prev]);
   };
@@ -1374,8 +1478,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const cardId = userData.role === 'student' 
       ? `LIB-STUD-${Math.floor(1000 + Math.random() * 9000)}`
       : `LIB-TEACH-${Math.floor(2000 + Math.random() * 9000)}`;
+
+    const inferredSection: LibrarySection = (userData.role === 'staff' || userData.role === 'teacher' || userData.role === 'admin' || userData.role === 'librarian')
+      ? 'all'
+      : (userData.section && userData.section !== 'all'
+        ? userData.section
+        : (userData.gradeOrYear && (userData.gradeOrYear.toLowerCase().includes('primary') || userData.gradeOrYear.toLowerCase().includes('nursery'))
+          ? 'primary'
+          : (activeSection === 'primary' ? 'primary' : 'college')));
     const newUser: LibraryUser = {
       ...userData,
+      section: inferredSection,
       id: `user-${Date.now()}`,
       libraryCardId: cardId,
       createdAt: new Date().toISOString().split('T')[0]
@@ -1442,8 +1555,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const cardId = item.libraryCardId || (
           item.role === 'student' ? `LIB-STUD-${randNum}` : `LIB-TEACH-${randNum}`
         );
+        const inferredSection: LibrarySection = (item.role === 'staff' || item.role === 'teacher' || item.role === 'admin' || item.role === 'librarian')
+          ? 'all'
+          : (item.section && item.section !== 'all'
+            ? item.section
+            : (item.gradeOrYear && (item.gradeOrYear.toLowerCase().includes('primary') || item.gradeOrYear.toLowerCase().includes('nursery'))
+              ? 'primary'
+              : (activeSection === 'primary' ? 'primary' : 'college')));
         const newUser: LibraryUser = {
           ...item,
+          section: inferredSection,
           id: `user-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
           libraryCardId: cardId,
           createdAt: new Date().toISOString().split('T')[0],
@@ -1662,9 +1783,61 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true, message: `Replacement notice email dispatched to ${studentEmail}!` };
   };
 
+  // Multi-Branch Scoped Views
+  // 1. Staff is global. Only staff should be able to see primary and secondary inventory.
+  // 2. Learners/students only see their assigned school section (Primary or College).
+  const scopedBooks = React.useMemo(() => {
+    // If student/learner is logged in: STRICTLY lock to their own section, never both
+    if (isLearner && (currentUser || loggedInLearner)) {
+      const learnerSec = (currentUser?.section || loggedInLearner?.section || 'college') === 'primary' ? 'primary' : 'college';
+      return books.filter((b) => (b.section || 'college') === learnerSec);
+    }
+
+    // If guest (not logged in as staff):
+    // Guests cannot see full multi-branch inventory; default to college section
+    if (!isAdmin && !isStaff) {
+      if (activeSection === 'all') {
+        return books.filter((b) => (b.section || 'college') === 'college');
+      }
+      return books.filter((b) => (b.section || 'college') === activeSection);
+    }
+
+    // Only staff can see primary and secondary inventory!
+    // When activeSection is 'all', staff sees both primary and secondary inventory.
+    if (activeSection === 'all') return books;
+    return books.filter((b) => (b.section || 'college') === activeSection);
+  }, [books, activeSection, isLearner, currentUser, loggedInLearner, isAdmin, isStaff]);
+
+  const scopedCirculation = React.useMemo(() => {
+    if (isLearner && (currentUser || loggedInLearner)) {
+      const learnerSec = (currentUser?.section || loggedInLearner?.section || 'college') === 'primary' ? 'primary' : 'college';
+      return circulation.filter((c) => (c.section || 'college') === learnerSec);
+    }
+    if (activeSection === 'all') return circulation;
+    return circulation.filter((c) => (c.section || 'college') === activeSection);
+  }, [circulation, activeSection, isLearner, currentUser, loggedInLearner]);
+
+  const scopedUsers = React.useMemo(() => {
+    // Staff are global: always included in user directory
+    if (activeSection === 'all') return users;
+    return users.filter((u) => {
+      // Staff have global cross-sectional access
+      if (u.role === 'staff' || u.role === 'teacher' || u.role === 'admin' || u.role === 'librarian' || u.section === 'all') return true;
+      return (u.section || 'college') === activeSection;
+    });
+  }, [users, activeSection]);
+
   return (
     <AppContext.Provider
       value={{
+        activeSection,
+        setActiveSection,
+        allBooks: books,
+        allCirculation: circulation,
+        allUsers: users,
+        books: scopedBooks,
+        circulation: scopedCirculation,
+        users: scopedUsers,
         userRole,
         setUserRole,
         currentUser,
@@ -1690,8 +1863,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setCurrentRole,
         activeTab,
         setActiveTab,
-        books,
-        circulation,
         submissions,
         announcements,
         currentLearnerName,
@@ -1704,7 +1875,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         navigateTo,
         login,
         logout,
-        users,
         createUser,
         addUsersBatch,
         assignLearnerToTeacher,

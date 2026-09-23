@@ -38,13 +38,13 @@ import { HomeDiscoveryHub } from './components/HomeDiscoveryHub';
  * ------------------------------------------------------------- */
 function HomeView() {
   return (
-    <div className="space-y-16">
+    <div className="space-y-8 sm:space-y-10">
       {/* 1. Hero, 2. Limited Catalog Preview, 3. What You Can Do */}
       <HomeDiscoveryHub />
 
-      {/* 4. Bulletin & Notices Section */}
-      <section className="bg-white rounded-3xl p-6 sm:p-10 shadow-xs border border-slate-200">
-        <AnnouncementBoard />
+      {/* 4. Bulletin & Notices Section (Accommodates 2 Primary + 2 College) */}
+      <section className="bg-white rounded-3xl px-3 sm:px-5 py-4 sm:py-6 shadow-xs border border-slate-200">
+        <AnnouncementBoard isHomePreview={true} />
       </section>
     </div>
   );
@@ -411,26 +411,6 @@ function GalleryView() {
 }
 
 /* -------------------------------------------------------------
- * 8. Bulletin View Component
- * ------------------------------------------------------------- */
-function BulletinView() {
-  return (
-    <div className="glass rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200/80">
-      <div className="mb-6 pb-4 border-b border-slate-100">
-        <h2 className="font-display font-extrabold text-xl sm:text-2xl text-slate-900 flex items-center gap-2">
-          <Bell className="w-6 h-6 text-amber-500" />
-          Library Notices
-        </h2>
-        <p className="text-xs sm:text-sm text-slate-500 mt-1">
-          Official announcements, schedule updates, book return deadlines, and library notices.
-        </p>
-      </div>
-      <AnnouncementBoard />
-    </div>
-  );
-}
-
-/* -------------------------------------------------------------
  * Main Application Layout & Router
  * ------------------------------------------------------------- */
 function AppContent() {
@@ -448,7 +428,7 @@ function AppContent() {
       <ClassRosterManagementModal />
 
       {/* Main Content Area with Route Transitions */}
-      <main className="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-grow max-w-[90rem] w-full mx-auto px-2 sm:px-3 lg:px-4 py-6">
         <AnimatePresence mode="wait">
           <motion.div
             key={location.pathname}
@@ -463,8 +443,8 @@ function AppContent() {
               <Route path="/catalog" element={<CatalogView />} />
               <Route path="/library" element={<Navigate to="/catalog" replace />} />
               <Route path="/gallery" element={<GalleryView />} />
-              <Route path="/announcements" element={<BulletinView />} />
-              <Route path="/bulletin" element={<Navigate to="/announcements" replace />} />
+              <Route path="/announcements" element={<Navigate to="/" replace />} />
+              <Route path="/bulletin" element={<Navigate to="/" replace />} />
               <Route path="/submit" element={<SubmitView />} />
               <Route path="/analytics" element={<AnalyticsView />} />
               <Route path="/circulation" element={<CirculationView />} />
@@ -482,7 +462,7 @@ function AppContent() {
 
       {/* Footer */}
       <footer className="bg-white text-slate-500 py-10 border-t border-slate-200 mt-16 text-center text-xs">
-        <div className="max-w-7xl mx-auto px-4 space-y-3">
+        <div className="max-w-[90rem] mx-auto px-2 sm:px-4 space-y-3">
           <p className="font-semibold text-slate-700 uppercase tracking-widest text-[11px]">
             Premier International School Digital Library Portal
           </p>
@@ -510,10 +490,10 @@ function AppContent() {
             <span>•</span>
             <button 
               type="button"
-              onClick={() => navigate('/announcements')}
+              onClick={() => navigate('/gallery')}
               className="hover:text-blue-600 underline cursor-pointer"
             >
-              Library Notices
+              Creative Gallery
             </button>
             <span>•</span>
             <button 

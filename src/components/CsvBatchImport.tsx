@@ -67,7 +67,9 @@ export const CsvBatchImport: React.FC<CsvBatchImportProps> = ({
     books, 
     addUsersBatch, 
     addBooksBatch, 
-    setActiveView 
+    setActiveView,
+    activeSection,
+    currentUser
   } = useApp();
 
   const fileInputId = useId();
@@ -76,6 +78,12 @@ export const CsvBatchImport: React.FC<CsvBatchImportProps> = ({
   // Active module: Roster vs Catalog
   const [activeTab, setActiveTab] = useState<'roster' | 'catalog'>(initialTab);
   const [currentStep, setCurrentStep] = useState<ImportStep>('upload');
+
+  // Branch / Section targeting for the batch - automatically determined by logged in librarian
+  const targetSection: 'college' | 'primary' = (currentUser?.section as ('college' | 'primary')) || 
+    (currentUser?.email === 'adelekev@premierinternationslschool.org' ? 'primary' :
+     currentUser?.email === 'alabia@premierinternationalschool.org' ? 'college' :
+     (activeSection === 'primary' ? 'primary' : 'college'));
 
   // File state
   const [fileName, setFileName] = useState<string>('');
@@ -251,6 +259,7 @@ export const CsvBatchImport: React.FC<CsvBatchImportProps> = ({
           department: r.department,
           libraryCardId: r.libraryCardId,
           assignedTeacherName: r.assignedTeacherName,
+          section: targetSection,
         }));
 
         const res = addUsersBatch(userBatch, { updateDuplicates });
@@ -277,6 +286,7 @@ export const CsvBatchImport: React.FC<CsvBatchImportProps> = ({
           hasAudio: r.hasAudio,
           usageType: r.usageType,
           coverImage: r.coverImage,
+          section: targetSection,
         }));
 
         const res = await addBooksBatch(bookBatch, { updateDuplicates });

@@ -82,7 +82,7 @@ export const Login: React.FC<LoginProps> = ({ targetTab, adminMode }) => {
       if (target === 'moderator' || target === 'moderation') return '/moderator';
       if (target === 'desk' || target === 'desk-utilities') return '/desk-utilities';
       if (target === 'analytics') return '/analytics';
-      if (target === 'announcements' || target === 'bulletin') return '/announcements';
+      if (target === 'announcements' || target === 'bulletin') return '/';
     }
     return isAdmin ? '/circulation' : '/catalog';
   };

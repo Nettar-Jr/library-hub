@@ -6,6 +6,8 @@
 export type UserRole = 'LEARNER' | 'STAFF' | 'ADMIN' | 'learner' | 'staff' | 'admin' | 'librarian' | 'student' | 'teacher';
 export type AppRole = 'LEARNER' | 'STAFF' | 'ADMIN';
 
+export type LibrarySection = 'college' | 'primary' | 'all';
+
 export interface User {
   id: string;
   name: string;
@@ -19,6 +21,7 @@ export interface User {
   gradeOrYear?: string;
   department?: string;
   libraryCardId?: string;
+  section?: LibrarySection;
   createdAt?: string;
 }
 
@@ -84,6 +87,7 @@ export interface Book {
   isPopular?: boolean;
   isNew?: boolean;
   isTeacherPick?: boolean;
+  section?: 'college' | 'primary'; // Branch affiliation
 }
 
 export interface ReaderAchievement {
@@ -111,6 +115,7 @@ export interface CirculationRecord {
   status: CirculationStatus;
   alertSent: boolean;
   isReplaced?: boolean;
+  section?: 'college' | 'primary';
 }
 
 export interface LibraryUser {
@@ -126,6 +131,7 @@ export interface LibraryUser {
   avatar?: string;
   assignedTeacherId?: string; // ID of assigned teacher/advisor
   assignedTeacherName?: string; // Name of assigned teacher/advisor
+  section?: LibrarySection; // School section: college (secondary), primary (pupils), or all (global staff)
   createdAt: string;
 }
 
@@ -177,6 +183,7 @@ export interface StudentSubmission {
   assignedBy?: string;
   assignedAt?: string;
   assignmentNotes?: string;
+  section?: 'college' | 'primary';
 }
 
 export interface Announcement {
@@ -185,4 +192,5 @@ export interface Announcement {
   content: string;
   date: string;
   category: 'info' | 'alert' | 'achievement';
+  section?: 'college' | 'primary' | 'all';
 }

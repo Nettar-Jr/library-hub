@@ -30,7 +30,9 @@ export const ClassRosterManagementModal: React.FC = () => {
     assignLearnerToTeacher, 
     assignMultipleLearnersToTeacher,
     createUser,
-    isAdmin 
+    isAdmin,
+    activeSection,
+    currentUser
   } = useApp();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -40,11 +42,18 @@ export const ClassRosterManagementModal: React.FC = () => {
   const [bulkTeacherId, setBulkTeacherId] = useState<string>('');
   const [feedbackMessage, setFeedbackMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
+  // Auto-derived section based on logged in librarian
+  const autoSection: 'college' | 'primary' = (currentUser?.section as ('college' | 'primary')) ||
+    (currentUser?.email === 'adelekev@premierinternationslschool.org' ? 'primary' :
+     currentUser?.email === 'alabia@premierinternationalschool.org' ? 'college' :
+     (activeSection === 'primary' ? 'primary' : 'college'));
+
   // New user mini-form state
   const [isAddingUser, setIsAddingUser] = useState(false);
   const [newUserName, setNewUserName] = useState('');
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserRole, setNewUserRole] = useState<'learner' | 'staff'>('learner');
+  const [newUserSection, setNewUserSection] = useState<'college' | 'primary'>(autoSection);
   const [newUserGrade, setNewUserGrade] = useState('9E');
   const [newUserAdmissionNumber, setNewUserAdmissionNumber] = useState('');
   const [newUserPassword, setNewUserPassword] = useState('');
@@ -135,6 +144,7 @@ export const ClassRosterManagementModal: React.FC = () => {
       name: newUserName.trim(),
       email: newUserEmail.trim(),
       role: newUserRole,
+      section: newUserSection,
       gradeOrYear: newUserRole === 'learner' ? newUserGrade : undefined,
       department: newUserRole === 'staff' ? newUserDepartment : undefined,
       admissionNumber: newUserRole === 'learner' ? newUserAdmissionNumber.trim() || undefined : undefined,
@@ -360,8 +370,8 @@ export const ClassRosterManagementModal: React.FC = () => {
                       onChange={(e) => setNewUserRole(e.target.value as 'learner' | 'staff')}
                       className="w-full text-xs font-semibold bg-indigo-900 border border-indigo-700 text-white rounded-xl px-3 py-2 focus:ring-2 focus:ring-amber-400 outline-none cursor-pointer"
                     >
-                      <option value="learner">Learner (Student)</option>
-                      <option value="staff">Staff (Teacher)</option>
+                      <option value="learner">Learner (Student / Pupil)</option>
+                      <option value="staff">Staff (Teacher / Faculty)</option>
                     </select>
                   </div>
 
