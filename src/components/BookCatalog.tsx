@@ -8,7 +8,7 @@ import { useApp } from '../context/AppContext';
 import { BookCard } from './BookCard';
 import { HeroSpotlight } from './HeroSpotlight';
 import { BookDetailModal } from './BookDetailModal';
-import { Book } from '../types';
+import { Book, BOOK_CATEGORIES } from '../types';
 import { 
   Search, 
   X, 
@@ -1112,18 +1112,22 @@ export const BookCatalog: React.FC = () => {
                     <select
                       id="new-book-category"
                       value={newBookForm.category}
-                      onChange={(e) => setNewBookForm({ ...newBookForm, category: e.target.value })}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setNewBookForm({ 
+                          ...newBookForm, 
+                          category: val,
+                          isPopular: val === 'Popular' ? true : newBookForm.isPopular,
+                          hasAudio: val === 'Audiobooks & Read-Aloud' ? true : newBookForm.hasAudio
+                        });
+                      }}
                       className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-medium text-slate-800 outline-none focus:ring-1 focus:ring-slate-500"
                     >
-                      <option value="African Literature">African Literature</option>
-                      <option value="Classics">Classics</option>
-                      <option value="Fantasy & Adventure">Fantasy & Adventure</option>
-                      <option value="Children's Fiction">Children's Fiction</option>
-                      <option value="Comics & Graphic Novels">Comics & Graphic Novels</option>
-                      <option value="STEM & Space">STEM & Space</option>
-                      <option value="Coding & Tech">Coding & Tech</option>
-                      <option value="Philosophy & Ethics">Philosophy & Ethics</option>
-                      <option value="History & Culture">History & Culture</option>
+                      {BOOK_CATEGORIES.map((cat) => (
+                        <option key={cat} value={cat}>
+                          {cat}
+                        </option>
+                      ))}
                     </select>
                   </div>
 

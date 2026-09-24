@@ -6,7 +6,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { BookCard } from './BookCard';
 import { 
   BookOpen, 
   Headphones, 
@@ -23,10 +22,11 @@ import {
   Atom,
   Award,
   Users,
-  CheckCircle2
+  CheckCircle2,
+  Tablet
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Book } from '../types';
+import { Book, BOOK_CATEGORIES } from '../types';
 
 export const HomeDiscoveryHub: React.FC = () => {
   const { books, allBooks, currentUser, isLearner, isStaff, isAdmin, checkoutBook, currentLearnerName, loggedInLearner } = useApp();
@@ -36,11 +36,27 @@ export const HomeDiscoveryHub: React.FC = () => {
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
   const [playingAudioBookId, setPlayingAudioBookId] = useState<string | null>(null);
   
-  // Epic-inspired state filters
-  const [selectedStage, setSelectedStage] = useState<'all' | 'early' | 'upper_primary' | 'secondary'>('all');
-  const [thematicShelf, setThematicShelf] = useState<'all' | 'audio' | 'stem' | 'african'>('all');
+  // Endless loop slideshow filter state - defaults to 'All Books' so the full catalog database is displayed
+  const [slideshowCategory, setSlideshowCategory] = useState<string>('All Books');
 
   const catalogPool = (allBooks && allBooks.length > 0) ? allBooks : books;
+
+  // Dynamic filter categories derived directly from current catalog database
+  const slideshowCategories = React.useMemo(() => {
+    const dbCategories = Array.from(
+      new Set(catalogPool.map((b) => b.category).filter(Boolean))
+    );
+    const standard = ['All Books', 'Popular'];
+    const rest = dbCategories.filter((c) => c !== 'Popular' && c !== 'All Books');
+    return [...standard, ...rest];
+  }, [catalogPool]);
+
+  // Priority ordering: latest accessioned catalog titles lead first, then other volumes
+  const orderedCatalog = React.useMemo(() => {
+    const accessioned = catalogPool.filter(b => !b.id.match(/^book-([1-9]|10)$/));
+    const samples = catalogPool.filter(b => b.id.match(/^book-([1-9]|10)$/));
+    return [...accessioned, ...samples];
+  }, [catalogPool]);
 
   // Cleanup speech synthesis on unmount
   useEffect(() => {
@@ -76,45 +92,39 @@ export const HomeDiscoveryHub: React.FC = () => {
   const audioBooks = catalogPool.filter((b) => b.hasAudio || b.isAudiobook);
   const spotlightAudioBooks = audioBooks.length > 0 ? audioBooks.slice(0, 4) : catalogPool.slice(0, 4);
 
-  // Filter books based on Stage & Thematic shelf
-  const filteredCatalog = catalogPool.filter((book) => {
-    // 1. Stage filter
-    if (selectedStage === 'early') {
-      const isPrimary = book.section === 'primary';
-      const isEarlyCategory = book.category.toLowerCase().includes('fiction') || 
-                              book.category.toLowerCase().includes('folktale') ||
-                              book.category.toLowerCase().includes('illustrated') ||
-                              book.category.toLowerCase().includes('phonics');
-      if (!isPrimary || !isEarlyCategory) return false;
-    } else if (selectedStage === 'upper_primary') {
-      if (book.section !== 'primary') return false;
-    } else if (selectedStage === 'secondary') {
-      if ((book.section || 'college') !== 'college') return false;
+  // Filtered books for the infinite left-scrolling slideshow from catalog database
+  const slideshowBooks = React.useMemo(() => {
+    let list: Book[] = [];
+    if (slideshowCategory === 'All Books') {
+      list = [...orderedCatalog];
+    } else if (slideshowCategory === 'Popular') {
+      list = orderedCatalog.filter(
+        (b) => b.isPopular || (b.rating && b.rating >= 4.8) || b.readsCount > 30 || b.category.toLowerCase().includes('popular')
+      );
+      if (list.length === 0) list = orderedCatalog.slice(0, 10);
+    } else if (slideshowCategory === 'Audiobooks & Read-Aloud') {
+      list = orderedCatalog.filter((b) => b.hasAudio || b.isAudiobook);
+      if (list.length === 0) list = orderedCatalog.slice(0, 10);
+    } else {
+      list = orderedCatalog.filter((b) => b.category.toLowerCase().includes(slideshowCategory.toLowerCase()));
+      if (list.length === 0) {
+        const firstWord = slideshowCategory.split(' ')[0].toLowerCase();
+        list = orderedCatalog.filter((b) => b.category.toLowerCase().includes(firstWord));
+      }
+      if (list.length === 0) list = orderedCatalog;
     }
 
-    // 2. Thematic shelf filter
-    if (thematicShelf === 'audio') {
-      if (!book.hasAudio && !book.isAudiobook) return false;
-    } else if (thematicShelf === 'stem') {
-      const isStem = book.category.toLowerCase().includes('stem') || 
-                     book.category.toLowerCase().includes('science') || 
-                     book.category.toLowerCase().includes('math') ||
-                     book.category.toLowerCase().includes('tech');
-      if (!isStem) return false;
-    } else if (thematicShelf === 'african') {
-      const isAfrican = book.category.toLowerCase().includes('african') || 
-                        book.category.toLowerCase().includes('history') ||
-                        book.title.toLowerCase().includes('anansi') ||
-                        book.title.toLowerCase().includes('nigeria') ||
-                        book.author.toLowerCase().includes('achebe');
-      if (!isAfrican) return false;
+    if (list.length === 0) {
+      list = [...catalogPool];
     }
 
-    return true;
-  });
-
-  // Display a curated 8-book preview grid
-  const previewDisplayBooks = filteredCatalog.slice(0, 8);
+    // Ensure we have a generous set of covers so the endless marquee loops smoothly
+    let expanded = [...list];
+    while (expanded.length < 12 && list.length > 0) {
+      expanded = [...expanded, ...list];
+    }
+    return expanded;
+  }, [orderedCatalog, catalogPool, slideshowCategory]);
 
   const handleBookClick = (book: Book) => {
     setSelectedBookModal(book);
@@ -138,10 +148,7 @@ export const HomeDiscoveryHub: React.FC = () => {
   };
 
   const scrollToPreview = () => {
-    const el = document.getElementById('catalog-preview');
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth' });
-    }
+    navigate('/catalog');
   };
 
   return (
@@ -272,11 +279,11 @@ export const HomeDiscoveryHub: React.FC = () => {
 
         <div className="bg-white px-3 py-2.5 sm:px-3.5 sm:py-3 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-            <GraduationCap className="w-5 h-5" />
+            <Tablet className="w-5 h-5" />
           </div>
           <div>
-            <div className="font-display font-extrabold text-lg sm:text-xl text-slate-900 leading-tight">Dual Branch</div>
-            <div className="text-[11px] sm:text-xs text-slate-500 font-medium">Primary &amp; College</div>
+            <div className="font-display font-extrabold text-lg sm:text-xl text-slate-900 leading-tight">E-Books</div>
+            <div className="text-[11px] sm:text-xs text-slate-500 font-medium">Digital Editions</div>
           </div>
         </div>
 
@@ -292,272 +299,84 @@ export const HomeDiscoveryHub: React.FC = () => {
       </div>
 
       {/* =========================================================================
-       * 3. EPIC FEATURE B: "READ-TO-ME & AUDIOBOOKS" SPOTLIGHT CAROUSEL SHELF
+       * 3. EPIC FEATURE B: ENDLESS LOOP LEFT SLIDESHOW (BOOK COVERS ONLY)
+       * Note: background color removed, title/description removed, cards are book covers only,
+       * endless loop left slideshow, category filter words above.
        * ========================================================================= */}
-      <section className="bg-gradient-to-br from-indigo-900 via-slate-900 to-blue-950 text-white px-3 sm:px-4 lg:px-5 py-4 sm:py-5 lg:py-6 rounded-3xl shadow-lg relative overflow-hidden">
-        {/* Subtle glow accent */}
-        <div className="absolute top-0 right-0 w-80 h-80 bg-blue-500/15 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-72 h-72 bg-purple-500/15 rounded-full blur-3xl pointer-events-none" />
+      <section className="relative w-full space-y-4 py-2">
+        {/* Category & Collection Filter Words Above Book Cards */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none no-scrollbar">
+          {slideshowCategories.map((cat) => {
+            const isActive = slideshowCategory === cat;
+            return (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setSlideshowCategory(cat)}
+                className={`px-3.5 py-1.5 rounded-full text-xs sm:text-sm font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                  isActive
+                    ? 'bg-slate-900 text-white shadow-sm font-bold'
+                    : 'bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-900 border border-slate-200/80 shadow-2xs'
+                }`}
+              >
+                {cat}
+              </button>
+            );
+          })}
+        </div>
 
-        <div className="relative z-10 space-y-6">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3 pb-3 border-b border-white/10">
-            <div>
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/20 border border-purple-400/30 text-purple-200 text-xs font-semibold mb-2">
-                <Headphones className="w-3.5 h-3.5 text-purple-300" />
-                <span>Read-To-Me &amp; Audiobooks Spotlight</span>
+        {/* Endless Loop Left Slideshow (Book Covers Only) */}
+        <div className="relative w-full overflow-hidden py-2">
+          {/* Subtle edge fade gradient mask */}
+          <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-8 sm:w-16 bg-gradient-to-r from-slate-50 to-transparent z-10" />
+          <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 sm:w-16 bg-gradient-to-l from-slate-50 to-transparent z-10" />
+
+          <div className="animate-infinite-scroll flex gap-4 sm:gap-6 items-center">
+            {/* Set 1 of Book Covers */}
+            {slideshowBooks.map((book, idx) => (
+              <div
+                key={`slide-1-${book.id}-${idx}`}
+                onClick={() => handleBookClick(book)}
+                className="w-32 sm:w-40 md:w-44 aspect-[2/3] shrink-0 rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:scale-105 active:scale-95 cursor-pointer bg-slate-200 border border-slate-200/60 relative group"
+                title={`${book.title} by ${book.author}`}
+              >
+                <img
+                  src={book.coverImage || book.coverUrl}
+                  alt={book.title}
+                  className="w-full h-full object-cover transition-transform duration-300 hover:scale-102"
+                  loading="lazy"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=700';
+                  }}
+                />
               </div>
-              <h2 className="font-display font-extrabold text-xl sm:text-2xl text-white">
-                Listen &amp; Learn With Audio Narration
-              </h2>
-              <p className="text-xs sm:text-sm text-slate-300 max-w-xl mt-1">
-                Help young readers build fluency, phonics confidence, and vocabulary with narrated read-aloud editions.
-              </p>
-            </div>
+            ))}
 
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedStage('all');
-                setThematicShelf('audio');
-                scrollToPreview();
-              }}
-              className="text-xs font-bold text-blue-300 hover:text-white flex items-center gap-1.5 transition cursor-pointer"
-            >
-              <span>View all audio titles</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          {/* 4 Spotlight Audio Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {spotlightAudioBooks.map((book) => {
-              const isPlayingThis = playingAudioBookId === book.id;
-              return (
-                <div 
-                  key={book.id}
-                  onClick={() => handleBookClick(book)}
-                  className="group bg-white/10 hover:bg-white/15 border border-white/15 hover:border-white/30 rounded-2xl p-3.5 transition-all flex flex-col justify-between cursor-pointer backdrop-blur-md"
-                >
-                  <div className="flex gap-3">
-                    <div className="w-16 h-22 rounded-lg bg-slate-800 overflow-hidden shadow-sm shrink-0 border border-white/10 group-hover:scale-105 transition-transform">
-                      <img
-                        src={book.coverImage || book.coverUrl}
-                        alt={book.title}
-                        className="w-full h-full object-cover"
-                        referrerPolicy="no-referrer"
-                      />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <span className="text-[10px] font-bold text-cyan-300 bg-cyan-950/60 border border-cyan-800/60 px-2 py-0.5 rounded-full inline-block mb-1">
-                        Audiobook
-                      </span>
-                      <h3 className="font-bold text-xs text-white group-hover:text-blue-200 line-clamp-2 leading-tight">
-                        {book.title}
-                      </h3>
-                      <p className="text-[11px] text-slate-300 truncate mt-0.5">{book.author}</p>
-                    </div>
-                  </div>
-
-                  {/* Audio Listen Sample Button */}
-                  <div className="mt-3 pt-3 border-t border-white/10 flex items-center justify-between">
-                    <button
-                      type="button"
-                      onClick={(e) => toggleAudioSample(book, e)}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-                        isPlayingThis 
-                          ? 'bg-amber-500 text-slate-950 shadow-md animate-pulse'
-                          : 'bg-white/20 hover:bg-white/30 text-white'
-                      }`}
-                    >
-                      {isPlayingThis ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
-                      <span>{isPlayingThis ? 'Stop Sample' : 'Listen Sample'}</span>
-                    </button>
-
-                    <span className="text-[10px] text-slate-300 font-medium">
-                      {book.availableCopies > 0 ? 'In Stock' : 'On Hold'}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
+            {/* Set 2 of Book Covers (Endless Loop Duplicate) */}
+            {slideshowBooks.map((book, idx) => (
+              <div
+                key={`slide-2-${book.id}-${idx}`}
+                onClick={() => handleBookClick(book)}
+                className="w-32 sm:w-40 md:w-44 aspect-[2/3] shrink-0 rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:scale-105 active:scale-95 cursor-pointer bg-slate-200 border border-slate-200/60 relative group"
+                title={`${book.title} by ${book.author}`}
+              >
+                <img
+                  src={book.coverImage || book.coverUrl}
+                  alt={book.title}
+                  className="w-full h-full object-cover transition-transform duration-300 hover:scale-102"
+                  loading="lazy"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=700';
+                  }}
+                />
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
       {/* =========================================================================
-       * 4. EPIC FEATURE C: STAGE PICKER & THEMATIC CATALOG PREVIEW
-       * ========================================================================= */}
-      <section id="catalog-preview" className="space-y-6 scroll-mt-24">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 pb-2 border-b border-slate-200/80">
-          <div>
-            <h2 className="font-display font-extrabold text-2xl sm:text-3xl text-slate-900">
-              Explore Catalog Preview
-            </h2>
-            <p className="text-xs sm:text-sm text-slate-500 mt-1">
-              Filter by school learning stage or curated thematic shelf to discover reading books.
-            </p>
-          </div>
-
-          {/* Stage Selector Pills (Epic Model) */}
-          <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-2xl border border-slate-200/80 overflow-x-auto max-w-full">
-            <button
-              type="button"
-              onClick={() => setSelectedStage('all')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer whitespace-nowrap ${
-                selectedStage === 'all'
-                  ? 'bg-white text-slate-900 shadow-2xs font-bold'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              All Stages
-            </button>
-            <button
-              type="button"
-              onClick={() => setSelectedStage('early')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer whitespace-nowrap ${
-                selectedStage === 'early'
-                  ? 'bg-white text-slate-900 shadow-2xs font-bold'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Early Years (Nursery – Y2)
-            </button>
-            <button
-              type="button"
-              onClick={() => setSelectedStage('upper_primary')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer whitespace-nowrap ${
-                selectedStage === 'upper_primary'
-                  ? 'bg-white text-slate-900 shadow-2xs font-bold'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Primary (Years 3 – 6)
-            </button>
-            <button
-              type="button"
-              onClick={() => setSelectedStage('secondary')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer whitespace-nowrap ${
-                selectedStage === 'secondary'
-                  ? 'bg-white text-slate-900 shadow-2xs font-bold'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              College (JSS1 – SSS3)
-            </button>
-          </div>
-        </div>
-
-        {/* Thematic Shelf Filter Tabs */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-          <button
-            type="button"
-            onClick={() => setThematicShelf('all')}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
-              thematicShelf === 'all'
-                ? 'bg-slate-900 text-white'
-                : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
-            }`}
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Featured &amp; Popular</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setThematicShelf('audio')}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
-              thematicShelf === 'audio'
-                ? 'bg-purple-600 text-white'
-                : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
-            }`}
-          >
-            <Headphones className="w-3.5 h-3.5 text-purple-500" />
-            <span>Read-To-Me Audio</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setThematicShelf('stem')}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
-              thematicShelf === 'stem'
-                ? 'bg-emerald-600 text-white'
-                : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
-            }`}
-          >
-            <Atom className="w-3.5 h-3.5 text-emerald-500" />
-            <span>STEM &amp; Discovery</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setThematicShelf('african')}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
-              thematicShelf === 'african'
-                ? 'bg-amber-600 text-white'
-                : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
-            }`}
-          >
-            <Compass className="w-3.5 h-3.5 text-amber-500" />
-            <span>African Literature &amp; Culture</span>
-          </button>
-        </div>
-
-        {/* 8-Book Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 sm:gap-6">
-          {previewDisplayBooks.map((book) => (
-            <BookCard
-              key={book.id}
-              book={book}
-              mode={currentUser ? 'full' : 'public-preview'}
-              isBorrowable={isLearner}
-              onClick={() => handleBookClick(book)}
-              onBorrow={() => handleBorrowAttempt(book)}
-            />
-          ))}
-        </div>
-
-        {previewDisplayBooks.length === 0 && (
-          <div className="text-center py-12 bg-white rounded-3xl border border-dashed border-slate-200 p-8">
-            <BookOpen className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-            <p className="text-xs text-slate-500 font-medium">No books found for this stage and shelf combination.</p>
-            <button
-              type="button"
-              onClick={() => { setSelectedStage('all'); setThematicShelf('all'); }}
-              className="mt-3 text-xs font-bold text-blue-600 hover:underline cursor-pointer"
-            >
-              Reset filters
-            </button>
-          </div>
-        )}
-
-        {/* Preview Footer Banner CTA */}
-        <div className="flex justify-center pt-2 pb-1">
-          {!currentUser ? (
-            <button
-              id="cta-signin-catalog"
-              type="button"
-              onClick={() => navigate('/login?redirect=/catalog')}
-              className="inline-flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs sm:text-sm px-6 py-3.5 rounded-xl shadow-xs transition-colors cursor-pointer"
-            >
-              <LogIn className="w-4 h-4" />
-              <span>Sign in to access the full 2,400+ catalog</span>
-            </button>
-          ) : (
-            <button
-              id="cta-open-catalog"
-              type="button"
-              onClick={() => navigate('/catalog')}
-              className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs sm:text-sm px-6 py-3.5 rounded-xl shadow-xs transition-colors cursor-pointer"
-            >
-              <BookOpen className="w-4 h-4" />
-              <span>Open Complete Library Catalog</span>
-            </button>
-          )}
-        </div>
-      </section>
-
-      {/* =========================================================================
-       * 5. EPIC FEATURE D: DUAL AUDIENCE PORTALS ("FOR STUDENTS" & "FOR EDUCATORS")
+       * 4. EPIC FEATURE D: DUAL AUDIENCE PORTALS ("FOR STUDENTS" & "FOR EDUCATORS")
        * ========================================================================= */}
       <section className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 pt-2">
         {/* Portal 1: For Students / Learners */}

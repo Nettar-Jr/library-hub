@@ -49,8 +49,22 @@ export function loadPersistentData(): DatabaseState {
     const savedUsers = localStorage.getItem(STORAGE_KEYS.USERS);
     const savedHolds = localStorage.getItem(STORAGE_KEYS.HOLDS);
 
+    let resolvedBooks = initialBooks;
+    if (savedBooks) {
+      try {
+        const parsed: Book[] = JSON.parse(savedBooks);
+        if (Array.isArray(parsed)) {
+          const existingIds = new Set(parsed.map(b => b.id));
+          const missing = initialBooks.filter(ib => !existingIds.has(ib.id));
+          resolvedBooks = missing.length > 0 ? [...parsed, ...missing] : parsed;
+        }
+      } catch {
+        resolvedBooks = initialBooks;
+      }
+    }
+
     return {
-      books: savedBooks ? JSON.parse(savedBooks) : initialBooks,
+      books: resolvedBooks,
       circulation: savedCirc ? JSON.parse(savedCirc) : initialCirculation,
       submissions: savedSubs ? JSON.parse(savedSubs) : initialSubmissions,
       announcements: savedAnn ? JSON.parse(savedAnn) : initialAnnouncements,

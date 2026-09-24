@@ -50,6 +50,23 @@ export interface HeroSpotlightData {
 
 export type CatalogViewMode = 'CAROUSEL' | 'GRID';
 
+export const BOOK_CATEGORIES = [
+  'Popular',
+  'African Literature',
+  'Classics',
+  'Fantasy & Adventure',
+  'Children\'s Fiction',
+  'Comics & Graphic Novels',
+  'STEM & Space',
+  'Coding & Tech',
+  'Philosophy & Ethics',
+  'History & Culture',
+  'Economics & Society',
+  'Audiobooks & Read-Aloud',
+] as const;
+
+export type BookCategory = (typeof BOOK_CATEGORIES)[number];
+
 export interface BookReview {
   id: string;
   reviewerName: string;

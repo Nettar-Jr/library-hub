@@ -5,7 +5,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Book, CirculationRecord, StudentSubmission, Announcement, UserRole, AppRole, LibraryUser, User, NavView, BookHold, BookReview, HeroSpotlightData, CatalogViewMode, LibrarySection } from '../types';
-import { initialBooks, initialCirculation, initialSubmissions, initialAnnouncements, initialHeroSpotlight } from '../data';
+import { initialBooks, initialCirculation, initialSubmissions, initialAnnouncements, initialHeroSpotlight, DEMO_SAMPLE_IDS } from '../data';
 import { 
   isSupabaseConfigured, 
   fetchBooksFromSupabase, 
@@ -345,31 +345,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [books, setBooks] = useState<Book[]>(() => {
     const samplesCleared = localStorage.getItem('p_samples_cleared') === 'true';
     const saved = localStorage.getItem('p_books_v3');
-    if (samplesCleared) {
-      if (saved) {
-        try {
-          const parsed: Book[] = JSON.parse(saved);
-          if (Array.isArray(parsed)) {
-            const sampleIds = new Set(initialBooks.map(ib => ib.id));
-            return parsed.filter(b => !sampleIds.has(b.id));
-          }
-        } catch {
-          return [];
-        }
-      }
-      return [];
-    }
+    const catalogBase = samplesCleared ? initialBooks.filter(b => !DEMO_SAMPLE_IDS.has(b.id)) : initialBooks;
+
     if (saved) {
       try {
         const parsed: Book[] = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          return parsed;
+          const baseList = samplesCleared ? parsed.filter(b => !DEMO_SAMPLE_IDS.has(b.id)) : parsed;
+          const existingIds = new Set(baseList.map(b => b.id));
+          const existingIsbns = new Set(baseList.map(b => (b.isbn || '').replace(/[-\s]/g, '')));
+          const missing = catalogBase.filter(ib => {
+            const cleanIsbn = (ib.isbn || '').replace(/[-\s]/g, '');
+            return !existingIds.has(ib.id) && !existingIsbns.has(cleanIsbn);
+          });
+          const merged = missing.length > 0 ? [...missing, ...baseList] : baseList;
+          try {
+            localStorage.setItem('p_books_v3', JSON.stringify(merged));
+          } catch {
+            // ignore
+          }
+          return merged;
         }
       } catch {
-        return [];
+        return catalogBase;
       }
     }
-    return initialBooks;
+    return catalogBase;
   });
 
   const [circulation, setCirculation] = useState<CirculationRecord[]>(() => {
@@ -668,6 +669,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       refreshHolds();
       refreshUsers();
     }
+  }, []);
+
+  // Ensure catalog database books are always synced into state and localStorage
+  useEffect(() => {
+    const samplesCleared = localStorage.getItem('p_samples_cleared') === 'true';
+    const catalogBase = samplesCleared ? initialBooks.filter(b => !DEMO_SAMPLE_IDS.has(b.id)) : initialBooks;
+    setBooks((prev) => {
+      const existingIds = new Set(prev.map(b => b.id));
+      const existingIsbns = new Set(prev.map(b => (b.isbn || '').replace(/[-\s]/g, '')));
+      const missing = catalogBase.filter(ib => {
+        const cleanIsbn = (ib.isbn || '').replace(/[-\s]/g, '');
+        return !existingIds.has(ib.id) && !existingIsbns.has(cleanIsbn);
+      });
+      if (missing.length > 0) {
+        const updated = [...missing, ...prev];
+        try {
+          localStorage.setItem('p_books_v3', JSON.stringify(updated));
+        } catch {
+          // ignore
+        }
+        return updated;
+      }
+      return prev;
+    });
   }, []);
 
   // Derived role flags
@@ -1160,7 +1185,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const clearSampleBooks = () => {
-    const sampleIds = new Set(initialBooks.map((b) => b.id));
+    const sampleIds = DEMO_SAMPLE_IDS;
     localStorage.setItem('p_samples_cleared', 'true');
     setBooks((prev) => {
       const remaining = prev.filter((b) => !sampleIds.has(b.id));
