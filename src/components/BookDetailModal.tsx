@@ -47,8 +47,12 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({ book, onClose 
     checkoutBook,
     setSelectedBook,
     isAdmin,
+    isStaff,
+    isLearner,
     deleteBook
   } = useApp();
+
+  const canEditBook = !isLearner && (isAdmin || isStaff || currentRole === 'STAFF' || currentRole === 'ADMIN');
 
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [reviewRating, setReviewRating] = useState(5);
@@ -150,15 +154,17 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({ book, onClose 
         {/* Modal Header Cover Section (Architectural Slate Header) */}
         <div className="relative bg-slate-900 p-6 text-white overflow-hidden rounded-t-3xl border-b border-slate-800">
           <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
-            <button
-              type="button"
-              onClick={() => setIsEditModalOpen(true)}
-              className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer backdrop-blur-xs border border-white/10 shadow-xs"
-              title="Edit this book in catalogue"
-            >
-              <Pencil className="w-3.5 h-3.5 text-blue-300" />
-              <span>Edit Details</span>
-            </button>
+            {canEditBook && (
+              <button
+                type="button"
+                onClick={() => setIsEditModalOpen(true)}
+                className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer backdrop-blur-xs border border-white/10 shadow-xs"
+                title="Edit this book in catalogue"
+              >
+                <Pencil className="w-3.5 h-3.5 text-blue-300" />
+                <span>Edit Details</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={onClose}
@@ -270,29 +276,58 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({ book, onClose 
             </div>
           )}
 
-          {/* Action Row: Borrow, Audio Narration & Save to Reading List */}
+          {/* Action Row: Borrow/Reserve, Audio Narration & Save to Reading List */}
           <div className="flex flex-col sm:flex-row gap-3">
-            <button
-              type="button"
-              disabled={!isAvailable || !!userActiveLoan}
-              onClick={handleBorrow}
-              className={`flex-1 py-3 px-5 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 shadow-xs transition cursor-pointer ${
-                userActiveLoan
-                  ? 'bg-slate-100 text-slate-500 cursor-not-allowed border border-slate-200'
-                  : isAvailable 
-                  ? 'bg-blue-700 hover:bg-blue-800 text-white active:scale-98' 
-                  : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
-              }`}
-            >
-              <BookmarkCheck className="w-4 h-4" />
-              <span>
-                {userActiveLoan 
-                  ? 'Checked Out to You' 
-                  : isAvailable 
-                  ? 'Borrow Book (14-Day Loan)' 
-                  : 'Currently Unavailable'}
-              </span>
-            </button>
+            {userActiveLoan ? (
+              <div className="flex-1 py-3 px-5 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 bg-indigo-50 text-indigo-900 border border-indigo-200">
+                <BookmarkCheck className="w-4 h-4 text-indigo-600" />
+                <span>Checked Out to You (Due: {userActiveLoan.dueDate})</span>
+              </div>
+            ) : isHeldByMe ? (
+              <div className="flex-1 py-3 px-5 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 bg-amber-50 text-amber-900 border border-amber-200">
+                <Clock className="w-4 h-4 text-amber-600" />
+                <span>Reserved for You (24h Hold Active)</span>
+              </div>
+            ) : (isAdmin || isStaff) ? (
+              <button
+                type="button"
+                disabled={!isAvailable}
+                onClick={handleBorrow}
+                className={`flex-1 py-3 px-5 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 shadow-xs transition cursor-pointer ${
+                  isAvailable 
+                    ? 'bg-blue-700 hover:bg-blue-800 text-white active:scale-98' 
+                    : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
+                }`}
+              >
+                <BookmarkCheck className="w-4 h-4" />
+                <span>{isAvailable ? 'Issue Book (Circulation)' : 'Currently Unavailable'}</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled={!isAvailable || !!activeHold}
+                onClick={() => {
+                  if (!matchedUser) {
+                    triggerNotification('error', 'Please sign in to place a desk reservation hold.');
+                    return;
+                  }
+                  const res = createHold(book.id, matchedUser.id);
+                  if (res.success) {
+                    triggerNotification('success', res.message);
+                  } else {
+                    triggerNotification('error', res.message);
+                  }
+                }}
+                className={`flex-1 py-3 px-5 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 shadow-xs transition cursor-pointer ${
+                  isAvailable && !activeHold
+                    ? 'bg-blue-700 hover:bg-blue-800 text-white active:scale-98' 
+                    : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
+                }`}
+              >
+                <Lock className="w-4 h-4" />
+                <span>{activeHold ? 'Held by Another Reader' : isAvailable ? 'Reserve for Desk Pickup (24h Hold)' : 'Currently Unavailable'}</span>
+              </button>
+            )}
 
             {book.hasAudio && (
               <button
@@ -561,14 +596,16 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({ book, onClose 
             <span className="text-[11px] text-slate-500 font-medium hidden sm:inline">
               School Library Catalog • Circulation & Accessions
             </span>
-            <button
-              type="button"
-              onClick={() => setIsEditModalOpen(true)}
-              className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 text-xs font-semibold rounded-xl cursor-pointer transition flex items-center gap-1.5 shadow-2xs"
-            >
-              <Pencil className="w-3.5 h-3.5 text-blue-600" />
-              <span>Edit Book Details</span>
-            </button>
+            {canEditBook && (
+              <button
+                type="button"
+                onClick={() => setIsEditModalOpen(true)}
+                className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 text-xs font-semibold rounded-xl cursor-pointer transition flex items-center gap-1.5 shadow-2xs"
+              >
+                <Pencil className="w-3.5 h-3.5 text-blue-600" />
+                <span>Edit Book Details</span>
+              </button>
+            )}
           </div>
           <button
             type="button"

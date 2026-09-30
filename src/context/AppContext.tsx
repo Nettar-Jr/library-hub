@@ -258,35 +258,69 @@ const initialUsers: LibraryUser[] = [
   primaryAdminUser,
 ];
 
+// Clean up any legacy shared localStorage session keys to guarantee tab session isolation
+try {
+  localStorage.removeItem('p_app_role');
+  localStorage.removeItem('p_current_user');
+  localStorage.removeItem('p_lib_logged_in');
+  localStorage.removeItem('p_learner_logged_in');
+  localStorage.removeItem('p_role');
+  localStorage.removeItem('p_tab');
+} catch {
+  // ignore
+}
+
+// Safe session storage helpers for tab-isolated authentication and session states
+const getSessionItem = (key: string): string | null => {
+  try {
+    return sessionStorage.getItem(key);
+  } catch {
+    return null;
+  }
+};
+
+const setSessionItem = (key: string, value: string): void => {
+  try {
+    sessionStorage.setItem(key, value);
+  } catch {
+    // ignore
+  }
+};
+
+const removeSessionItem = (key: string): void => {
+  try {
+    sessionStorage.removeItem(key);
+  } catch {
+    // ignore
+  }
+};
+
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Normalized 3-Role State ('LEARNER' | 'STAFF' | 'ADMIN')
+  // Normalized 3-Role State ('LEARNER' | 'STAFF' | 'ADMIN') - Tab Isolated
   const [userRole, setUserRoleState] = useState<AppRole>(() => {
-    const saved = localStorage.getItem('p_app_role');
+    const saved = getSessionItem('p_app_role');
     if (saved === 'STAFF' || saved === 'ADMIN' || saved === 'LEARNER') return saved;
-    const legacyRole = localStorage.getItem('p_role');
-    const legacyLib = localStorage.getItem('p_lib_logged_in') === 'true';
-    if (legacyLib || legacyRole === 'librarian' || legacyRole === 'admin') return 'ADMIN';
     return 'LEARNER';
   });
 
   const [currentRole, setCurrentRole] = useState<UserRole>(() => {
-    const saved = localStorage.getItem('p_role');
+    const saved = getSessionItem('p_role');
     return (saved as UserRole) || 'learner';
   });
 
   const [isLibrarianLoggedIn, setIsLibrarianLoggedInState] = useState<boolean>(() => {
-    return localStorage.getItem('p_lib_logged_in') === 'true';
+    return getSessionItem('p_lib_logged_in') === 'true';
   });
 
   const [loggedInLearner, setLoggedInLearnerState] = useState<LibraryUser | null>(() => {
-    const saved = localStorage.getItem('p_learner_logged_in');
+    const saved = getSessionItem('p_learner_logged_in');
     return saved ? JSON.parse(saved) : null;
   });
 
   const [currentUser, setCurrentUserState] = useState<LibraryUser | null>(() => {
-    const saved = localStorage.getItem('p_current_user');
+    const saved = getSessionItem('p_current_user');
     if (saved) {
       try {
         const u = JSON.parse(saved);
@@ -306,7 +340,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [activeTab, setActiveTabState] = useState<string>(() => {
-    const saved = localStorage.getItem('p_tab');
+    const saved = getSessionItem('p_tab');
     return saved || 'home';
   });
 
@@ -472,14 +506,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [currentLearnerName, setCurrentLearnerName] = useState<string>(() => {
-    return localStorage.getItem('p_learner_name') || 'Chidi Okafor (Year 9)';
+    return getSessionItem('p_learner_name') || 'Chidi Okafor (Year 9)';
   });
 
   // Active Library Section for multi-branch scoping (college vs primary)
   const [activeSection, setActiveSectionState] = useState<LibrarySection>(() => {
-    const saved = localStorage.getItem('p_active_section');
+    const saved = getSessionItem('p_active_section');
     if (saved === 'college' || saved === 'primary' || saved === 'all') return saved;
-    const userStr = localStorage.getItem('p_current_user');
+    const userStr = getSessionItem('p_current_user');
     if (userStr) {
       try {
         const u = JSON.parse(userStr);
@@ -493,7 +527,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const setActiveSection = (section: LibrarySection) => {
     setActiveSectionState(section);
-    localStorage.setItem('p_active_section', section);
+    setSessionItem('p_active_section', section);
   };
 
   // Supabase Cloud State
@@ -743,17 +777,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const isStaff = isLoggedIn ? userRole === 'STAFF' : false;
   const isAdmin = isLoggedIn ? userRole === 'ADMIN' : false;
 
-  // Sync state to localStorage
+  // Sync tab session state to sessionStorage
   useEffect(() => {
-    localStorage.setItem('p_app_role', userRole);
+    setSessionItem('p_app_role', userRole);
   }, [userRole]);
 
   useEffect(() => {
-    localStorage.setItem('p_role', currentRole);
+    setSessionItem('p_role', currentRole);
   }, [currentRole]);
 
   useEffect(() => {
-    localStorage.setItem('p_tab', activeTab);
+    setSessionItem('p_tab', activeTab);
   }, [activeTab]);
 
   useEffect(() => {
@@ -785,14 +819,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [emailLogs]);
 
   useEffect(() => {
-    localStorage.setItem('p_learner_name', currentLearnerName);
+    setSessionItem('p_learner_name', currentLearnerName);
   }, [currentLearnerName]);
 
   useEffect(() => {
     if (currentUser) {
-      localStorage.setItem('p_current_user', JSON.stringify(currentUser));
+      setSessionItem('p_current_user', JSON.stringify(currentUser));
     } else {
-      localStorage.removeItem('p_current_user');
+      removeSessionItem('p_current_user');
     }
   }, [currentUser]);
 
@@ -877,7 +911,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const setIsLibrarianLoggedIn = (val: boolean, overrideUser?: LibraryUser) => {
     setIsLibrarianLoggedInState(val);
-    localStorage.setItem('p_lib_logged_in', String(val));
+    setSessionItem('p_lib_logged_in', String(val));
     if (val) {
       setUserRoleState('ADMIN');
       setCurrentRole('admin');
@@ -899,7 +933,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setLoggedInLearnerState(user);
     setCurrentUserState(user);
     if (user) {
-      localStorage.setItem('p_learner_logged_in', JSON.stringify(user));
+      setSessionItem('p_learner_logged_in', JSON.stringify(user));
       const formattedName = (user.role === 'student' || user.role === 'learner')
         ? `${user.name} (${user.gradeOrYear || 'Scholar'})` 
         : `${user.name} (Teacher)`;
@@ -908,17 +942,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setUserRoleState('STAFF');
         setCurrentRole('staff');
         setIsLibrarianLoggedInState(true);
+        setSessionItem('p_lib_logged_in', 'true');
       } else if (user.role === 'admin' || user.role === 'librarian') {
         setUserRoleState('ADMIN');
         setCurrentRole('admin');
         setIsLibrarianLoggedInState(true);
+        setSessionItem('p_lib_logged_in', 'true');
       } else {
         setUserRoleState('LEARNER');
         setCurrentRole('learner');
         setIsLibrarianLoggedInState(false);
+        setSessionItem('p_lib_logged_in', 'false');
       }
     } else {
-      localStorage.removeItem('p_learner_logged_in');
+      removeSessionItem('p_learner_logged_in');
     }
   };
 
@@ -973,6 +1010,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setUserRole(normRole);
     if (isUserStaffOrAdmin) {
       setIsLibrarianLoggedInState(true);
+      setSessionItem('p_lib_logged_in', 'true');
       if (fullUser.section === 'primary' || fullUser.section === 'college') {
         setActiveSection(fullUser.section);
       } else {
@@ -980,6 +1018,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     } else {
       setIsLibrarianLoggedInState(false);
+      setSessionItem('p_lib_logged_in', 'false');
     }
   };
 
@@ -994,13 +1033,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const logout = () => {
     setIsLibrarianLoggedInState(false);
-    localStorage.removeItem('p_lib_logged_in');
+    removeSessionItem('p_lib_logged_in');
     setLoggedInLearnerState(null);
-    localStorage.removeItem('p_learner_logged_in');
+    removeSessionItem('p_learner_logged_in');
     setCurrentUserState(null);
+    removeSessionItem('p_current_user');
     setUserRoleState('LEARNER');
+    removeSessionItem('p_app_role');
     setCurrentRole('learner');
+    removeSessionItem('p_role');
     setActiveTabState('home');
+    removeSessionItem('p_tab');
     setActiveViewState('EXPLORE');
     if (window.location.pathname === '/admin' || window.location.pathname === '/login') {
       window.history.pushState({}, '', '/');
@@ -1225,6 +1268,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateBook = async (bookId: string, updates: Partial<Book>): Promise<{ success: boolean; message: string }> => {
+    if (!isAdmin && !isStaff) {
+      return { success: false, message: 'Permission denied. Only librarians and staff can edit catalog books.' };
+    }
+
     setBooks((prev) => {
       const updated = prev.map((b) => (b.id === bookId ? { ...b, ...updates } : b));
       localStorage.setItem('p_books_v3', JSON.stringify(updated));
@@ -1255,6 +1302,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteBook = async (bookId: string): Promise<{ success: boolean; message: string }> => {
+    if (!isAdmin) {
+      return { success: false, message: 'Permission denied. Only librarians can delete titles from the catalog.' };
+    }
+
     setBooks((prev) => {
       const updated = prev.filter((b) => b.id !== bookId);
       localStorage.setItem('p_books_v3', JSON.stringify(updated));
@@ -1296,6 +1347,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const checkoutBook = (bookId: string, learnerName: string, days = 14) => {
+    // Security check: Only librarians and staff can checkout books directly.
+    // Learners are prohibited from self-borrowing (must place a 24h reserve hold or checkout at desk).
+    if (isLearner && !isAdmin && !isStaff) {
+      return { 
+        success: false, 
+        message: 'Learners cannot self-borrow books. Books must be issued by a librarian at the circulation desk. You can place a 24-hour reserve hold instead.' 
+      };
+    }
+
     const bookIndex = books.findIndex((b) => b.id === bookId);
     if (bookIndex === -1) {
       return { success: false, message: 'Book not found in the catalog.' };

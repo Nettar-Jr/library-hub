@@ -88,8 +88,11 @@ export const BookCatalog: React.FC = () => {
     activeSection,
     setActiveSection,
     allBooks,
-    isStaff
+    isStaff,
+    isLearner
   } = useApp();
+
+  const canEdit = !isLearner && (isAdmin || isStaff);
 
   const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
 
@@ -296,6 +299,10 @@ export const BookCatalog: React.FC = () => {
   };
 
   const handleQuickBorrow = (book: Book) => {
+    if (isLearner) {
+      showToast('error', 'Learners cannot self-borrow books. Books must be issued by a librarian at the circulation desk. Please place a 24-hour reserve hold instead.');
+      return;
+    }
     if (book.availableCopies <= 0) {
       showToast('error', 'All physical and digital copies of this title are currently on loan.');
       return;
@@ -353,7 +360,6 @@ export const BookCatalog: React.FC = () => {
     });
   };
 
-  const isLearner = currentRole === 'LEARNER' || currentRole === 'learner' || currentRole === 'student' || !!loggedInLearner;
   const isFilterActive = searchQuery || selectedCategory !== 'ALL' || availabilityFilter !== 'ALL' || formatFilter !== 'ALL' || myActivityFilter !== 'ALL';
 
   const primaryBooksCount = useMemo(() => (allBooks || []).filter(b => b.section === 'primary').length, [allBooks]);
@@ -843,8 +849,8 @@ export const BookCatalog: React.FC = () => {
                   userHoldMap={userHoldMap}
                   onViewAll={() => handleSelectViewAll(collection.categoryTag)}
                   onBookClick={(book) => setSelectedBook(book)}
-                  onBorrow={isLearner ? handleQuickBorrow : undefined}
-                  onEdit={(book) => setEditingBook(book)}
+                  onBorrow={undefined}
+                  onEdit={canEdit ? (book) => setEditingBook(book) : undefined}
                   isLearner={isLearner}
                 />
               );
@@ -893,9 +899,9 @@ export const BookCatalog: React.FC = () => {
                   key={book.id}
                   book={book}
                   onClick={() => setSelectedBook(book)}
-                  onBorrow={isLearner ? () => handleQuickBorrow(book) : undefined}
-                  onEdit={(book) => setEditingBook(book)}
-                  isBorrowable={isLearner}
+                  onBorrow={undefined}
+                  onEdit={canEdit ? (book) => setEditingBook(book) : undefined}
+                  isBorrowable={false}
                   userStatus={{
                     isBorrowed: !!loanInfo?.isBorrowed,
                     dueDate: loanInfo?.dueDate,
@@ -1495,9 +1501,9 @@ const SwimlaneRow: React.FC<SwimlaneRowProps> = ({
               <BookCard 
                 book={book} 
                 onClick={() => onBookClick(book)}
-                onBorrow={isLearner && onBorrow ? () => onBorrow(book) : undefined}
+                onBorrow={undefined}
                 onEdit={onEdit}
-                isBorrowable={isLearner}
+                isBorrowable={false}
                 userStatus={{
                   isBorrowed: !!loanInfo?.isBorrowed,
                   dueDate: loanInfo?.dueDate,

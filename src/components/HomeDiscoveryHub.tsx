@@ -26,14 +26,26 @@ import {
   Tablet,
   Library,
   Star,
-  Pencil
+  Pencil,
+  Lock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Book, BOOK_CATEGORIES } from '../types';
 import { EditBookModal } from './EditBookModal';
 
 export const HomeDiscoveryHub: React.FC = () => {
-  const { books, allBooks, currentUser, isLearner, isStaff, isAdmin, checkoutBook, currentLearnerName, loggedInLearner } = useApp();
+  const { 
+    books, 
+    allBooks, 
+    currentUser, 
+    isLearner, 
+    isStaff, 
+    isAdmin, 
+    createHold, 
+    holds,
+    currentLearnerName, 
+    loggedInLearner 
+  } = useApp();
   const navigate = useNavigate();
 
   const [selectedBookModal, setSelectedBookModal] = useState<Book | null>(null);
@@ -135,19 +147,18 @@ export const HomeDiscoveryHub: React.FC = () => {
     setSelectedBookModal(book);
   };
 
-  const handleBorrowAttempt = (book: Book) => {
+  const handleReserveAttempt = (book: Book) => {
     if (!currentUser) {
       navigate(`/login?redirect=/catalog`);
       return;
     }
-    const borrowerName = currentLearnerName || (loggedInLearner ? loggedInLearner.name : currentUser.name);
-    const result = checkoutBook(book.id, borrowerName);
-    if (result.success) {
-      setActionFeedback(`Loan confirmed for "${book.title}". Please pick up your copy at the library desk.`);
+    const res = createHold(book.id, currentUser.id);
+    if (res.success) {
+      setActionFeedback(`Reservation confirmed for "${book.title}". Please collect your copy from the library desk within 24 hours.`);
       setSelectedBookModal(null);
       setTimeout(() => setActionFeedback(null), 5000);
     } else {
-      setActionFeedback(result.message);
+      setActionFeedback(res.message);
       setTimeout(() => setActionFeedback(null), 5000);
     }
   };
@@ -550,17 +561,19 @@ export const HomeDiscoveryHub: React.FC = () => {
               )}
 
               <div className="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setEditingBook(selectedBookModal)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl transition cursor-pointer"
-                  title="Edit bibliographic details"
-                >
-                  <Pencil className="w-3.5 h-3.5 text-blue-600" />
-                  <span>Edit Book</span>
-                </button>
+                {(isAdmin || isStaff) && (
+                  <button
+                    type="button"
+                    onClick={() => setEditingBook(selectedBookModal)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl transition cursor-pointer"
+                    title="Edit bibliographic details"
+                  >
+                    <Pencil className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Edit Book</span>
+                  </button>
+                )}
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 ml-auto">
                   <button
                     type="button"
                     onClick={() => setSelectedBookModal(null)}
@@ -579,21 +592,32 @@ export const HomeDiscoveryHub: React.FC = () => {
                       className="inline-flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs transition cursor-pointer"
                     >
                       <LogIn className="w-3.5 h-3.5" />
-                      <span>Sign in to borrow</span>
+                      <span>Sign in to reserve</span>
                     </button>
                   ) : isLearner ? (
                     <button
                       type="button"
                       disabled={selectedBookModal.availableCopies <= 0}
-                      onClick={() => handleBorrowAttempt(selectedBookModal)}
+                      onClick={() => handleReserveAttempt(selectedBookModal)}
                       className={`px-4 py-1.5 text-xs font-bold rounded-xl shadow-xs transition flex items-center gap-1.5 ${
                         selectedBookModal.availableCopies > 0
                           ? 'bg-blue-600 hover:bg-blue-700 text-white cursor-pointer active:scale-95'
                           : 'bg-slate-100 text-slate-400 cursor-not-allowed'
                       }`}
                     >
-                      <BookmarkCheck className="w-3.5 h-3.5" />
-                      <span>Borrow Book</span>
+                      <Lock className="w-3.5 h-3.5" />
+                      <span>Reserve for Desk Pickup</span>
+                    </button>
+                  ) : (isAdmin || isStaff) ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedBookModal(null);
+                        navigate('/circulation');
+                      }}
+                      className="px-4 py-1.5 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-xl shadow-xs transition cursor-pointer flex items-center gap-1.5"
+                    >
+                      <span>Circulation Desk</span>
                     </button>
                   ) : null}
                 </div>
