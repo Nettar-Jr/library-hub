@@ -5,16 +5,31 @@
 
 import { Book, CirculationRecord, StudentSubmission, Announcement, HeroSpotlightData } from './types';
 
-export const initialHeroSpotlight: HeroSpotlightData = {
-  id: 'spotlight-1',
+export const initialCollegeSpotlight: HeroSpotlightData = {
+  id: 'spotlight-college',
   title: 'Things Fall Apart',
-  subtitle: 'Featured Masterpiece & African Literature Spotlight',
-  description: 'Immerse yourself in Chinua Achebe\'s towering African classic chronicling Igbo traditions, colonial tensions, and Okonkwo\'s legendary story with immersive audio narration.',
+  subtitle: 'By Chinua Achebe • African Literature',
+  description: 'A landmark African masterpiece chronicling Okonkwo and pre-colonial life in southeastern Nigeria during the arrival of European missionaries and administrators.',
   featuredBookId: 'book-1',
   badgeText: '⭐ BOOK OF THE WEEK',
-  bgGradient: 'from-blue-600 via-indigo-600 to-purple-600',
-  coverUrl: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=700'
+  bgGradient: 'from-blue-900 via-indigo-950 to-slate-900',
+  coverUrl: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=700',
+  section: 'college'
 };
+
+export const initialPrimarySpotlight: HeroSpotlightData = {
+  id: 'spotlight-primary',
+  title: 'Percy Jackson: The Lightning Thief',
+  subtitle: 'By Rick Riordan • Fantasy & Adventure',
+  description: 'Percy discovers he is a modern demigod son of Poseidon and must retrieve Zeus\'s stolen master bolt in a quest spanning mythological monsters and Mount Olympus.',
+  featuredBookId: 'book-3',
+  badgeText: '⭐ BOOK OF THE WEEK',
+  bgGradient: 'from-emerald-950 via-slate-900 to-teal-950',
+  coverUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&q=80&w=700',
+  section: 'primary'
+};
+
+export const initialHeroSpotlight: HeroSpotlightData = initialCollegeSpotlight;
 
 export const DEMO_SAMPLE_IDS = new Set([
   'book-1', 'book-2', 'book-3', 'book-4', 'book-5',

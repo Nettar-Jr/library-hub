@@ -46,6 +46,7 @@ export interface HeroSpotlightData {
   badgeText: string;
   bgGradient: string; // e.g., "from-blue-600 via-indigo-600 to-purple-600"
   coverUrl?: string;
+  section?: 'college' | 'primary';
 }
 
 export type CatalogViewMode = 'CAROUSEL' | 'GRID';

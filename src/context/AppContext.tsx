@@ -5,7 +5,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Book, CirculationRecord, StudentSubmission, Announcement, UserRole, AppRole, LibraryUser, User, NavView, BookHold, BookReview, HeroSpotlightData, CatalogViewMode, LibrarySection } from '../types';
-import { initialBooks, initialCirculation, initialSubmissions, initialAnnouncements, initialHeroSpotlight, DEMO_SAMPLE_IDS } from '../data';
+import { initialBooks, initialCirculation, initialSubmissions, initialAnnouncements, initialHeroSpotlight, initialCollegeSpotlight, initialPrimarySpotlight, DEMO_SAMPLE_IDS } from '../data';
 import { 
   isSupabaseConfigured, 
   fetchBooksFromSupabase, 
@@ -94,7 +94,10 @@ interface AppContextType {
 
   // Hero Spotlight & Catalog Discovery States
   spotlightData: HeroSpotlightData;
-  updateHeroSpotlight: (newData: HeroSpotlightData) => void;
+  collegeSpotlight: HeroSpotlightData;
+  primarySpotlight: HeroSpotlightData;
+  updateHeroSpotlight: (newData: HeroSpotlightData, targetSection?: 'college' | 'primary') => void;
+  setBookAsSpotlight: (bookId: string, customBadge?: string) => { success: boolean; message: string };
   catalogViewMode: CatalogViewMode;
   setCatalogViewMode: (mode: CatalogViewMode) => void;
   selectedBook: Book | null;
@@ -353,24 +356,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Global Search query
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // Hero Spotlight State
-  const [spotlightData, setSpotlightData] = useState<HeroSpotlightData>(() => {
-    const saved = localStorage.getItem('p_hero_spotlight');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch {
-        // ignore
-      }
-    }
-    return initialHeroSpotlight;
-  });
-
-  const updateHeroSpotlight = (newData: HeroSpotlightData) => {
-    setSpotlightData(newData);
-    localStorage.setItem('p_hero_spotlight', JSON.stringify(newData));
-  };
-
   // Catalog View Mode State ('CAROUSEL' | 'GRID')
   const [catalogViewMode, setCatalogViewMode] = useState<CatalogViewMode>('CAROUSEL');
 
@@ -528,6 +513,122 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const setActiveSection = (section: LibrarySection) => {
     setActiveSectionState(section);
     setSessionItem('p_active_section', section);
+  };
+
+  // Hero Spotlight States (Separate for College/Secondary and Primary Sections)
+  const [collegeSpotlight, setCollegeSpotlight] = useState<HeroSpotlightData>(() => {
+    const saved = localStorage.getItem('p_hero_spotlight_college');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.title) return { ...parsed, section: 'college' };
+      } catch {
+        // ignore
+      }
+    }
+    // Check legacy key if it wasn't a primary spotlight
+    const legacy = localStorage.getItem('p_hero_spotlight');
+    if (legacy) {
+      try {
+        const parsed = JSON.parse(legacy);
+        if (parsed && parsed.title && parsed.section !== 'primary') {
+          return { ...parsed, section: 'college' };
+        }
+      } catch {
+        // ignore
+      }
+    }
+    return initialCollegeSpotlight;
+  });
+
+  const [primarySpotlight, setPrimarySpotlight] = useState<HeroSpotlightData>(() => {
+    const saved = localStorage.getItem('p_hero_spotlight_primary');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.title) return { ...parsed, section: 'primary' };
+      } catch {
+        // ignore
+      }
+    }
+    // Check legacy key if it was marked primary
+    const legacy = localStorage.getItem('p_hero_spotlight');
+    if (legacy) {
+      try {
+        const parsed = JSON.parse(legacy);
+        if (parsed && parsed.title && parsed.section === 'primary') {
+          return { ...parsed, section: 'primary' };
+        }
+      } catch {
+        // ignore
+      }
+    }
+    return initialPrimarySpotlight;
+  });
+
+  // Dynamically resolve Book of the Week for the current active section
+  const spotlightData: HeroSpotlightData = (activeSection === 'primary') 
+    ? primarySpotlight 
+    : collegeSpotlight;
+
+  const updateHeroSpotlight = (newData: HeroSpotlightData, targetSection?: 'college' | 'primary') => {
+    const resolvedSection: 'college' | 'primary' = targetSection || newData.section || (activeSection === 'primary' ? 'primary' : 'college');
+    const updated: HeroSpotlightData = {
+      ...newData,
+      section: resolvedSection,
+    };
+
+    if (resolvedSection === 'primary') {
+      setPrimarySpotlight(updated);
+      try {
+        localStorage.setItem('p_hero_spotlight_primary', JSON.stringify(updated));
+      } catch {
+        // ignore
+      }
+    } else {
+      setCollegeSpotlight(updated);
+      try {
+        localStorage.setItem('p_hero_spotlight_college', JSON.stringify(updated));
+      } catch {
+        // ignore
+      }
+    }
+
+    try {
+      localStorage.setItem('p_hero_spotlight', JSON.stringify(updated));
+    } catch {
+      // ignore
+    }
+  };
+
+  const setBookAsSpotlight = (bookId: string, customBadge = '⭐ BOOK OF THE WEEK') => {
+    const targetBook = books.find(b => b.id === bookId);
+    if (!targetBook) {
+      return { success: false, message: 'Book not found in library holdings.' };
+    }
+
+    const section: 'college' | 'primary' = targetBook.section === 'primary' ? 'primary' : 'college';
+    const gradient = section === 'primary' 
+      ? 'from-emerald-950 via-slate-900 to-teal-950' 
+      : 'from-blue-900 via-indigo-950 to-slate-900';
+
+    const newSpotlight: HeroSpotlightData = {
+      id: `spotlight-${section}-${Date.now()}`,
+      title: targetBook.title,
+      subtitle: `By ${targetBook.author} • ${targetBook.category}`,
+      description: targetBook.description || targetBook.summary || `Featured title in the ${section === 'primary' ? 'Primary' : 'College/Secondary'} library.`,
+      featuredBookId: targetBook.id,
+      badgeText: customBadge,
+      bgGradient: gradient,
+      coverUrl: targetBook.coverUrl || targetBook.coverImage,
+      section,
+    };
+
+    updateHeroSpotlight(newSpotlight, section);
+    return { 
+      success: true, 
+      message: `"${targetBook.title}" is now set as the Book of the Week for the ${section === 'primary' ? 'Primary' : 'Secondary'} library.` 
+    };
   };
 
   // Supabase Cloud State
@@ -2051,7 +2152,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         searchQuery,
         setSearchQuery,
         spotlightData,
+        collegeSpotlight,
+        primarySpotlight,
         updateHeroSpotlight,
+        setBookAsSpotlight,
         catalogViewMode,
         setCatalogViewMode,
         selectedBook,

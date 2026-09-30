@@ -49,7 +49,8 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({ book, onClose 
     isAdmin,
     isStaff,
     isLearner,
-    deleteBook
+    deleteBook,
+    setBookAsSpotlight
   } = useApp();
 
   const canEditBook = !isLearner && (isAdmin || isStaff || currentRole === 'STAFF' || currentRole === 'ADMIN');
@@ -362,6 +363,23 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({ book, onClose 
 
             {(isAdmin || currentRole === 'STAFF' || currentRole === 'ADMIN') && (
               <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const res = setBookAsSpotlight(book.id);
+                    if (res.success) {
+                      triggerNotification('success', res.message);
+                    } else {
+                      triggerNotification('error', res.message);
+                    }
+                  }}
+                  className="px-3.5 py-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-950 transition cursor-pointer shadow-xs"
+                  title={`Feature "${book.title}" as Book of the Week for the ${book.section === 'primary' ? 'Primary' : 'Secondary'} library`}
+                >
+                  <Star className="w-4 h-4 text-amber-500 fill-amber-400" />
+                  <span>Set as Book of the Week</span>
+                </button>
+
                 <button
                   type="button"
                   onClick={() => setShowSpinePrint(true)}
