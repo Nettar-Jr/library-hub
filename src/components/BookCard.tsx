@@ -5,13 +5,14 @@
 
 import React, { useState } from 'react';
 import { Book } from '../types';
-import { Headphones, BookOpen, BookmarkCheck } from 'lucide-react';
+import { Headphones, BookOpen, BookmarkCheck, Pencil } from 'lucide-react';
 import { motion } from 'motion/react';
 
 interface BookCardProps {
   book: Book;
   onClick?: () => void;
   onBorrow?: () => void;
+  onEdit?: (book: Book) => void;
   isBorrowable?: boolean;
   mode?: 'public-preview' | 'full';
   userStatus?: {
@@ -25,6 +26,7 @@ export const BookCard: React.FC<BookCardProps> = ({
   book, 
   onClick, 
   onBorrow, 
+  onEdit,
   isBorrowable,
   mode = 'full',
   userStatus
@@ -161,23 +163,40 @@ export const BookCard: React.FC<BookCardProps> = ({
             <span>Details</span>
           </span>
 
-          {!isPreview && isBorrowable && onBorrow && isAvailable && !isBorrowedByMe ? (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onBorrow();
-              }}
-              className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-700 hover:bg-blue-800 text-white cursor-pointer active:scale-95 transition flex items-center gap-1"
-            >
-              <BookmarkCheck className="w-3 h-3" />
-              <span>Borrow</span>
-            </button>
-          ) : (
-            <span className="text-xs text-blue-600 font-medium group-hover:underline">
-              {isPreview ? 'View details →' : 'Explore →'}
-            </span>
-          )}
+          <div className="flex items-center gap-1.5">
+            {onEdit && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit(book);
+                }}
+                className="px-2 py-0.5 rounded-lg text-[11px] font-semibold text-slate-600 hover:text-blue-700 hover:bg-blue-50 border border-slate-200/80 cursor-pointer transition flex items-center gap-1"
+                title={`Edit "${book.title}" details`}
+              >
+                <Pencil className="w-2.5 h-2.5 text-blue-600" />
+                <span>Edit</span>
+              </button>
+            )}
+
+            {!isPreview && isBorrowable && onBorrow && isAvailable && !isBorrowedByMe ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onBorrow();
+                }}
+                className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-700 hover:bg-blue-800 text-white cursor-pointer active:scale-95 transition flex items-center gap-1"
+              >
+                <BookmarkCheck className="w-3 h-3" />
+                <span>Borrow</span>
+              </button>
+            ) : (
+              <span className="text-xs text-blue-600 font-medium group-hover:underline">
+                {isPreview ? 'View details →' : 'Explore →'}
+              </span>
+            )}
+          </div>
         </div>
       </div>
     </motion.div>

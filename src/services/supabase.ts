@@ -6,15 +6,18 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Book, StudentSubmission, CirculationRecord, BookHold, LibraryUser } from '../types';
 
-// Load Vite environment variables
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+// Load Vite environment variables with production project fallback
+const DEFAULT_SUPABASE_URL = 'https://dlaxjarpxjopktzijizn.supabase.co';
+const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsYXhqYXJweGpvcGt0emlqaXpuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg5NDAyOTgsImV4cCI6MjEwNDUxNjI5OH0.00MAj4WbyiEyzuAOygFCorGCcmZZBVeD9EP0xaikm8w';
+
+const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL).trim();
+const supabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY).trim();
 
 export const isSupabaseConfigured = Boolean(
   supabaseUrl && 
   supabaseAnonKey && 
-  supabaseUrl.trim() !== '' && 
-  supabaseAnonKey.trim() !== ''
+  supabaseUrl !== '' && 
+  supabaseAnonKey !== ''
 );
 
 // Lazy singleton client creation
@@ -24,7 +27,7 @@ export function getSupabaseClient(): SupabaseClient | null {
   if (!isSupabaseConfigured) return null;
   if (!clientInstance) {
     try {
-      clientInstance = createClient(supabaseUrl.trim(), supabaseAnonKey.trim());
+      clientInstance = createClient(supabaseUrl, supabaseAnonKey);
     } catch (err) {
       console.error('Failed to initialize Supabase client:', err);
       return null;
@@ -42,6 +45,16 @@ export function mapRowToBook(row: Record<string, any>): Book {
   const dewey = row.dewey_decimal || row.dewey_code || row.deweyCode || row.deweyClass || '000';
   const deweyClass = row.dewey_class || (dewey ? `${dewey.toString().charAt(0)}00` : '000');
   const cover = row.cover_url || row.cover_image || row.coverUrl || row.coverImage || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=700';
+
+  let derivedSection: 'primary' | 'college' = 'college';
+  if (
+    row.section === 'primary' ||
+    row.format === 'primary' ||
+    (row.category && (row.category.toLowerCase().includes('children') || row.category.toLowerCase().includes('early') || row.category.toLowerCase().includes('primary'))) ||
+    (row.title && row.title.toLowerCase().includes('glow! be confident'))
+  ) {
+    derivedSection = 'primary';
+  }
 
   return {
     id: String(row.id),
@@ -69,7 +82,7 @@ export function mapRowToBook(row: Record<string, any>): Book {
     usageType: row.usage_type || row.format === 'reserve' ? 'reserve' : 'circulation',
     rating: Number(row.rating ?? 5.0),
     pageCount: Number(row.page_count ?? row.pageCount ?? 200),
-    section: (row.section === 'primary' || row.section === 'college') ? row.section : 'college',
+    section: derivedSection,
   };
 }
 
@@ -130,8 +143,7 @@ export async function insertBookToSupabase(
       dewey_decimal: book.deweyCode || '000',
       is_audiobook: Boolean(book.hasAudio || book.isAudiobook),
       is_new: Boolean(book.isNew),
-      format: book.usageType || 'circulation',
-      section: book.section || 'college',
+      format: book.usageType || (book.section === 'primary' ? 'primary' : 'circulation'),
     };
 
     const { data, error } = await client
@@ -627,6 +639,36 @@ export async function updateHoldInSupabase(
  * Maps a Supabase row to LibraryUser interface
  */
 export function mapRowToUser(row: Record<string, any>): LibraryUser {
+  const dept = (row.department || '').toLowerCase();
+  const email = (row.email || '').toLowerCase();
+  const name = (row.name || row.full_name || '').toLowerCase();
+  const grade = (row.grade_or_year || row.gradeOrYear || row.class || '').toLowerCase();
+
+  // Section classification: Primary vs College
+  let derivedSection: 'primary' | 'college' = 'college';
+  if (
+    row.section === 'primary' ||
+    dept.includes('primary') ||
+    dept.includes('nursery') ||
+    email.includes('adelekev') ||
+    name.includes('adeleke') ||
+    grade.includes('primary') ||
+    grade.includes('nursery') ||
+    grade.includes('pri')
+  ) {
+    derivedSection = 'primary';
+  } else if (
+    row.section === 'college' ||
+    dept.includes('college') ||
+    email.includes('alabia') ||
+    name.includes('alabi') ||
+    grade.includes('year') ||
+    grade.includes('jss') ||
+    grade.includes('sss')
+  ) {
+    derivedSection = 'college';
+  }
+
   return {
     id: String(row.id),
     name: row.name || row.full_name || 'Unnamed User',
@@ -640,11 +682,7 @@ export function mapRowToUser(row: Record<string, any>): LibraryUser {
     avatar: row.avatar || row.avatar_url || '',
     assignedTeacherId: row.assigned_teacher_id || row.assignedTeacherId || '',
     assignedTeacherName: row.assigned_teacher_name || row.assignedTeacherName || '',
-    section: (row.section === 'primary' || row.section === 'college') ? row.section : (
-      (row.grade_or_year && (row.grade_or_year.toLowerCase().includes('primary') || row.grade_or_year.toLowerCase().includes('nursery')))
-        ? 'primary'
-        : 'college'
-    ),
+    section: derivedSection,
     createdAt: row.created_at ? String(row.created_at).split('T')[0] : new Date().toISOString().split('T')[0],
   };
 }
@@ -699,7 +737,6 @@ export async function insertUserToSupabase(
       avatar: user.avatar || null,
       assigned_teacher_id: user.assignedTeacherId || null,
       assigned_teacher_name: user.assignedTeacherName || null,
-      section: user.section || 'college',
     };
 
     const { data, error } = await client
@@ -798,11 +835,17 @@ export async function queryUserFromSupabase(identifier: string): Promise<{ data:
   const cleanLower = cleanId.toLowerCase();
 
   try {
-    const { data, error } = await client
-      .from('library_users')
-      .select('*')
-      .or(`email.ilike.${cleanLower},admission_number.ilike.${cleanId},library_card_id.ilike.${cleanId}`)
-      .limit(1);
+    let query = client.from('library_users').select('*');
+
+    if (cleanLower.includes('@')) {
+      query = query.ilike('email', cleanLower);
+    } else {
+      query = query.or(
+        `email.ilike.%${cleanLower}%,admission_number.ilike.${cleanId},library_card_id.ilike.${cleanId},name.ilike.%${cleanId}%`
+      );
+    }
+
+    const { data, error } = await query.limit(1);
 
     if (error) {
       return { data: null, error: error.message };

@@ -7,9 +7,12 @@ import { Book, CirculationRecord, StudentSubmission, Announcement, LibraryUser, 
 import { initialBooks, initialCirculation, initialSubmissions, initialAnnouncements } from '../data';
 
 // Environment variables check for Supabase
+const DEFAULT_SUPABASE_URL = 'https://dlaxjarpxjopktzijizn.supabase.co';
+const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsYXhqYXJweGpvcGt0emlqaXpuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg5NDAyOTgsImV4cCI6MjEwNDUxNjI5OH0.00MAj4WbyiEyzuAOygFCorGCcmZZBVeD9EP0xaikm8w';
+
 const metaEnv = (import.meta as unknown as { env?: Record<string, string> }).env || {};
-const supabaseUrl = metaEnv.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = metaEnv.VITE_SUPABASE_ANON_KEY || '';
+const supabaseUrl = (metaEnv.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL).trim();
+const supabaseAnonKey = (metaEnv.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY).trim();
 
 export const isCloudDatabaseConnected = Boolean(supabaseUrl && supabaseAnonKey);
 

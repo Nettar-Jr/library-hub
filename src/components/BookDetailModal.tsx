@@ -21,10 +21,12 @@ import {
   CheckCircle2,
   AlertCircle,
   Trash2,
-  Printer
+  Printer,
+  Pencil
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { PhysicalPrintTools } from './PhysicalPrintTools';
+import { EditBookModal } from './EditBookModal';
 
 interface BookDetailModalProps {
   book: Book;
@@ -55,6 +57,7 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({ book, onClose 
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [isSavedToShelf, setIsSavedToShelf] = useState(false);
   const [showSpinePrint, setShowSpinePrint] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   const modalRef = useRef<HTMLDivElement>(null);
 
@@ -146,14 +149,25 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({ book, onClose 
       >
         {/* Modal Header Cover Section (Architectural Slate Header) */}
         <div className="relative bg-slate-900 p-6 text-white overflow-hidden rounded-t-3xl border-b border-slate-800">
-          <button
-            type="button"
-            onClick={onClose}
-            className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition cursor-pointer z-10"
-            aria-label="Close book details"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
+            <button
+              type="button"
+              onClick={() => setIsEditModalOpen(true)}
+              className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer backdrop-blur-xs border border-white/10 shadow-xs"
+              title="Edit this book in catalogue"
+            >
+              <Pencil className="w-3.5 h-3.5 text-blue-300" />
+              <span>Edit Details</span>
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition cursor-pointer"
+              aria-label="Close book details"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
 
           <div className="flex flex-col sm:flex-row gap-5 items-center sm:items-start relative z-10">
             {/* Book Cover Card */}
@@ -542,10 +556,20 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({ book, onClose 
         </div>
 
         {/* Modal Footer */}
-        <div className="p-4 bg-slate-50 border-t border-slate-200 rounded-b-3xl flex justify-between items-center">
-          <span className="text-[11px] text-slate-500 font-medium">
-            School Library Catalog • Circulation & Accessions
-          </span>
+        <div className="p-4 bg-slate-50 border-t border-slate-200 rounded-b-3xl flex flex-wrap justify-between items-center gap-2">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] text-slate-500 font-medium hidden sm:inline">
+              School Library Catalog • Circulation & Accessions
+            </span>
+            <button
+              type="button"
+              onClick={() => setIsEditModalOpen(true)}
+              className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 text-xs font-semibold rounded-xl cursor-pointer transition flex items-center gap-1.5 shadow-2xs"
+            >
+              <Pencil className="w-3.5 h-3.5 text-blue-600" />
+              <span>Edit Book Details</span>
+            </button>
+          </div>
           <button
             type="button"
             onClick={onClose}
@@ -555,6 +579,19 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({ book, onClose 
           </button>
         </div>
       </motion.div>
+
+      {/* Edit Book Modal */}
+      {isEditModalOpen && (
+        <EditBookModal
+          book={book}
+          isOpen={isEditModalOpen}
+          onClose={() => setIsEditModalOpen(false)}
+          onSuccess={(updatedBook) => {
+            setSelectedBook(updatedBook);
+            triggerNotification('success', `"${updatedBook.title}" details updated successfully!`);
+          }}
+        />
+      )}
 
       {/* Physical Print Tools Modal for this book */}
       {showSpinePrint && (

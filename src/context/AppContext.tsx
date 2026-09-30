@@ -121,7 +121,7 @@ interface AppContextType {
   
   // Login & Session states
   isLibrarianLoggedIn: boolean;
-  setIsLibrarianLoggedIn: (val: boolean) => void;
+  setIsLibrarianLoggedIn: (val: boolean, overrideUser?: LibraryUser) => void;
   loggedInLearner: LibraryUser | null;
   setLoggedInLearner: (user: LibraryUser | null) => void;
   currentPath: string;
@@ -158,6 +158,7 @@ interface AppContextType {
   cloudSyncStatus: 'synced' | 'connecting' | 'syncing' | 'local' | 'empty' | 'error';
   refreshBooks: () => Promise<void>;
   refreshUsers: () => Promise<void>;
+  updateBook: (bookId: string, updates: Partial<Book>) => Promise<{ success: boolean; message: string }>;
   deleteBook: (bookId: string) => Promise<{ success: boolean; message: string }>;
   clearSampleBooks: () => void;
   addBook: (book: Omit<Book, 'id' | 'readsCount'>) => void;
@@ -176,6 +177,8 @@ interface AppContextType {
   toggleLike: (id: string) => void;
   addComment: (submissionId: string, content: string, authorName?: string, rating?: number) => void;
   addAnnouncement: (title: string, content: string, category: Announcement['category'], section?: LibrarySection) => void;
+  updateAnnouncement: (id: string, updates: Partial<Announcement>) => void;
+  deleteAnnouncement: (id: string) => void;
   restockBook: (bookId: string, quantity: number) => void;
   // Offline & Service Worker Sync
   isOnline: boolean;
@@ -188,11 +191,11 @@ export const defaultAdminUser: LibraryUser = {
   id: 'user-admin-1',
   name: 'Alabi Abdulmumuni',
   role: 'admin',
-  department: 'School Library Administration',
+  department: 'College Library Administration (Librarian / Administrator For College)',
   libraryCardId: 'LIB-ADMIN-0001',
   email: 'alabia@premierinternationalschool.org',
   password: 'Admin321',
-  section: 'all',
+  section: 'college',
   avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
   createdAt: '2025-09-01',
 };
@@ -201,11 +204,11 @@ export const primaryAdminUser: LibraryUser = {
   id: 'user-admin-2',
   name: 'Adeleke Veronica',
   role: 'admin',
-  department: 'School Library Administration',
+  department: 'Primary Library Administration (Librarian / Administrator For Primary)',
   libraryCardId: 'LIB-ADMIN-0002',
-  email: 'adelekev@premierinternationslschool.org',
+  email: 'adelekev@premierinternationalschool.org',
   password: 'Adelekev',
-  section: 'all',
+  section: 'primary',
   avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=200',
   createdAt: '2025-09-01',
 };
@@ -286,7 +289,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const saved = localStorage.getItem('p_current_user');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const u = JSON.parse(saved);
+        if (u) return u;
       } catch {
         // ignore
       }
@@ -414,15 +418,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [users, setUsers] = useState<LibraryUser[]>(() => {
     const saved = localStorage.getItem('p_users_v3') || localStorage.getItem('p_users');
+    let loadedUsers: LibraryUser[] = initialUsers;
     if (saved) {
       try {
         const parsed: LibraryUser[] = JSON.parse(saved);
-        if (parsed && parsed.length > 0) return parsed;
+        if (parsed && Array.isArray(parsed) && parsed.length > 0) {
+          loadedUsers = parsed;
+        }
       } catch {
         // fallback
       }
     }
-    return initialUsers;
+
+    // Ensure the permanent library administrators are present in the list
+    let modified = false;
+    const hasVeronica = loadedUsers.some(u => 
+      u.email.toLowerCase() === 'adelekev@premierinternationalschool.org' || 
+      u.id === 'user-admin-2'
+    );
+    if (!hasVeronica) {
+      loadedUsers.push(primaryAdminUser);
+      modified = true;
+    }
+
+    const hasAlabi = loadedUsers.some(u => 
+      u.email.toLowerCase() === 'alabia@premierinternationalschool.org' || 
+      u.id === 'user-admin-1'
+    );
+    if (!hasAlabi) {
+      loadedUsers.push(defaultAdminUser);
+      modified = true;
+    }
+
+    if (modified) {
+      try {
+        localStorage.setItem('p_users_v3', JSON.stringify(loadedUsers));
+      } catch {
+        // ignore
+      }
+    }
+
+    return loadedUsers;
   });
 
   const [holds, setHolds] = useState<BookHold[]>(() => {
@@ -541,6 +577,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (!error && data && data.length > 0) {
         setUsers(data);
         localStorage.setItem('p_users_v3', JSON.stringify(data));
+        // Keep active currentUser state in sync with database record
+        setCurrentUserState((prev) => {
+          if (!prev) return null;
+          const match = data.find(u => u.id === prev.id || u.email.toLowerCase() === prev.email.toLowerCase());
+          return match ? { ...prev, ...match } : prev;
+        });
       }
     } catch (err) {
       console.warn('Could not sync users from Supabase:', err);
@@ -786,8 +828,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (user) {
       const isStaffOrAdmin = user.role === 'admin' || user.role === 'librarian' || user.role === 'staff' || user.role === 'teacher';
       if (isStaffOrAdmin) {
-        // Staff is global: only staff can see primary and secondary inventory
-        setActiveSection('all');
+        if (user.section === 'primary') {
+          setActiveSection('primary');
+        } else if (user.section === 'college') {
+          setActiveSection('college');
+        } else {
+          setActiveSection('all');
+        }
       } else {
         // Learner/student: strictly locked to their own school section
         const learnerSec = (user.section === 'primary' || (user.gradeOrYear && user.gradeOrYear.toLowerCase().includes('primary'))) ? 'primary' : 'college';
@@ -828,13 +875,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setUserRole(role);
   };
 
-  const setIsLibrarianLoggedIn = (val: boolean) => {
+  const setIsLibrarianLoggedIn = (val: boolean, overrideUser?: LibraryUser) => {
     setIsLibrarianLoggedInState(val);
     localStorage.setItem('p_lib_logged_in', String(val));
     if (val) {
       setUserRoleState('ADMIN');
       setCurrentRole('admin');
-      setCurrentUserState(defaultAdminUser);
+      if (overrideUser) {
+        setCurrentUserState(overrideUser);
+        if (overrideUser.section === 'primary' || overrideUser.section === 'college') {
+          setActiveSection(overrideUser.section);
+        }
+      } else if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'librarian')) {
+        setCurrentUserState(defaultAdminUser);
+      }
     } else {
       setUserRoleState('LEARNER');
       setCurrentRole('learner');
@@ -903,9 +957,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       avatar: avatar,
       assignedTeacherId: assignedTeacher,
       assignedTeacherName: user.assignedTeacherName,
-      section: isUserStaffOrAdmin 
+      section: ('section' in user && (user.section === 'primary' || user.section === 'college'))
+        ? user.section
+        : (user.department && user.department.toLowerCase().includes('primary'))
+        ? 'primary'
+        : (user.department && user.department.toLowerCase().includes('college'))
+        ? 'college'
+        : isUserStaffOrAdmin 
         ? 'all' 
-        : (('section' in user && user.section) ? user.section : (user.gradeOrYear && (user.gradeOrYear.toLowerCase().includes('primary') || user.gradeOrYear.toLowerCase().includes('nursery')) ? 'primary' : 'college')),
+        : (user.gradeOrYear && (user.gradeOrYear.toLowerCase().includes('primary') || user.gradeOrYear.toLowerCase().includes('nursery')) ? 'primary' : 'college'),
       createdAt: user.createdAt || new Date().toISOString().split('T')[0],
     };
 
@@ -913,7 +973,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setUserRole(normRole);
     if (isUserStaffOrAdmin) {
       setIsLibrarianLoggedInState(true);
-      setActiveSection('all');
+      if (fullUser.section === 'primary' || fullUser.section === 'college') {
+        setActiveSection(fullUser.section);
+      } else {
+        setActiveSection('all');
+      }
     } else {
       setIsLibrarianLoggedInState(false);
     }
@@ -1047,8 +1111,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const loggedInBranch: 'college' | 'primary' | undefined = 
       currentUser?.section === 'primary' || currentUser?.section === 'college'
         ? currentUser.section
-        : (currentUser?.email === 'adelekev@premierinternationslschool.org' ? 'primary' :
-           currentUser?.email === 'alabia@premierinternationalschool.org' ? 'college' : undefined);
+        : (currentUser?.department?.toLowerCase().includes('primary') ? 'primary' :
+           currentUser?.department?.toLowerCase().includes('college') ? 'college' : undefined);
 
     const resolvedSection: 'college' | 'primary' = (newBookData.section === 'primary' || newBookData.section === 'college')
       ? newBookData.section
@@ -1136,8 +1200,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const loggedInBranch: 'college' | 'primary' | undefined = 
           currentUser?.section === 'primary' || currentUser?.section === 'college'
             ? currentUser.section
-            : (currentUser?.email === 'adelekev@premierinternationslschool.org' ? 'primary' :
-               currentUser?.email === 'alabia@premierinternationalschool.org' ? 'college' : undefined);
+            : (currentUser?.department?.toLowerCase().includes('primary') ? 'primary' :
+               currentUser?.department?.toLowerCase().includes('college') ? 'college' : undefined);
 
         const itemSection: 'college' | 'primary' = (item.section === 'primary' || item.section === 'college')
           ? item.section
@@ -1158,6 +1222,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('p_books', JSON.stringify(updatedCatalog));
 
     return { addedCount: added, updatedCount: updated, skippedCount: skipped };
+  };
+
+  const updateBook = async (bookId: string, updates: Partial<Book>): Promise<{ success: boolean; message: string }> => {
+    setBooks((prev) => {
+      const updated = prev.map((b) => (b.id === bookId ? { ...b, ...updates } : b));
+      localStorage.setItem('p_books_v3', JSON.stringify(updated));
+      localStorage.setItem('p_books', JSON.stringify(updated));
+      return updated;
+    });
+
+    if (selectedBook && selectedBook.id === bookId) {
+      setSelectedBook((prev) => (prev ? { ...prev, ...updates } : null));
+    }
+
+    if (!navigator.onLine || !isSupabaseConfigured) {
+      enqueueOfflineMutation('UPDATE_BOOK', { id: bookId, updates }, `Update "${updates.title || bookId}"`);
+    } else {
+      try {
+        const { success, error } = await updateBookInSupabase(bookId, updates);
+        if (!success) {
+          console.warn('Could not update in Supabase, queuing for offline sync:', error);
+          enqueueOfflineMutation('UPDATE_BOOK', { id: bookId, updates }, `Update "${updates.title || bookId}"`);
+        }
+      } catch (err) {
+        console.error('Failed to update in Supabase, queuing for offline sync:', err);
+        enqueueOfflineMutation('UPDATE_BOOK', { id: bookId, updates }, `Update "${updates.title || bookId}"`);
+      }
+    }
+
+    return { success: true, message: 'Book updated successfully in catalogue.' };
   };
 
   const deleteBook = async (bookId: string): Promise<{ success: boolean; message: string }> => {
@@ -1485,7 +1579,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       category,
       section: section || (activeSection === 'primary' ? 'primary' : activeSection === 'college' ? 'college' : 'all'),
     };
-    setAnnouncements((prev) => [newAnn, ...prev]);
+    setAnnouncements((prev) => {
+      const updated = [newAnn, ...prev];
+      localStorage.setItem('p_announcements', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const updateAnnouncement = (id: string, updates: Partial<Announcement>) => {
+    setAnnouncements((prev) => {
+      const updated = prev.map((a) => (a.id === id ? { ...a, ...updates } : a));
+      localStorage.setItem('p_announcements', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const deleteAnnouncement = (id: string) => {
+    setAnnouncements((prev) => {
+      const updated = prev.filter((a) => a.id !== id);
+      localStorage.setItem('p_announcements', JSON.stringify(updated));
+      return updated;
+    });
   };
 
   const restockBook = (bookId: string, quantity: number) => {
@@ -1922,6 +2036,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         cloudSyncStatus,
         refreshBooks,
         refreshUsers,
+        updateBook,
         deleteBook,
         clearSampleBooks,
         addBook,
@@ -1937,6 +2052,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         toggleLike,
         addComment,
         addAnnouncement,
+        updateAnnouncement,
+        deleteAnnouncement,
         restockBook,
         isOnline,
         pendingOfflineChangesCount,

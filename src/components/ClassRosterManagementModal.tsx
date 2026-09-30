@@ -43,10 +43,10 @@ export const ClassRosterManagementModal: React.FC = () => {
   const [feedbackMessage, setFeedbackMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
   // Auto-derived section based on logged in librarian
-  const autoSection: 'college' | 'primary' = (currentUser?.section as ('college' | 'primary')) ||
-    (currentUser?.email === 'adelekev@premierinternationslschool.org' ? 'primary' :
-     currentUser?.email === 'alabia@premierinternationalschool.org' ? 'college' :
-     (activeSection === 'primary' ? 'primary' : 'college'));
+  const autoSection: 'college' | 'primary' = 
+    currentUser?.section === 'primary' || currentUser?.department?.toLowerCase().includes('primary') ? 'primary' :
+    currentUser?.section === 'college' || currentUser?.department?.toLowerCase().includes('college') ? 'college' :
+    (activeSection === 'primary' ? 'primary' : 'college');
 
   // New user mini-form state
   const [isAddingUser, setIsAddingUser] = useState(false);

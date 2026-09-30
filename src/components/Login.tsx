@@ -7,14 +7,8 @@ import React, { useState } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { 
-  BookOpen, 
-  ShieldCheck, 
-  Lock, 
-  User, 
-  KeyRound, 
   Eye, 
   EyeOff, 
-  ArrowLeft, 
   AlertCircle, 
   Loader2 
 } from 'lucide-react';
@@ -31,6 +25,7 @@ export const Login: React.FC<LoginProps> = ({ targetTab, adminMode }) => {
     setIsLibrarianLoggedIn, 
     setLoggedInLearner, 
     setCurrentUser,
+    setActiveSection,
     users,
     setActiveTab
   } = useApp();
@@ -48,29 +43,6 @@ export const Login: React.FC<LoginProps> = ({ targetTab, adminMode }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Get readable tab name
-  const getTabLabel = (tab?: string) => {
-    switch (tab) {
-      case 'catalog':
-      case 'library':
-        return 'School Library Catalog';
-      case 'gallery':
-        return 'Student Work Archive';
-      case 'analytics':
-        return 'Collection Reports & Analytics';
-      case 'submit':
-        return 'Book Recommendation Form';
-      case 'moderator':
-      case 'moderation':
-        return 'Content Review Queue';
-      case 'desk':
-      case 'desk-utilities':
-        return 'Circulation Desk';
-      default:
-        return 'School Library Portal';
-    }
-  };
 
   // Resolve target route after login
   const resolveTargetRoute = (target?: string, isAdmin?: boolean): string => {
@@ -96,7 +68,7 @@ export const Login: React.FC<LoginProps> = ({ targetTab, adminMode }) => {
     const trimmedPassword = password.trim();
 
     if (!trimmedUsername || !trimmedPassword) {
-      setError('Please enter both your account identifier and password.');
+      setError('Please enter both your email and password.');
       return;
     }
 
@@ -116,41 +88,51 @@ export const Login: React.FC<LoginProps> = ({ targetTab, adminMode }) => {
         }
       }
 
-      // Check against cloud user or fallback to local users state
+      const normalizedInput = trimmedUsername.toLowerCase();
+      // Look up target user from Supabase or context by email, username prefix, library card, admission number, or name
       const targetUser = cloudUser || users.find(
-        (u) => 
-          u.email.toLowerCase() === trimmedUsername.toLowerCase() ||
-          u.libraryCardId.toLowerCase() === trimmedUsername.toLowerCase() ||
-          (u.admissionNumber && u.admissionNumber.toLowerCase() === trimmedUsername.toLowerCase()) ||
-          u.name.toLowerCase() === trimmedUsername.toLowerCase()
+        (u) => {
+          const uEmail = (u.email || '').toLowerCase();
+          const uCard = (u.libraryCardId || '').toLowerCase();
+          const uAdm = (u.admissionNumber || '').toLowerCase();
+          const uName = (u.name || '').toLowerCase();
+          const uPrefix = uEmail.split('@')[0];
+
+          return (
+            uEmail === normalizedInput ||
+            uCard === normalizedInput ||
+            uAdm === normalizedInput ||
+            uName === normalizedInput ||
+            uPrefix === normalizedInput
+          );
+        }
       );
 
+      // Helper function for password matching (case-tolerant and trim-tolerant)
+      const verifyPassword = (storedPass?: string, inputPass?: string): boolean => {
+        if (!storedPass || !inputPass) return false;
+        const s = storedPass.trim();
+        const inp = inputPass.trim();
+        return s === inp || s.toLowerCase() === inp.toLowerCase();
+      };
+
       if (isAdminPath) {
-        // Administrative Sign-In Verification
-        // Allow hardcoded fallback admin or targetUser with matching password
-        const isStandardAdmin = 
-          (trimmedUsername.toLowerCase() === 'admin' || trimmedUsername.toLowerCase() === 'librarian') && 
-          (trimmedPassword === 'admin123' || trimmedPassword === 'admin' || trimmedPassword === 'Admin321');
-
-        if (isStandardAdmin) {
-          setIsLibrarianLoggedIn(true);
-          setActiveTab(targetTab || 'circulation');
-          navigate(resolveTargetRoute(targetTab, true));
-          setIsLoading(false);
-          return;
-        }
-
         if (targetUser) {
           // If password is set on the account, verify it matches
-          if (targetUser.password && targetUser.password !== trimmedPassword) {
+          if (targetUser.password && !verifyPassword(targetUser.password, trimmedPassword)) {
             setError('Incorrect password. Please verify your credentials.');
             setIsLoading(false);
             return;
           }
 
           if (targetUser.role === 'admin' || targetUser.role === 'librarian') {
-            setIsLibrarianLoggedIn(true);
             setCurrentUser(targetUser);
+            setIsLibrarianLoggedIn(true, targetUser);
+            if (targetUser.section === 'primary') {
+              setActiveSection('primary');
+            } else if (targetUser.section === 'college') {
+              setActiveSection('college');
+            }
             setActiveTab(targetTab || 'circulation');
             navigate(resolveTargetRoute(targetTab, true));
             setIsLoading(false);
@@ -162,41 +144,37 @@ export const Login: React.FC<LoginProps> = ({ targetTab, adminMode }) => {
             setIsLoading(false);
             return;
           } else {
-            setError('This student account does not have administrative privileges. Please use the Library Member Sign In.');
+            setError('This account does not have staff privileges. Please use Learner Login.');
             setIsLoading(false);
             return;
           }
         }
 
-        setError('Invalid administrative credentials. Please verify your email/username and password, or contact the school administrator.');
+        setError('Invalid educator credentials. Please verify your email and password.');
         setIsLoading(false);
       } else {
-        // Student & Faculty Member Sign-In Verification
-        // Convenience check for admin credentials on regular login
-        if (
-          (trimmedUsername.toLowerCase() === 'admin' || trimmedUsername.toLowerCase() === 'librarian') &&
-          (trimmedPassword === 'admin123' || trimmedPassword === 'admin' || trimmedPassword === 'Admin321')
-        ) {
-          setIsLibrarianLoggedIn(true);
-          setActiveTab(targetTab || 'catalog');
-          navigate(resolveTargetRoute(targetTab, true));
-          setIsLoading(false);
-          return;
-        }
-
         if (targetUser) {
-          // For students, their password is their admission number (or password field)
+          // Verify password or admission number
           const expectedPassword = targetUser.password || targetUser.admissionNumber;
-          if (expectedPassword && expectedPassword !== trimmedPassword) {
-            setError('Incorrect password. For students, your password is your admission number (e.g. PIS/SS/23/2345).');
+          if (expectedPassword && !verifyPassword(expectedPassword, trimmedPassword)) {
+            setError('Incorrect password. Please verify your credentials.');
             setIsLoading(false);
             return;
           }
 
           if (targetUser.role === 'admin' || targetUser.role === 'librarian') {
-            setIsLibrarianLoggedIn(true);
             setCurrentUser(targetUser);
-            setActiveTab(targetTab || 'catalog');
+            setIsLibrarianLoggedIn(true, targetUser);
+            if (targetUser.section === 'primary') {
+              setActiveSection('primary');
+            } else if (targetUser.section === 'college') {
+              setActiveSection('college');
+            }
+            setActiveTab(targetTab || 'circulation');
+            navigate(resolveTargetRoute(targetTab, true));
+          } else if (targetUser.role === 'staff' || targetUser.role === 'teacher') {
+            setCurrentUser(targetUser);
+            setActiveTab(targetTab || 'circulation');
             navigate(resolveTargetRoute(targetTab, true));
           } else {
             setCurrentUser(targetUser);
@@ -208,7 +186,7 @@ export const Login: React.FC<LoginProps> = ({ targetTab, adminMode }) => {
           return;
         }
 
-        setError('School email, admission number, or Library Card ID not found. Please check your credentials or contact the library desk.');
+        setError('Learner email or card ID not found. Please check your credentials.');
         setIsLoading(false);
       }
     } catch (err: any) {
@@ -218,200 +196,98 @@ export const Login: React.FC<LoginProps> = ({ targetTab, adminMode }) => {
   };
 
   return (
-    <div className="min-h-[72vh] flex flex-col justify-center items-center py-8 px-4 sm:px-6">
-      
+    <div className="min-h-[72vh] flex flex-col justify-center items-center py-10 px-4 sm:px-6">
       <motion.div 
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.2 }}
-        className="w-full max-w-md space-y-5"
+        className="w-full max-w-sm sm:max-w-md bg-white rounded-3xl p-7 sm:p-9 border border-slate-200/90 shadow-xs space-y-6"
       >
-        {/* 1. Back to Library Home Link */}
-        <div className="flex items-center justify-between">
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab('home');
-              navigate('/');
-            }}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-900 transition cursor-pointer px-2.5 py-1.5 rounded-lg hover:bg-slate-100"
+        {/* Title in brand color */}
+        <h1 className="font-display font-black text-2xl sm:text-3xl text-center text-blue-600 tracking-tight">
+          {isAdminPath ? 'Staff Login' : 'Learner Login'}
+        </h1>
+
+        {/* Faint grey text with hr lines extending to the full width of the input fields */}
+        <div className="flex items-center w-full">
+          <hr className="flex-grow border-t border-slate-200" />
+          <span className="px-3 text-slate-400 text-xs sm:text-sm font-normal whitespace-nowrap">
+            {isAdminPath ? 'log in with educator email' : 'log in with learner email'}
+          </span>
+          <hr className="flex-grow border-t border-slate-200" />
+        </div>
+
+        {/* Error Alert if any */}
+        {error && (
+          <div 
+            role="alert" 
+            className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-medium text-rose-800 flex items-start gap-2.5"
           >
-            <ArrowLeft className="w-3.5 h-3.5 text-slate-400" />
-            <span>Back to Library Home</span>
-          </button>
-
-          {targetTab && targetTab !== 'home' && (
-            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-600 bg-slate-100 border border-slate-200/80 px-2.5 py-0.5 rounded-full">
-              <Lock className="w-3 h-3 text-slate-400" />
-              {getTabLabel(targetTab)}
-            </span>
-          )}
-        </div>
-
-        {/* 2. Brand Header */}
-        <div className="text-center space-y-2">
-          <div className={`mx-auto h-12 w-12 rounded-2xl shadow-xs flex items-center justify-center transition-colors ${
-            isAdminPath 
-              ? 'bg-slate-900 text-white ring-2 ring-slate-800' 
-              : 'bg-blue-600 text-white'
-          }`}>
-            {isAdminPath ? (
-              <ShieldCheck className="w-6 h-6 text-slate-200" />
-            ) : (
-              <BookOpen className="w-6 h-6" />
-            )}
-          </div>
-          <div>
-            <h1 className="font-display font-bold text-xl sm:text-2xl tracking-tight text-slate-900">
-              Premier International School
-            </h1>
-            <p className="text-[11px] text-slate-500 font-semibold tracking-wider mt-0.5 uppercase">
-              {isAdminPath ? 'Staff & Administration Console' : 'Digital Library System'}
-            </p>
-          </div>
-        </div>
-
-        {/* 3. Short Contextual Notice */}
-        {isAdminPath ? (
-          <div className="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-3.5 text-xs text-amber-950 flex items-start gap-2.5">
-            <Lock className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-            <div className="space-y-0.5 leading-relaxed">
-              <p className="font-semibold text-amber-900">Restricted Staff Console</p>
-              <p className="text-amber-800/90 text-[11px]">
-                Authorized faculty, librarians, and administrative staff only. All circulation and catalog management actions are audited.
-              </p>
-            </div>
-          </div>
-        ) : (
-          <div className="bg-blue-50/70 border border-blue-200/80 rounded-2xl p-3.5 text-xs text-blue-900 flex items-start gap-2.5">
-            <BookOpen className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-            <div className="space-y-0.5 leading-relaxed">
-              <p className="font-semibold text-blue-950">Library Member Access</p>
-              <p className="text-blue-800/90 text-[11px]">
-                Sign in with your student or faculty library card ID to browse the complete catalog, borrow resources, and place 24-hour reserve holds.
-              </p>
-            </div>
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+            <span className="leading-snug">{error}</span>
           </div>
         )}
 
-        {/* 4. Login Form Card */}
-        <div className={`bg-white rounded-2xl p-6 sm:p-7 shadow-xs space-y-5 border ${
-          isAdminPath 
-            ? 'border-slate-300 ring-1 ring-slate-200/60' 
-            : 'border-slate-200/90'
-        }`}>
-          {/* Card Title & Subtitle */}
-          <div className="space-y-1">
-            <h2 className="font-display font-bold text-base text-slate-900">
-              {isAdminPath ? 'Staff & Librarian Sign In' : 'Library Member Sign In'}
-            </h2>
-            <p className="text-xs text-slate-500 leading-relaxed">
-              {isAdminPath 
-                ? 'Access circulation, notices, review queue, and administrative tools.' 
-                : 'Sign in to access the full catalog, holds, and active loans.'}
-            </p>
+        {/* Login Form */}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Input field 1: Username / Email without icons */}
+          <div>
+            <input
+              id="login-username"
+              type="text"
+              required
+              autoComplete="username"
+              placeholder={isAdminPath ? "Educator email or username" : "Learner email or card ID"}
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 text-slate-900 placeholder:text-slate-400 font-medium transition shadow-2xs"
+            />
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Error Message Box */}
-            {error && (
-              <div 
-                role="alert" 
-                className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-medium text-rose-800 flex items-start gap-2.5"
-              >
-                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                <span className="leading-snug">{error}</span>
-              </div>
-            )}
-
-            {/* Username / Identifier Input */}
-            <div className="space-y-1.5">
-              <label htmlFor="login-username" className="block text-xs font-semibold text-slate-700">
-                {isAdminPath ? 'Staff Username or School Email' : 'School Email, Admission Number, or Library Card ID'}
-              </label>
-              <div className="relative">
-                {isAdminPath ? (
-                  <ShieldCheck className="absolute left-3 top-3 text-slate-400 w-4 h-4 pointer-events-none" />
-                ) : (
-                  <User className="absolute left-3 top-3 text-slate-400 w-4 h-4 pointer-events-none" />
-                )}
-                <input
-                  id="login-username"
-                  type="text"
-                  required
-                  autoComplete="username"
-                  placeholder={isAdminPath ? "e.g. alabia@premierinternationalschool.org or admin" : "e.g. chidio@premierinternationalschool.org or PIS/SS/23/2345"}
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:bg-white focus:border-slate-400 focus:ring-2 focus:ring-slate-100 transition-all text-slate-900 placeholder:text-slate-400 font-medium"
-                />
-              </div>
-            </div>
-
-            {/* Password Input with Show/Hide Toggle */}
-            <div className="space-y-1.5">
-              <label htmlFor="login-password" className="block text-xs font-semibold text-slate-700">
-                {isAdminPath ? 'Password' : 'Password (Students use Admission Number, e.g. PIS/SS/23/2345)'}
-              </label>
-              <div className="relative">
-                <KeyRound className="absolute left-3 top-3 text-slate-400 w-4 h-4 pointer-events-none" />
-                <input
-                  id="login-password"
-                  type={showPassword ? 'text' : 'password'}
-                  required
-                  autoComplete="current-password"
-                  placeholder={isAdminPath ? "••••••••" : "e.g. PIS/SS/23/2345"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-9 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:bg-white focus:border-slate-400 focus:ring-2 focus:ring-slate-100 transition-all text-slate-900 placeholder:text-slate-400 font-medium"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-700 p-0.5 cursor-pointer transition rounded"
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                >
-                  {showPassword ? (
-                    <EyeOff className="w-4 h-4" />
-                  ) : (
-                    <Eye className="w-4 h-4" />
-                  )}
-                </button>
-              </div>
-            </div>
-
-            {/* Submit Button with Loading State */}
+          {/* Input field 2: Password with ONLY the eye icon to show/hide */}
+          <div className="relative">
+            <input
+              id="login-password"
+              type={showPassword ? 'text' : 'password'}
+              required
+              autoComplete="current-password"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full px-4 pr-11 py-3 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 text-slate-900 placeholder:text-slate-400 font-medium transition shadow-2xs"
+            />
             <button
-              type="submit"
-              disabled={isLoading}
-              className={`w-full py-2.5 px-4 rounded-xl text-xs font-semibold text-center cursor-pointer transition-colors flex items-center justify-center gap-2 shadow-xs mt-3 ${
-                isLoading 
-                  ? 'bg-slate-400 text-white cursor-not-allowed'
-                  : isAdminPath
-                  ? 'bg-slate-900 hover:bg-slate-800 active:bg-slate-950 text-white'
-                  : 'bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white'
-              }`}
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer transition rounded"
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
             >
-              {isLoading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin text-white" />
-                  <span>{isAdminPath ? 'Authenticating Console...' : 'Signing In to Library...'}</span>
-                </>
+              {showPassword ? (
+                <EyeOff className="w-4 h-4" />
               ) : (
-                <span>{isAdminPath ? 'Sign In to Console' : 'Sign In to Library'}</span>
+                <Eye className="w-4 h-4" />
               )}
             </button>
-          </form>
-
-          {/* 5. Support / Trust Messaging */}
-          <div className="pt-3 border-t border-slate-100 text-center">
-            <p className="text-[11px] text-slate-500 leading-relaxed">
-              If you do not have access or forgot your credentials, contact the library desk or school administrator.
-            </p>
           </div>
-        </div>
 
-        {/* 6. Secondary Route-Switch Link */}
+          {/* Login button: same width as input fields, brand color background */}
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="w-full py-3 px-4 rounded-xl text-sm sm:text-base font-bold text-center cursor-pointer transition-colors flex items-center justify-center gap-2 shadow-xs bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white disabled:opacity-50"
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin text-white" />
+                <span>Logging in...</span>
+              </>
+            ) : (
+              <span>Login</span>
+            )}
+          </button>
+        </form>
+
+        {/* Minimalist switcher between Learner and Staff */}
         <div className="text-center pt-1">
           {isAdminPath ? (
             <button
@@ -420,10 +296,9 @@ export const Login: React.FC<LoginProps> = ({ targetTab, adminMode }) => {
                 setError(null);
                 navigate('/login');
               }}
-              className="text-xs text-slate-500 hover:text-slate-800 transition cursor-pointer py-1 px-2.5 rounded-lg hover:bg-slate-100 font-medium inline-flex items-center gap-1.5"
+              className="text-xs text-slate-400 hover:text-blue-600 transition cursor-pointer"
             >
-              <span>Student or General Member?</span>
-              <span className="text-blue-700 font-semibold hover:underline">Library Member Sign In →</span>
+              Learner? <span className="text-blue-600 font-semibold underline">Learner Login</span>
             </button>
           ) : (
             <button
@@ -432,14 +307,12 @@ export const Login: React.FC<LoginProps> = ({ targetTab, adminMode }) => {
                 setError(null);
                 navigate('/admin');
               }}
-              className="text-xs text-slate-500 hover:text-slate-800 transition cursor-pointer py-1 px-2.5 rounded-lg hover:bg-slate-100 font-medium inline-flex items-center gap-1.5"
+              className="text-xs text-slate-400 hover:text-blue-600 transition cursor-pointer"
             >
-              <span>Faculty or Library Staff?</span>
-              <span className="text-slate-900 font-semibold hover:underline">Staff & Librarian Sign In →</span>
+              Staff member? <span className="text-blue-600 font-semibold underline">Staff Login</span>
             </button>
           )}
         </div>
-
       </motion.div>
     </div>
   );

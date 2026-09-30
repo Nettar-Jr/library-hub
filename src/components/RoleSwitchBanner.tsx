@@ -307,12 +307,18 @@ export const RoleSwitchBanner: React.FC = () => {
 
                     <div
                       onClick={() => {
-                        const veronica = users.find(u => u.email === 'adelekev@premierinternationslschool.org');
+                        const veronica = users.find(u => 
+                          u.email.toLowerCase() === 'adelekev@premierinternationalschool.org' || 
+                          u.id === 'user-admin-2'
+                        );
                         switchRolePreset('ADMIN', veronica?.id);
                         setIsOpen(false);
                       }}
                       className={`flex items-center justify-between p-1.5 rounded-xl cursor-pointer text-xs hover:bg-amber-50 transition ${
-                        isLoggedIn && currentUser?.email === 'adelekev@premierinternationslschool.org' ? 'bg-amber-100/70 font-bold' : ''
+                        isLoggedIn && (
+                          currentUser?.email?.toLowerCase() === 'adelekev@premierinternationalschool.org' || 
+                          currentUser?.id === 'user-admin-2'
+                        ) ? 'bg-amber-100/70 font-bold' : ''
                       }`}
                     >
                       <div className="flex items-center gap-1.5">

@@ -44,6 +44,7 @@ import { CameraBarcodeScanner } from './CameraBarcodeScanner';
 import { lookupBookByISBN } from '../utils/isbnLookup';
 import { PhysicalPrintTools } from './PhysicalPrintTools';
 import { CsvBatchImport } from './CsvBatchImport';
+import { EditBookModal } from './EditBookModal';
 
 const CATEGORY_TABS = [
   { id: 'ALL', label: 'All Resources' },
@@ -103,6 +104,7 @@ export const BookCatalog: React.FC = () => {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   const [isAddBookModalOpen, setIsAddBookModalOpen] = useState(false);
+  const [editingBook, setEditingBook] = useState<Book | null>(null);
   const [showCatalogCameraScanner, setShowCatalogCameraScanner] = useState(false);
   const [isLookingUpISBN, setIsLookingUpISBN] = useState(false);
   const [newBookForm, setNewBookForm] = useState<Partial<Book>>({
@@ -842,6 +844,7 @@ export const BookCatalog: React.FC = () => {
                   onViewAll={() => handleSelectViewAll(collection.categoryTag)}
                   onBookClick={(book) => setSelectedBook(book)}
                   onBorrow={isLearner ? handleQuickBorrow : undefined}
+                  onEdit={(book) => setEditingBook(book)}
                   isLearner={isLearner}
                 />
               );
@@ -891,6 +894,7 @@ export const BookCatalog: React.FC = () => {
                   book={book}
                   onClick={() => setSelectedBook(book)}
                   onBorrow={isLearner ? () => handleQuickBorrow(book) : undefined}
+                  onEdit={(book) => setEditingBook(book)}
                   isBorrowable={isLearner}
                   userStatus={{
                     isBorrowed: !!loanInfo?.isBorrowed,
@@ -955,6 +959,23 @@ export const BookCatalog: React.FC = () => {
           <BookDetailModal 
             book={selectedBook} 
             onClose={() => setSelectedBook(null)} 
+          />
+        )}
+      </AnimatePresence>
+
+      {/* 4B. Edit Pre-existing Book Modal */}
+      <AnimatePresence>
+        {editingBook && (
+          <EditBookModal
+            book={editingBook}
+            isOpen={!!editingBook}
+            onClose={() => setEditingBook(null)}
+            onSuccess={(updated) => {
+              showToast('success', `"${updated.title}" updated successfully in catalogue.`);
+              if (selectedBook && selectedBook.id === updated.id) {
+                setSelectedBook(updated);
+              }
+            }}
           />
         )}
       </AnimatePresence>
@@ -1379,6 +1400,7 @@ interface SwimlaneRowProps {
   onViewAll: () => void;
   onBookClick: (book: Book) => void;
   onBorrow?: (book: Book) => void;
+  onEdit?: (book: Book) => void;
   isLearner?: boolean;
 }
 
@@ -1391,6 +1413,7 @@ const SwimlaneRow: React.FC<SwimlaneRowProps> = ({
   onViewAll,
   onBookClick,
   onBorrow,
+  onEdit,
   isLearner,
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -1473,6 +1496,7 @@ const SwimlaneRow: React.FC<SwimlaneRowProps> = ({
                 book={book} 
                 onClick={() => onBookClick(book)}
                 onBorrow={isLearner && onBorrow ? () => onBorrow(book) : undefined}
+                onEdit={onEdit}
                 isBorrowable={isLearner}
                 userStatus={{
                   isBorrowed: !!loanInfo?.isBorrowed,

@@ -23,16 +23,21 @@ import {
   Award,
   Users,
   CheckCircle2,
-  Tablet
+  Tablet,
+  Library,
+  Star,
+  Pencil
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Book, BOOK_CATEGORIES } from '../types';
+import { EditBookModal } from './EditBookModal';
 
 export const HomeDiscoveryHub: React.FC = () => {
   const { books, allBooks, currentUser, isLearner, isStaff, isAdmin, checkoutBook, currentLearnerName, loggedInLearner } = useApp();
   const navigate = useNavigate();
 
   const [selectedBookModal, setSelectedBookModal] = useState<Book | null>(null);
+  const [editingBook, setEditingBook] = useState<Book | null>(null);
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
   const [playingAudioBookId, setPlayingAudioBookId] = useState<string | null>(null);
   
@@ -184,25 +189,25 @@ export const HomeDiscoveryHub: React.FC = () => {
         />
 
         {/* 2. Center Brush Swatch Overlay & Content Container */}
-        <div className="relative z-10 w-full max-w-4xl mx-auto flex flex-col items-center justify-center py-4">
+        <div className="relative z-10 w-full max-w-3xl lg:max-w-[830px] mx-auto flex flex-col items-center justify-center py-3 px-2 sm:px-4">
           
           {/* Blue Brush Stroke Image Overlay (image.png) */}
-          <div className="absolute inset-0 -m-3 sm:-m-6 md:-m-10 pointer-events-none select-none flex items-center justify-center">
+          <div className="absolute inset-0 -m-1 sm:-m-2 md:-m-3 pointer-events-none select-none flex items-center justify-center">
             <img 
               src="/brush.svg" 
               alt="Blue brush banner" 
-              className="w-full h-full object-fill drop-shadow-[0_20px_35px_rgba(0,0,0,0.65)] filter"
+              className="w-full h-full object-fill drop-shadow-[0_18px_32px_rgba(0,0,0,0.6)] filter"
               aria-hidden="true"
             />
           </div>
 
           {/* Text and CTAs On Top of the Blue Brush Swatch */}
-          <div className="relative z-20 px-6 sm:px-12 md:px-16 py-8 sm:py-12 md:py-14 flex flex-col items-center text-center space-y-4 sm:space-y-6 max-w-3xl">
-            <div className="space-y-3 sm:space-y-4">
-              <h1 className="font-display font-black text-2xl sm:text-4xl md:text-5xl text-white tracking-tight leading-[1.14] drop-shadow-[0_2px_4px_rgba(0,0,0,0.4)]">
+          <div className="relative z-20 px-6 sm:px-11 md:px-14 py-8 sm:py-10 md:py-12 flex flex-col items-center text-center space-y-3.5 sm:space-y-5 max-w-2xl">
+            <div className="space-y-2.5 sm:space-y-3">
+              <h1 className="font-display font-black text-xl sm:text-3xl md:text-[2.5rem] text-white tracking-tight leading-[1.15] drop-shadow-[0_2px_4px_rgba(0,0,0,0.4)]">
                 Discover books for learning, track and build reading habits, access varieties of books and much more!
               </h1>
-              <p className="text-white text-sm sm:text-lg md:text-xl leading-relaxed font-semibold drop-shadow-[0_1px_3px_rgba(0,0,0,0.4)] max-w-xl mx-auto">
+              <p className="text-white text-xs sm:text-base md:text-lg leading-relaxed font-semibold drop-shadow-[0_1px_3px_rgba(0,0,0,0.4)] max-w-xl mx-auto">
                 Log in and enter a world of endless possibilities.
               </p>
             </div>
@@ -215,7 +220,7 @@ export const HomeDiscoveryHub: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => navigate('/login')}
-                    className="bg-white hover:bg-slate-100 active:bg-slate-200 text-blue-700 font-black text-sm sm:text-base px-8 py-3.5 sm:py-4 rounded-xl shadow-xl shadow-black/25 transition-all transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
+                    className="bg-white hover:bg-slate-100 active:bg-slate-200 text-blue-700 font-black text-xs sm:text-sm md:text-base px-7 sm:px-8 py-3 sm:py-3.5 rounded-xl shadow-xl shadow-black/25 transition-all transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
                   >
                     Sign in
                   </button>
@@ -224,7 +229,7 @@ export const HomeDiscoveryHub: React.FC = () => {
                   <button
                     type="button"
                     onClick={scrollToPreview}
-                    className="bg-white/20 hover:bg-white/30 active:bg-white/40 text-white font-bold text-sm sm:text-base px-8 py-3.5 sm:py-4 rounded-xl border-2 border-white/90 backdrop-blur-md transition-all transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer shadow-xl shadow-black/20"
+                    className="bg-white/20 hover:bg-white/30 active:bg-white/40 text-white font-bold text-xs sm:text-sm md:text-base px-7 sm:px-8 py-3 sm:py-3.5 rounded-xl border-2 border-white/90 backdrop-blur-md transition-all transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer shadow-xl shadow-black/20"
                   >
                     Preview Catalogue
                   </button>
@@ -234,7 +239,7 @@ export const HomeDiscoveryHub: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => navigate('/catalog')}
-                    className="bg-white hover:bg-slate-100 active:bg-slate-200 text-blue-700 font-black text-sm sm:text-base px-8 py-3.5 sm:py-4 rounded-xl shadow-xl shadow-black/25 transition-all transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
+                    className="bg-white hover:bg-slate-100 active:bg-slate-200 text-blue-700 font-black text-xs sm:text-sm md:text-base px-7 sm:px-8 py-3 sm:py-3.5 rounded-xl shadow-xl shadow-black/25 transition-all transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
                   >
                     Sign in
                   </button>
@@ -242,7 +247,7 @@ export const HomeDiscoveryHub: React.FC = () => {
                   <button
                     type="button"
                     onClick={scrollToPreview}
-                    className="bg-white/20 hover:bg-white/30 active:bg-white/40 text-white font-bold text-sm sm:text-base px-8 py-3.5 sm:py-4 rounded-xl border-2 border-white/90 backdrop-blur-md transition-all transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer shadow-xl shadow-black/20"
+                    className="bg-white/20 hover:bg-white/30 active:bg-white/40 text-white font-bold text-xs sm:text-sm md:text-base px-7 sm:px-8 py-3 sm:py-3.5 rounded-xl border-2 border-white/90 backdrop-blur-md transition-all transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer shadow-xl shadow-black/20"
                   >
                     Preview Catalogue
                   </button>
@@ -376,87 +381,93 @@ export const HomeDiscoveryHub: React.FC = () => {
       </section>
 
       {/* =========================================================================
-       * 4. EPIC FEATURE D: DUAL AUDIENCE PORTALS ("FOR STUDENTS" & "FOR EDUCATORS")
+       * 4. READING BUBBLES EXPERIENCE SECTION (READ & IMAGINE • EXPLORE & DISCOVER • LISTEN & LEARN)
+       * Located immediately after the catalogue preview slideshow.
        * ========================================================================= */}
-      <section className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 pt-2">
-        {/* Portal 1: For Students / Learners */}
-        <div className="bg-gradient-to-br from-blue-50 to-indigo-50/60 rounded-3xl px-4 sm:px-5 py-5 sm:py-6 border border-blue-100 flex flex-col justify-between shadow-xs">
-          <div className="space-y-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-sm shadow-xs">
-              <BookOpen className="w-5 h-5" />
+      <section className="py-8 sm:py-12 px-6 sm:px-12 md:px-20 w-full flex justify-center">
+        <div className="w-full max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 items-stretch justify-center">
+          
+          {/* Bubble 1: READ & IMAGINE */}
+          <div className="group bg-transparent rounded-3xl p-4 sm:p-6 flex flex-col justify-start text-center relative transition-all duration-300">
+            <div className="space-y-4">
+              {/* Image Graphic */}
+              <div className="w-52 h-52 sm:w-60 sm:h-60 mx-auto relative flex items-center justify-center">
+                <picture>
+                  <img
+                    src="/1.svg"
+                    alt="Feel the story come alive"
+                    className="w-full h-full object-contain filter drop-shadow-md group-hover:scale-105 transition-transform duration-500"
+                    loading="lazy"
+                  />
+                </picture>
+              </div>
+
+              {/* Text Details */}
+              <div className="space-y-2">
+                <h3 className="font-display font-black text-xl sm:text-2xl text-slate-900 leading-tight">
+                  Feel the story come alive.
+                </h3>
+                <p className="text-slate-600 text-xs sm:text-sm leading-relaxed max-w-sm mx-auto">
+                  Open a book and watch ideas light up. Every page brings a new surprise waiting for you in our library.
+                </p>
+              </div>
             </div>
-            <h3 className="font-display font-extrabold text-xl text-slate-900">
-              For Students &amp; Young Readers
-            </h3>
-            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-normal">
-              Find your next favorite story, listen to read-aloud audiobooks, borrow print copies using your student library card, and build daily reading habits.
-            </p>
-            <ul className="space-y-1.5 pt-1 text-xs text-slate-600 font-medium">
-              <li className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0" />
-                <span>Borrow up to 2 books simultaneously</span>
-              </li>
-              <li className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0" />
-                <span>Unlimited audio narration and read-aloud playback</span>
-              </li>
-              <li className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0" />
-                <span>Browse titles tailored to Primary and Secondary branches</span>
-              </li>
-            </ul>
           </div>
 
-          <div className="pt-6">
-            <button
-              type="button"
-              onClick={() => navigate(currentUser ? '/catalog' : '/login?redirect=/catalog')}
-              className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition cursor-pointer shadow-xs"
-            >
-              <span>{currentUser ? 'Explore Student Bookshelf' : 'Student Sign In'}</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
+          {/* Bubble 2: EXPLORE & DISCOVER */}
+          <div className="group bg-transparent rounded-3xl p-4 sm:p-6 flex flex-col justify-start text-center relative transition-all duration-300">
+            <div className="space-y-4">
+              {/* Image Graphic */}
+              <div className="w-52 h-52 sm:w-60 sm:h-60 mx-auto relative flex items-center justify-center">
+                <picture>
+                  <img
+                    src="/3.svg"
+                    alt="Find your next favourite book"
+                    className="w-full h-full object-contain filter drop-shadow-md group-hover:scale-105 transition-transform duration-500"
+                    loading="lazy"
+                  />
+                </picture>
+              </div>
 
-        {/* Portal 2: For Teachers & Faculty */}
-        <div className="bg-gradient-to-br from-slate-50 to-slate-100/80 rounded-3xl px-4 sm:px-5 py-5 sm:py-6 border border-slate-200 flex flex-col justify-between shadow-xs">
-          <div className="space-y-3">
-            <div className="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center font-bold text-sm shadow-xs">
-              <GraduationCap className="w-5 h-5" />
+              {/* Text Details */}
+              <div className="space-y-2">
+                <h3 className="font-display font-black text-xl sm:text-2xl text-slate-900 leading-tight">
+                  Find your next favourite book.
+                </h3>
+                <p className="text-slate-600 text-xs sm:text-sm leading-relaxed max-w-sm mx-auto">
+                  From storybooks to science, folktales to fairy tales — stacks of adventures are ready on the shelves for you to pick.
+                </p>
+              </div>
             </div>
-            <h3 className="font-display font-extrabold text-xl text-slate-900">
-              For Educators &amp; Library Staff
-            </h3>
-            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-normal">
-              Manage class borrowing rosters, reserve curriculum sets for term instruction, view student borrowing records, and review book holds across both school branches.
-            </p>
-            <ul className="space-y-1.5 pt-1 text-xs text-slate-600 font-medium">
-              <li className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-slate-800 shrink-0" />
-                <span>Universal access to Primary and College catalog inventories</span>
-              </li>
-              <li className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-slate-800 shrink-0" />
-                <span>Classroom roster management &amp; loan tracking</span>
-              </li>
-              <li className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-slate-800 shrink-0" />
-                <span>Post official notices and book return deadlines</span>
-              </li>
-            </ul>
           </div>
 
-          <div className="pt-6">
-            <button
-              type="button"
-              onClick={() => navigate(currentUser && (isStaff || isAdmin) ? '/circulation' : '/login?target=circulation')}
-              className="inline-flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition cursor-pointer shadow-xs"
-            >
-              <span>{currentUser && (isStaff || isAdmin) ? 'Staff Circulation Desk' : 'Faculty Access'}</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
+          {/* Bubble 3: LISTEN & LEARN */}
+          <div className="group bg-transparent rounded-3xl p-4 sm:p-6 flex flex-col justify-start text-center relative transition-all duration-300">
+            <div className="space-y-4">
+              {/* Image Graphic */}
+              <div className="w-52 h-52 sm:w-60 sm:h-60 mx-auto relative flex items-center justify-center">
+                <picture>
+                  <img
+                    src="/2.svg"
+                    alt="Learn your way, anytime"
+                    className="w-full h-full object-contain filter drop-shadow-md group-hover:scale-105 transition-transform duration-500"
+                    loading="lazy"
+                  />
+                </picture>
+              </div>
+
+              {/* Text Details */}
+              <div className="space-y-2">
+                <h3 className="font-display font-black text-xl sm:text-2xl text-slate-900 leading-tight">
+                  Learn your way, anytime.
+                </h3>
+                <p className="text-slate-600 text-xs sm:text-sm leading-relaxed max-w-sm mx-auto">
+                  Prefer to listen? Put on your headphones and enjoy audiobooks and read-alouds right here in the school library hub.
+                </p>
+              </div>
+            </div>
           </div>
+
         </div>
       </section>
 
@@ -538,48 +549,73 @@ export const HomeDiscoveryHub: React.FC = () => {
                 </div>
               )}
 
-              <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
+              <div className="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => setSelectedBookModal(null)}
-                  className="px-3.5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer"
+                  onClick={() => setEditingBook(selectedBookModal)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl transition cursor-pointer"
+                  title="Edit bibliographic details"
                 >
-                  Close
+                  <Pencil className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Edit Book</span>
                 </button>
 
-                {!currentUser ? (
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => {
-                      setSelectedBookModal(null);
-                      navigate('/login?redirect=/catalog');
-                    }}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs transition cursor-pointer"
+                    onClick={() => setSelectedBookModal(null)}
+                    className="px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer"
                   >
-                    <LogIn className="w-3.5 h-3.5" />
-                    <span>Sign in to borrow</span>
+                    Close
                   </button>
-                ) : isLearner ? (
-                  <button
-                    type="button"
-                    disabled={selectedBookModal.availableCopies <= 0}
-                    onClick={() => handleBorrowAttempt(selectedBookModal)}
-                    className={`px-4 py-2 text-xs font-bold rounded-xl shadow-xs transition flex items-center gap-1.5 ${
-                      selectedBookModal.availableCopies > 0
-                        ? 'bg-blue-600 hover:bg-blue-700 text-white cursor-pointer active:scale-95'
-                        : 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                    }`}
-                  >
-                    <BookmarkCheck className="w-3.5 h-3.5" />
-                    <span>Borrow Book</span>
-                  </button>
-                ) : null}
+
+                  {!currentUser ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedBookModal(null);
+                        navigate('/login?redirect=/catalog');
+                      }}
+                      className="inline-flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs transition cursor-pointer"
+                    >
+                      <LogIn className="w-3.5 h-3.5" />
+                      <span>Sign in to borrow</span>
+                    </button>
+                  ) : isLearner ? (
+                    <button
+                      type="button"
+                      disabled={selectedBookModal.availableCopies <= 0}
+                      onClick={() => handleBorrowAttempt(selectedBookModal)}
+                      className={`px-4 py-1.5 text-xs font-bold rounded-xl shadow-xs transition flex items-center gap-1.5 ${
+                        selectedBookModal.availableCopies > 0
+                          ? 'bg-blue-600 hover:bg-blue-700 text-white cursor-pointer active:scale-95'
+                          : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                      }`}
+                    >
+                      <BookmarkCheck className="w-3.5 h-3.5" />
+                      <span>Borrow Book</span>
+                    </button>
+                  ) : null}
+                </div>
               </div>
 
             </motion.div>
           </div>
         )}
       </AnimatePresence>
+
+      {/* Edit Pre-existing Book Modal */}
+      {editingBook && (
+        <EditBookModal
+          book={editingBook}
+          isOpen={!!editingBook}
+          onClose={() => setEditingBook(null)}
+          onSuccess={(updated) => {
+            setSelectedBookModal(updated);
+            setActionFeedback(`"${updated.title}" updated successfully!`);
+          }}
+        />
+      )}
 
     </div>
   );

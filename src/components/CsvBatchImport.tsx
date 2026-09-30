@@ -80,10 +80,10 @@ export const CsvBatchImport: React.FC<CsvBatchImportProps> = ({
   const [currentStep, setCurrentStep] = useState<ImportStep>('upload');
 
   // Branch / Section targeting for the batch - automatically determined by logged in librarian
-  const targetSection: 'college' | 'primary' = (currentUser?.section as ('college' | 'primary')) || 
-    (currentUser?.email === 'adelekev@premierinternationslschool.org' ? 'primary' :
-     currentUser?.email === 'alabia@premierinternationalschool.org' ? 'college' :
-     (activeSection === 'primary' ? 'primary' : 'college'));
+  const targetSection: 'college' | 'primary' = 
+    currentUser?.section === 'primary' || currentUser?.department?.toLowerCase().includes('primary') ? 'primary' :
+    currentUser?.section === 'college' || currentUser?.department?.toLowerCase().includes('college') ? 'college' :
+    (activeSection === 'primary' ? 'primary' : 'college');
 
   // File state
   const [fileName, setFileName] = useState<string>('');
