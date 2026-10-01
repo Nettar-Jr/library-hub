@@ -4,7 +4,7 @@
  */
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { Book, StudentSubmission, CirculationRecord, BookHold, LibraryUser } from '../types';
+import { Book, StudentSubmission, CirculationRecord, BookHold, LibraryUser, HeroSpotlightData } from '../types';
 
 // Load Vite environment variables with production project fallback
 const DEFAULT_SUPABASE_URL = 'https://dlaxjarpxjopktzijizn.supabase.co';
@@ -860,4 +860,167 @@ export async function queryUserFromSupabase(identifier: string): Promise<{ data:
     return { data: null, error: err.message || 'Unknown network error' };
   }
 }
+
+/**
+ * Fetch Book of the Week document from Supabase database based on student's grade level ('primary' or 'secondary')
+ */
+export async function fetchBookOfWeekFromDatabase(
+  gradeLevel: 'primary' | 'secondary'
+): Promise<{ data: HeroSpotlightData | null; error: string | null }> {
+  const client = getSupabaseClient();
+  if (!client) {
+    return { data: null, error: 'Supabase is not configured' };
+  }
+
+  try {
+    // 1. Try dedicated book_of_week / bookOfWeek table if present
+    try {
+      const { data, error } = await client
+        .from('book_of_week')
+        .select('*')
+        .or(`grade_level.eq.${gradeLevel},section.eq.${gradeLevel === 'primary' ? 'primary' : 'college'}`)
+        .limit(1);
+
+      if (!error && data && data.length > 0) {
+        const row = data[0];
+        return {
+          data: {
+            id: row.id || `spotlight-${gradeLevel}`,
+            title: row.title,
+            subtitle: row.subtitle || (row.author ? `By ${row.author} • ${row.category || 'Featured'}` : ''),
+            description: row.description || row.summary || '',
+            featuredBookId: row.featured_book_id || row.featuredBookId || row.id,
+            badgeText: row.badge_text || row.badgeText || '⭐ BOOK OF THE WEEK',
+            bgGradient: row.bg_gradient || row.bgGradient || (gradeLevel === 'primary' ? 'from-emerald-950 via-slate-900 to-teal-950' : 'from-blue-900 via-indigo-950 to-slate-900'),
+            coverUrl: row.cover_url || row.cover_image || row.coverUrl,
+            section: gradeLevel === 'primary' ? 'primary' : 'college',
+          },
+          error: null,
+        };
+      }
+    } catch {
+      // Table may not exist yet, fallback to document storage in books table
+    }
+
+    // 2. Fetch specific 'bookOfWeek' document from books table
+    const targetId = gradeLevel === 'primary' 
+      ? 'b0000000-0000-0000-0000-000000000001' 
+      : 'b0000000-0000-0000-0000-000000000002';
+
+    const { data: bookDoc, error: bookError } = await client
+      .from('books')
+      .select('*')
+      .or(`id.eq.${targetId},format.eq.book_of_week_${gradeLevel}`)
+      .limit(1);
+
+    if (!bookError && bookDoc && bookDoc.length > 0) {
+      const row = bookDoc[0];
+      let meta: any = {};
+      if (row.isbn) {
+        try {
+          meta = JSON.parse(row.isbn);
+        } catch {
+          // not json
+        }
+      }
+
+      return {
+        data: {
+          id: row.id,
+          title: row.title || 'Featured Masterpiece',
+          subtitle: meta.subtitle || (row.author ? `By ${row.author} • ${row.category || 'Featured'}` : 'Featured Book of the Week'),
+          description: row.description || '',
+          featuredBookId: meta.featuredBookId || row.id,
+          badgeText: meta.badgeText || '⭐ BOOK OF THE WEEK',
+          bgGradient: meta.bgGradient || (gradeLevel === 'primary' 
+            ? 'from-emerald-950 via-slate-900 to-teal-950' 
+            : 'from-blue-900 via-indigo-950 to-slate-900'),
+          coverUrl: row.cover_url || row.cover_image,
+          section: gradeLevel === 'primary' ? 'primary' : 'college',
+        },
+        error: null,
+      };
+    }
+
+    return { data: null, error: bookError ? bookError.message : 'No document found' };
+  } catch (err: any) {
+    return { data: null, error: err.message || 'Error fetching bookOfWeek document' };
+  }
+}
+
+/**
+ * Save / update Book of the Week document in Supabase database
+ */
+export async function saveBookOfWeekToDatabase(
+  spotlight: HeroSpotlightData,
+  gradeLevel: 'primary' | 'secondary'
+): Promise<{ success: boolean; error: string | null }> {
+  const client = getSupabaseClient();
+  if (!client) {
+    return { success: false, error: 'Supabase client is not configured' };
+  }
+
+  const targetId = gradeLevel === 'primary' 
+    ? 'b0000000-0000-0000-0000-000000000001' 
+    : 'b0000000-0000-0000-0000-000000000002';
+
+  const authorName = spotlight.subtitle.replace(/^By\s+/i, '').split('•')[0].trim() || 'Featured Author';
+  const categoryName = spotlight.subtitle.includes('•') ? spotlight.subtitle.split('•')[1].trim() : 'Featured';
+
+  const metaJson = JSON.stringify({
+    featuredBookId: spotlight.featuredBookId,
+    badgeText: spotlight.badgeText,
+    bgGradient: spotlight.bgGradient,
+    subtitle: spotlight.subtitle,
+  });
+
+  const row = {
+    id: targetId,
+    title: spotlight.title,
+    author: authorName,
+    category: categoryName,
+    description: spotlight.description,
+    cover_url: spotlight.coverUrl,
+    format: `book_of_week_${gradeLevel}`,
+    dewey_decimal: '800',
+    isbn: metaJson,
+    total_copies: 1,
+    available_copies: 1,
+    reads_count: 0,
+    is_new: true,
+    is_audiobook: false,
+  };
+
+  try {
+    // 1. Save to books table
+    const { error } = await client.from('books').upsert(row);
+    if (error) {
+      console.warn('Could not save bookOfWeek document to books table:', error);
+    }
+
+    // 2. Also try dedicated book_of_week table if it exists
+    try {
+      await client.from('book_of_week').upsert({
+        id: `bow-${gradeLevel}`,
+        grade_level: gradeLevel,
+        section: gradeLevel === 'primary' ? 'primary' : 'college',
+        title: spotlight.title,
+        subtitle: spotlight.subtitle,
+        description: spotlight.description,
+        featured_book_id: spotlight.featuredBookId,
+        badge_text: spotlight.badgeText,
+        bg_gradient: spotlight.bgGradient,
+        cover_url: spotlight.coverUrl,
+        updated_at: new Date().toISOString(),
+      });
+    } catch {
+      // Table may not exist, non-fatal
+    }
+
+    return { success: true, error: null };
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Error saving bookOfWeek document' };
+  }
+}
+
 

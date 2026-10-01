@@ -5,7 +5,7 @@
 
 import React, { useState } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
-import { useApp } from '../context/AppContext';
+import { useApp, getGradeLevelForUser } from '../context/AppContext';
 import { 
   Eye, 
   EyeOff, 
@@ -179,6 +179,8 @@ export const Login: React.FC<LoginProps> = ({ targetTab, adminMode }) => {
           } else {
             setCurrentUser(targetUser);
             setLoggedInLearner(targetUser);
+            const studentGrade = getGradeLevelForUser(targetUser, 'college');
+            setActiveSection(studentGrade === 'primary' ? 'primary' : 'college');
             setActiveTab(targetTab || 'library');
             navigate(resolveTargetRoute(targetTab, false));
           }

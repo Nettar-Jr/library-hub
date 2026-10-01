@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { Book, CirculationRecord, StudentSubmission, Announcement, UserRole, AppRole, LibraryUser, User, NavView, BookHold, BookReview, HeroSpotlightData, CatalogViewMode, LibrarySection } from '../types';
 import { initialBooks, initialCirculation, initialSubmissions, initialAnnouncements, initialHeroSpotlight, initialCollegeSpotlight, initialPrimarySpotlight, DEMO_SAMPLE_IDS } from '../data';
 import { 
@@ -23,7 +23,9 @@ import {
   updateHoldInSupabase,
   fetchUsersFromSupabase,
   insertUserToSupabase,
-  updateUserInSupabase
+  updateUserInSupabase,
+  fetchBookOfWeekFromDatabase,
+  saveBookOfWeekToDatabase
 } from '../services/supabase';
 import {
   getPendingOfflineMutations,
@@ -98,6 +100,7 @@ interface AppContextType {
   primarySpotlight: HeroSpotlightData;
   updateHeroSpotlight: (newData: HeroSpotlightData, targetSection?: 'college' | 'primary') => void;
   setBookAsSpotlight: (bookId: string, customBadge?: string) => { success: boolean; message: string };
+  fetchBookOfWeekForGrade: (targetGrade?: 'primary' | 'secondary') => Promise<HeroSpotlightData | null>;
   catalogViewMode: CatalogViewMode;
   setCatalogViewMode: (mode: CatalogViewMode) => void;
   selectedBook: Book | null;
@@ -297,6 +300,43 @@ const removeSessionItem = (key: string): void => {
     // ignore
   }
 };
+
+/**
+ * Accurately derive a student's grade level ('primary' or 'secondary') based on their account profile
+ */
+export function getGradeLevelForUser(user: LibraryUser | User | null, defaultSection?: LibrarySection): 'primary' | 'secondary' {
+  if (user) {
+    if (user.section === 'primary') return 'primary';
+    if (user.section === 'college') return 'secondary';
+    const grade = ((user as LibraryUser).gradeOrYear || (user as any).grade_or_year || '').toLowerCase();
+    if (
+      grade.includes('pri') || 
+      grade.includes('pupil') || 
+      grade.includes('nursery') || 
+      grade.includes('kindergarten') ||
+      /^primary/i.test(grade) ||
+      /^year\s*[1-6]\b/i.test(grade) ||
+      /^grade\s*[1-6]\b/i.test(grade) ||
+      /^class\s*[1-6]\b/i.test(grade)
+    ) {
+      return 'primary';
+    }
+    if (
+      grade.includes('sec') || 
+      grade.includes('college') ||
+      /^year\s*(7|8|9|10|11|12|13)\b/i.test(grade) ||
+      /^grade\s*(7|8|9|10|11|12)\b/i.test(grade) ||
+      /^ss\s*[1-3]\b/i.test(grade) ||
+      /^jss\s*[1-3]\b/i.test(grade)
+    ) {
+      return 'secondary';
+    }
+    const adm = ((user as LibraryUser).admissionNumber || (user as any).admission_number || '').toUpperCase();
+    if (adm.includes('PRI') || adm.includes('PUPIL')) return 'primary';
+    if (adm.includes('SS') || adm.includes('COL') || adm.includes('SEC')) return 'secondary';
+  }
+  return defaultSection === 'primary' ? 'primary' : 'secondary';
+}
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
@@ -521,7 +561,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed && parsed.title) return { ...parsed, section: 'college' };
+        if (parsed && parsed.title) {
+          // Auto-heal: if featuredBookId points to a non-book-1 holding and title was left as Things Fall Apart
+          if (parsed.featuredBookId && parsed.featuredBookId !== 'book-1' && parsed.title === 'Things Fall Apart') {
+            const match = initialBooks.find(b => b.id === parsed.featuredBookId);
+            if (match) {
+              return {
+                ...parsed,
+                title: match.title,
+                subtitle: `By ${match.author} • ${match.category}`,
+                description: match.description || match.summary || parsed.description,
+                coverUrl: match.coverUrl || match.coverImage || parsed.coverUrl,
+                section: 'college'
+              };
+            }
+          }
+          return { ...parsed, section: 'college' };
+        }
       } catch {
         // ignore
       }
@@ -532,6 +588,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         const parsed = JSON.parse(legacy);
         if (parsed && parsed.title && parsed.section !== 'primary') {
+          if (parsed.featuredBookId && parsed.featuredBookId !== 'book-1' && parsed.title === 'Things Fall Apart') {
+            const match = initialBooks.find(b => b.id === parsed.featuredBookId);
+            if (match) {
+              return {
+                ...parsed,
+                title: match.title,
+                subtitle: `By ${match.author} • ${match.category}`,
+                description: match.description || match.summary || parsed.description,
+                coverUrl: match.coverUrl || match.coverImage || parsed.coverUrl,
+                section: 'college'
+              };
+            }
+          }
           return { ...parsed, section: 'college' };
         }
       } catch {
@@ -546,7 +615,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed && parsed.title) return { ...parsed, section: 'primary' };
+        if (parsed && parsed.title) {
+          if (parsed.featuredBookId && parsed.featuredBookId !== 'book-3' && parsed.title === 'Things Fall Apart') {
+            const match = initialBooks.find(b => b.id === parsed.featuredBookId);
+            if (match) {
+              return {
+                ...parsed,
+                title: match.title,
+                subtitle: `By ${match.author} • ${match.category}`,
+                description: match.description || match.summary || parsed.description,
+                coverUrl: match.coverUrl || match.coverImage || parsed.coverUrl,
+                section: 'primary'
+              };
+            }
+          }
+          return { ...parsed, section: 'primary' };
+        }
       } catch {
         // ignore
       }
@@ -566,10 +650,124 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return initialPrimarySpotlight;
   });
 
-  // Dynamically resolve Book of the Week for the current active section
-  const spotlightData: HeroSpotlightData = (activeSection === 'primary') 
+  // Cross-tab real-time sync for Book of the Week updates
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'p_hero_spotlight_college' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (parsed && parsed.title) setCollegeSpotlight(parsed);
+        } catch {
+          // ignore
+        }
+      }
+      if (e.key === 'p_hero_spotlight_primary' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (parsed && parsed.title) setPrimarySpotlight(parsed);
+        } catch {
+          // ignore
+        }
+      }
+      if (e.key === 'p_hero_spotlight' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (parsed && parsed.title) {
+            if (parsed.section === 'primary') {
+              setPrimarySpotlight(parsed);
+            } else {
+              setCollegeSpotlight(parsed);
+            }
+          }
+        } catch {
+          // ignore
+        }
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
+  // Dynamically resolve Book of the Week document based on student's grade level or active section
+  const currentStudent = loggedInLearner || currentUser;
+  const isStudentSession = userRole === 'LEARNER' || currentRole === 'learner' || (Boolean(currentStudent) && currentStudent?.role !== 'admin' && currentStudent?.role !== 'librarian' && currentStudent?.role !== 'staff' && currentStudent?.role !== 'teacher');
+  const studentGradeLevel = getGradeLevelForUser(currentStudent, activeSection);
+  const effectiveSpotlightSection: 'college' | 'primary' = isStudentSession 
+    ? (studentGradeLevel === 'primary' ? 'primary' : 'college')
+    : (activeSection === 'primary' ? 'primary' : 'college');
+
+  const spotlightData: HeroSpotlightData = (effectiveSpotlightSection === 'primary') 
     ? primarySpotlight 
     : collegeSpotlight;
+
+  // Fetch Book of the Week document dynamically from Supabase database based on student's grade level
+  const fetchBookOfWeekForGrade = useCallback(async (targetGrade?: 'primary' | 'secondary'): Promise<HeroSpotlightData | null> => {
+    const studentUser = loggedInLearner || currentUser;
+    const gradeLevel = targetGrade || getGradeLevelForUser(studentUser, activeSection);
+
+    try {
+      const { data, error } = await fetchBookOfWeekFromDatabase(gradeLevel);
+      if (!error && data && data.title) {
+        if (gradeLevel === 'primary') {
+          setPrimarySpotlight(data);
+          try {
+            localStorage.setItem('p_hero_spotlight_primary', JSON.stringify(data));
+          } catch {}
+        } else {
+          setCollegeSpotlight(data);
+          try {
+            localStorage.setItem('p_hero_spotlight_college', JSON.stringify(data));
+          } catch {}
+        }
+        return data;
+      }
+    } catch (err) {
+      console.warn('Error fetching bookOfWeek document:', err);
+    }
+    return null;
+  }, [loggedInLearner, currentUser, activeSection]);
+
+  // Synchronize Book of the Week documents from Supabase on mount and whenever learner or section changes
+  useEffect(() => {
+    let isMounted = true;
+    const loadSpotlightsFromDatabase = async () => {
+      const studentUser = loggedInLearner || currentUser;
+      const currentGrade = getGradeLevelForUser(studentUser, activeSection);
+      
+      try {
+        const currentRes = await fetchBookOfWeekFromDatabase(currentGrade);
+        if (isMounted && currentRes.data && currentRes.data.title) {
+          if (currentGrade === 'primary') {
+            setPrimarySpotlight(currentRes.data);
+            try { localStorage.setItem('p_hero_spotlight_primary', JSON.stringify(currentRes.data)); } catch {}
+          } else {
+            setCollegeSpotlight(currentRes.data);
+            try { localStorage.setItem('p_hero_spotlight_college', JSON.stringify(currentRes.data)); } catch {}
+          }
+        }
+
+        const otherGrade: 'primary' | 'secondary' = currentGrade === 'primary' ? 'secondary' : 'primary';
+        const otherRes = await fetchBookOfWeekFromDatabase(otherGrade);
+        if (isMounted && otherRes.data && otherRes.data.title) {
+          if (otherGrade === 'primary') {
+            setPrimarySpotlight(otherRes.data);
+            try { localStorage.setItem('p_hero_spotlight_primary', JSON.stringify(otherRes.data)); } catch {}
+          } else {
+            setCollegeSpotlight(otherRes.data);
+            try { localStorage.setItem('p_hero_spotlight_college', JSON.stringify(otherRes.data)); } catch {}
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to load bookOfWeek documents from Supabase:', err);
+      }
+    };
+
+    loadSpotlightsFromDatabase();
+    return () => {
+      isMounted = false;
+    };
+  }, [loggedInLearner?.id, currentUser?.id, activeSection]);
 
   const updateHeroSpotlight = (newData: HeroSpotlightData, targetSection?: 'college' | 'primary') => {
     const resolvedSection: 'college' | 'primary' = targetSection || newData.section || (activeSection === 'primary' ? 'primary' : 'college');
@@ -582,27 +780,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setPrimarySpotlight(updated);
       try {
         localStorage.setItem('p_hero_spotlight_primary', JSON.stringify(updated));
-      } catch {
-        // ignore
-      }
+      } catch {}
     } else {
       setCollegeSpotlight(updated);
       try {
         localStorage.setItem('p_hero_spotlight_college', JSON.stringify(updated));
-      } catch {
-        // ignore
-      }
+      } catch {}
     }
 
     try {
       localStorage.setItem('p_hero_spotlight', JSON.stringify(updated));
-    } catch {
-      // ignore
-    }
+    } catch {}
+
+    // Persist directly to Supabase cloud database
+    const gradeLevel: 'primary' | 'secondary' = resolvedSection === 'primary' ? 'primary' : 'secondary';
+    saveBookOfWeekToDatabase(updated, gradeLevel).catch(err => {
+      console.warn('Could not save bookOfWeek document to database:', err);
+    });
   };
 
   const setBookAsSpotlight = (bookId: string, customBadge = '⭐ BOOK OF THE WEEK') => {
-    const targetBook = books.find(b => b.id === bookId);
+    const targetBook = books.find(b => b.id === bookId) || initialBooks.find(b => b.id === bookId);
     if (!targetBook) {
       return { success: false, message: 'Book not found in library holdings.' };
     }
@@ -991,6 +1189,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setCurrentRole('learner');
         setLoggedInLearnerState(user);
         setCurrentLearnerName(`${user.name} (${user.gradeOrYear || 'Student'})`);
+        const grade = getGradeLevelForUser(user, activeSection);
+        const matchedSection: LibrarySection = grade === 'primary' ? 'primary' : 'college';
+        setActiveSectionState(matchedSection);
+        setSessionItem('p_active_section', matchedSection);
       }
     }
   };
@@ -1035,6 +1237,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCurrentUserState(user);
     if (user) {
       setSessionItem('p_learner_logged_in', JSON.stringify(user));
+      const grade = getGradeLevelForUser(user, activeSection);
+      const matchedSection: LibrarySection = grade === 'primary' ? 'primary' : 'college';
+      setActiveSectionState(matchedSection);
+      setSessionItem('p_active_section', matchedSection);
+
       const formattedName = (user.role === 'student' || user.role === 'learner')
         ? `${user.name} (${user.gradeOrYear || 'Scholar'})` 
         : `${user.name} (Teacher)`;
@@ -1108,7 +1315,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setCurrentUser(fullUser);
-    setUserRole(normRole);
+    setUserRoleState(normRole);
     if (isUserStaffOrAdmin) {
       setIsLibrarianLoggedInState(true);
       setSessionItem('p_lib_logged_in', 'true');
@@ -1120,6 +1327,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } else {
       setIsLibrarianLoggedInState(false);
       setSessionItem('p_lib_logged_in', 'false');
+      const studentSec = (fullUser.section === 'primary' || (fullUser.gradeOrYear && fullUser.gradeOrYear.toLowerCase().includes('primary'))) ? 'primary' : 'college';
+      setActiveSection(studentSec);
     }
   };
 
@@ -2156,6 +2365,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         primarySpotlight,
         updateHeroSpotlight,
         setBookAsSpotlight,
+        fetchBookOfWeekForGrade,
         catalogViewMode,
         setCatalogViewMode,
         selectedBook,

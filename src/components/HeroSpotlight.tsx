@@ -4,9 +4,10 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { useApp } from '../context/AppContext';
+import { useApp, getGradeLevelForUser } from '../context/AppContext';
 import { HeroSpotlightData, Book } from '../types';
-import { Bookmark, Edit3, BookOpen, Headphones, X, Check, ArrowRight, Building2, Backpack } from 'lucide-react';
+import { initialBooks } from '../data';
+import { Bookmark, Edit3, BookOpen, Headphones, X, Check, ArrowRight, Building2, Backpack, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 const GRADIENT_PRESETS = [
@@ -23,10 +24,13 @@ export const HeroSpotlight: React.FC = () => {
     collegeSpotlight,
     primarySpotlight,
     updateHeroSpotlight, 
+    fetchBookOfWeekForGrade,
     books, 
     allBooks,
     currentUser, 
+    loggedInLearner,
     isAdmin, 
+    isStaff,
     userRole, 
     setSelectedBook,
     activeSection 
@@ -37,12 +41,27 @@ export const HeroSpotlight: React.FC = () => {
   const [editForm, setEditForm] = useState<HeroSpotlightData>(spotlightData);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
+  // Derive student grade level
+  const studentUser = loggedInLearner || currentUser;
+  const isStudent = userRole === 'LEARNER' || Boolean(loggedInLearner) || (!isAdmin && !isStaff && Boolean(currentUser));
+  const studentGradeLevel = getGradeLevelForUser(studentUser, activeSection);
+  const currentEffectiveSection: 'college' | 'primary' = isStudent 
+    ? (studentGradeLevel === 'primary' ? 'primary' : 'college')
+    : (spotlightData.section || (activeSection === 'primary' ? 'primary' : 'college'));
+
   // Sync form when spotlightData or activeSection updates
   useEffect(() => {
     const currentSec = (activeSection === 'primary') ? 'primary' : 'college';
     setModalSection(currentSec);
     setEditForm(spotlightData);
   }, [spotlightData, activeSection]);
+
+  // Ensure fresh fetch of Book of the Week document for student on load
+  useEffect(() => {
+    if (fetchBookOfWeekForGrade) {
+      fetchBookOfWeekForGrade(studentGradeLevel);
+    }
+  }, [studentGradeLevel, loggedInLearner?.id, currentUser?.id]);
 
   // Handle ESC key for modal
   useEffect(() => {
@@ -63,24 +82,34 @@ export const HeroSpotlight: React.FC = () => {
   const featuredBook = booksPool.find(b => b.id === spotlightData.featuredBookId)
     || booksPool.find(b => b.title.toLowerCase().trim() === spotlightData.title.toLowerCase().trim())
     || books.find(b => b.id === spotlightData.featuredBookId)
-    || books.find(b => b.title.toLowerCase().trim() === spotlightData.title.toLowerCase().trim());
+    || books.find(b => b.title.toLowerCase().trim() === spotlightData.title.toLowerCase().trim())
+    || initialBooks.find(b => b.id === spotlightData.featuredBookId);
 
-  const currentEffectiveSection: 'college' | 'primary' = spotlightData.section 
-    || (activeSection === 'primary' ? 'primary' : 'college');
+  // Directly display the dynamic chosen title from the database document / spotlightData
+  const displayTitle = spotlightData.title || featuredBook?.title || 'Featured Masterpiece';
+  const displaySubtitle = spotlightData.subtitle || (featuredBook ? `By ${featuredBook.author} • ${featuredBook.category}` : '');
+  const displayDescription = spotlightData.description || featuredBook?.description || featuredBook?.summary || '';
+  const displayCover = spotlightData.coverUrl || featuredBook?.coverUrl || featuredBook?.coverImage;
 
-  const resolvedBook: Book = featuredBook || {
+  const resolvedBook: Book = featuredBook ? {
+    ...featuredBook,
+    title: displayTitle,
+    coverImage: displayCover || featuredBook.coverImage,
+    coverUrl: displayCover || featuredBook.coverUrl,
+    description: displayDescription || featuredBook.description,
+  } : {
     id: spotlightData.featuredBookId || `spotlight-${currentEffectiveSection}`,
-    title: spotlightData.title,
-    author: spotlightData.subtitle.replace(/^By\s+/i, '').split('•')[0].trim() || 'Featured Author',
+    title: displayTitle,
+    author: displaySubtitle.replace(/^By\s+/i, '').split('•')[0].trim() || 'Featured Author',
     isbn: 'N/A',
-    category: spotlightData.subtitle.includes('•') ? spotlightData.subtitle.split('•')[1].trim() : 'Featured Spotlight',
+    category: displaySubtitle.includes('•') ? displaySubtitle.split('•')[1].trim() : 'Featured Spotlight',
     section: currentEffectiveSection,
     totalCopies: 5,
     availableCopies: 5,
-    description: spotlightData.description,
-    summary: spotlightData.description,
-    coverImage: spotlightData.coverUrl || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=700',
-    coverUrl: spotlightData.coverUrl || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=700',
+    description: displayDescription,
+    summary: displayDescription,
+    coverImage: displayCover || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=700',
+    coverUrl: displayCover || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=700',
     readsCount: 85,
     deweyClass: '800',
     deweyCode: '800',
@@ -89,7 +118,7 @@ export const HeroSpotlight: React.FC = () => {
     readingLevel: 'Standard',
   };
 
-  const activeCover = spotlightData.coverUrl || resolvedBook.coverUrl || resolvedBook.coverImage;
+  const activeCover = displayCover || resolvedBook.coverUrl || resolvedBook.coverImage;
 
   // Filter books in the edit dropdown strictly to the target section being configured
   const sectionCatalogOptions = booksPool.filter(b => {
@@ -109,7 +138,7 @@ export const HeroSpotlight: React.FC = () => {
   };
 
   const handleBookSelect = (bookId: string) => {
-    const selected = booksPool.find(b => b.id === bookId);
+    const selected = booksPool.find(b => b.id === bookId) || initialBooks.find(b => b.id === bookId);
     if (selected) {
       setEditForm(prev => ({
         ...prev,
@@ -176,15 +205,15 @@ export const HeroSpotlight: React.FC = () => {
             </div>
 
             <h1 className="font-display font-black text-2xl sm:text-3xl md:text-4xl leading-tight text-white tracking-tight">
-              {spotlightData.title}
+              {displayTitle}
             </h1>
 
             <p className="text-slate-200 text-xs sm:text-sm font-semibold max-w-2xl leading-relaxed">
-              {spotlightData.subtitle}
+              {displaySubtitle}
             </p>
 
             <p className="text-slate-300/90 text-xs sm:text-sm line-clamp-3 max-w-2xl leading-relaxed font-normal">
-              {spotlightData.description}
+              {displayDescription}
             </p>
 
             <div className="pt-2 flex flex-wrap items-center justify-center md:justify-start gap-3">
@@ -192,7 +221,7 @@ export const HeroSpotlight: React.FC = () => {
                 type="button"
                 onClick={handleOpenDetail}
                 className="bg-white hover:bg-slate-100 text-slate-900 font-bold px-5 py-2.5 rounded-xl text-xs shadow-sm flex items-center gap-2 transition duration-150 active:scale-98 cursor-pointer"
-                aria-label={`Explore details for ${spotlightData.title}`}
+                aria-label={`Explore details for ${displayTitle}`}
               >
                 <BookOpen className="w-4 h-4 text-blue-700" />
                 <span>View Book Details</span>
@@ -218,14 +247,14 @@ export const HeroSpotlight: React.FC = () => {
             <div 
               onClick={handleOpenDetail}
               className="group/cover relative cursor-pointer select-none"
-              title={`Click to view "${spotlightData.title}" details`}
+              title={`Click to view "${displayTitle}" details`}
             >
               {/* Refined Book Wrapper */}
               <div className="relative aspect-[3/4] h-56 sm:h-64 rounded-xl overflow-hidden shadow-2xl border-2 border-white/30 bg-slate-900 group-hover/cover:scale-[1.02] transition-transform duration-200 ease-out">
                 {activeCover ? (
                   <img
                     src={activeCover}
-                    alt={`Cover of ${spotlightData.title}`}
+                    alt={`Cover of ${displayTitle}`}
                     className="w-full h-full object-cover"
                     referrerPolicy="no-referrer"
                     onError={(e) => {
@@ -235,7 +264,7 @@ export const HeroSpotlight: React.FC = () => {
                 ) : (
                   <div className="w-full h-full bg-slate-800 p-4 flex flex-col justify-between text-white">
                     <span className="text-[10px] font-mono uppercase bg-white/10 px-2 py-0.5 rounded">Featured</span>
-                    <h3 className="font-display font-bold text-sm">{spotlightData.title}</h3>
+                    <h3 className="font-display font-bold text-sm">{displayTitle}</h3>
                   </div>
                 )}
 
@@ -260,7 +289,7 @@ export const HeroSpotlight: React.FC = () => {
               initial={{ opacity: 0, scale: 0.96, y: 16 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: 16 }}
-              className="bg-white rounded-2xl max-w-xl w-full shadow-2xl overflow-hidden border border-slate-200"
+              className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl overflow-hidden border border-slate-200"
             >
               <div className="p-5 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">
                 <div className="flex items-center gap-2.5">
@@ -284,7 +313,7 @@ export const HeroSpotlight: React.FC = () => {
                 </button>
               </div>
 
-              <form onSubmit={handleSave} className="p-6 space-y-4 max-h-[78vh] overflow-y-auto text-xs">
+              <form onSubmit={handleSave} className="p-6 space-y-5 max-h-[82vh] overflow-y-auto text-xs">
                 {/* 1. Target Library Section Selector */}
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
@@ -321,10 +350,56 @@ export const HeroSpotlight: React.FC = () => {
                   </p>
                 </div>
 
-                {/* 2. Pick From Catalog Holdings for this Section */}
+                {/* 2. Visual Book Cards Picker */}
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                    Click Any Book To Select as Book of the Week ({sectionCatalogOptions.length} titles in {modalSection === 'primary' ? 'Primary' : 'Secondary'})
+                  </label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-48 overflow-y-auto p-1 bg-slate-50 rounded-xl border border-slate-200">
+                    {sectionCatalogOptions.map(b => {
+                      const isSelected = editForm.featuredBookId === b.id;
+                      return (
+                        <div
+                          key={b.id}
+                          onClick={() => handleBookSelect(b.id)}
+                          className={`p-2 rounded-xl border flex items-center gap-2 cursor-pointer transition select-none ${
+                            isSelected 
+                              ? 'bg-blue-50 border-blue-600 ring-2 ring-blue-500/20 shadow-xs' 
+                              : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-100/50'
+                          }`}
+                        >
+                          <img 
+                            src={b.coverUrl || b.coverImage} 
+                            alt={b.title} 
+                            className="w-10 h-14 object-cover rounded-md shrink-0 shadow-2xs"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=700';
+                            }}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="font-bold text-[11px] text-slate-900 truncate" title={b.title}>
+                              {b.title}
+                            </div>
+                            <div className="text-[10px] text-slate-500 truncate">
+                              {b.author}
+                            </div>
+                            {isSelected && (
+                              <div className="mt-0.5 inline-flex items-center gap-0.5 text-[9px] font-bold text-blue-700 bg-blue-100 px-1.5 py-0.2 rounded">
+                                <CheckCircle2 className="w-2.5 h-2.5" />
+                                <span>Selected</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 3. Catalog Holdings Quick Dropdown Alternative */}
                 <div>
                   <label htmlFor="featured-book-select" className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                    Select From {modalSection === 'primary' ? 'Primary' : 'Secondary'} Catalog Holdings ({sectionCatalogOptions.length} available)
+                    Or Choose From Dropdown
                   </label>
                   <select
                     id="featured-book-select"
@@ -341,7 +416,26 @@ export const HeroSpotlight: React.FC = () => {
                   </select>
                 </div>
 
-                {/* 3. Badge Text */}
+                {/* 4. Live Preview Banner inside Modal */}
+                <div className="p-3 bg-slate-900 text-white rounded-xl border border-slate-800 space-y-1.5">
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-amber-300">
+                    Live Preview:
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <img 
+                      src={editForm.coverUrl || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=700'} 
+                      alt="Preview cover" 
+                      className="w-12 h-16 object-cover rounded-lg border border-white/20 shadow-xs shrink-0"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="font-bold text-sm text-white truncate">{editForm.title || 'Untitled Book'}</div>
+                      <div className="text-xs text-slate-300 truncate">{editForm.subtitle || 'By Author'}</div>
+                      <div className="text-[10px] text-slate-400 line-clamp-1">{editForm.description}</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 5. Badge Text */}
                 <div>
                   <label htmlFor="badge-text-input" className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wider mb-1">
                     Spotlight Badge Headline
@@ -351,13 +445,16 @@ export const HeroSpotlight: React.FC = () => {
                     type="text"
                     required
                     value={editForm.badgeText}
-                    onChange={(e) => setEditForm({ ...editForm, badgeText: e.target.value })}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setEditForm(prev => ({ ...prev, badgeText: val }));
+                    }}
                     placeholder="e.g. ⭐ BOOK OF THE WEEK"
                     className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-medium text-slate-800 outline-none focus:ring-1 focus:ring-slate-500"
                   />
                 </div>
 
-                {/* 4. Spotlight Title */}
+                {/* 6. Spotlight Title */}
                 <div>
                   <label htmlFor="spotlight-title-input" className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wider mb-1">
                     Book Title
@@ -367,13 +464,16 @@ export const HeroSpotlight: React.FC = () => {
                     type="text"
                     required
                     value={editForm.title}
-                    onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setEditForm(prev => ({ ...prev, title: val }));
+                    }}
                     placeholder="Book Title"
                     className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-medium text-slate-800 outline-none focus:ring-1 focus:ring-slate-500"
                   />
                 </div>
 
-                {/* 5. Spotlight Subtitle */}
+                {/* 7. Spotlight Subtitle */}
                 <div>
                   <label htmlFor="spotlight-subtitle-input" className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wider mb-1">
                     Author &amp; Category Subtitle
@@ -383,13 +483,16 @@ export const HeroSpotlight: React.FC = () => {
                     type="text"
                     required
                     value={editForm.subtitle}
-                    onChange={(e) => setEditForm({ ...editForm, subtitle: e.target.value })}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setEditForm(prev => ({ ...prev, subtitle: val }));
+                    }}
                     placeholder="e.g. By Chinua Achebe • African Literature"
                     className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-medium text-slate-800 outline-none focus:ring-1 focus:ring-slate-500"
                   />
                 </div>
 
-                {/* 6. Synopsis Description */}
+                {/* 8. Synopsis Description */}
                 <div>
                   <label htmlFor="spotlight-desc-input" className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wider mb-1">
                     Synopsis / Summary
@@ -399,13 +502,16 @@ export const HeroSpotlight: React.FC = () => {
                     rows={3}
                     required
                     value={editForm.description}
-                    onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setEditForm(prev => ({ ...prev, description: val }));
+                    }}
                     placeholder="Overview of the work..."
                     className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-medium text-slate-800 outline-none focus:ring-1 focus:ring-slate-500"
                   />
                 </div>
 
-                {/* 7. Cover Image URL */}
+                {/* 9. Cover Image URL */}
                 <div>
                   <label htmlFor="spotlight-cover-input" className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wider mb-1">
                     Cover Image URL
@@ -414,13 +520,16 @@ export const HeroSpotlight: React.FC = () => {
                     id="spotlight-cover-input"
                     type="url"
                     value={editForm.coverUrl || ''}
-                    onChange={(e) => setEditForm({ ...editForm, coverUrl: e.target.value })}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setEditForm(prev => ({ ...prev, coverUrl: val }));
+                    }}
                     placeholder="https://images.unsplash.com/..."
                     className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-medium text-slate-800 outline-none focus:ring-1 focus:ring-slate-500"
                   />
                 </div>
 
-                {/* 8. Palette Selection */}
+                {/* 10. Atmospheric Tone Palette */}
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wider mb-2">
                     Atmospheric Tone Palette
@@ -430,7 +539,9 @@ export const HeroSpotlight: React.FC = () => {
                       <button
                         type="button"
                         key={preset.value}
-                        onClick={() => setEditForm({ ...editForm, bgGradient: preset.value })}
+                        onClick={() => {
+                          setEditForm(prev => ({ ...prev, bgGradient: preset.value }));
+                        }}
                         className={`p-2.5 rounded-xl text-left text-xs font-semibold text-white flex items-center justify-between bg-gradient-to-r ${preset.value} border transition cursor-pointer ${
                           editForm.bgGradient === preset.value ? 'border-amber-300 ring-2 ring-slate-400' : 'border-transparent opacity-90 hover:opacity-100'
                         }`}
