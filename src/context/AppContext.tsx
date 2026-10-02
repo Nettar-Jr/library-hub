@@ -189,6 +189,7 @@ interface AppContextType {
   restockBook: (bookId: string, quantity: number) => void;
   // User Profile Management
   updateUserProfile: (updates: Partial<LibraryUser>) => Promise<{ success: boolean; message: string }>;
+  updateLearnerByAdmin: (learnerId: string, updates: Partial<LibraryUser>) => Promise<{ success: boolean; message: string }>;
   // Offline & Service Worker Sync
   isOnline: boolean;
   pendingOfflineChangesCount: number;
@@ -1541,13 +1542,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, message: 'No user is currently signed in.' };
     }
 
+    // Students / learners are NOT permitted to change their official enrolled name themselves
+    // Only an administrator or librarian can update a student's name
+    const sanitizedUpdates = { ...updates };
+    if ((currentUser.role === 'learner' || currentUser.role === 'student') && !isAdmin) {
+      delete sanitizedUpdates.name;
+    }
+
     const updatedUser: LibraryUser = {
       ...currentUser,
-      ...updates,
+      ...sanitizedUpdates,
     };
 
     // If grade was updated, derive and update section if needed
-    if (updates.gradeOrYear) {
+    if (sanitizedUpdates.gradeOrYear) {
       const derivedGrade = getGradeLevelForUser(updatedUser, activeSection);
       updatedUser.section = derivedGrade === 'primary' ? 'primary' : 'college';
     }
@@ -1595,6 +1603,64 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     return { success: true, message: 'Profile updated successfully!' };
+  };
+
+  // Administrator / Librarian explicit update of any learner/user (Name, Class, Admission No, etc.)
+  const updateLearnerByAdmin = async (learnerId: string, updates: Partial<LibraryUser>): Promise<{ success: boolean; message: string }> => {
+    if (!isAdmin) {
+      return { success: false, message: 'Administrative access required to update user records.' };
+    }
+
+    const targetUser = users.find(u => u.id === learnerId);
+    if (!targetUser) {
+      return { success: false, message: 'User record not found.' };
+    }
+
+    const updatedUser: LibraryUser = {
+      ...targetUser,
+      ...updates,
+    };
+
+    if (updates.gradeOrYear) {
+      const derivedGrade = getGradeLevelForUser(updatedUser, activeSection);
+      updatedUser.section = derivedGrade === 'primary' ? 'primary' : 'college';
+    }
+
+    setUsers(prev => {
+      const next = prev.map(u => u.id === learnerId ? updatedUser : u);
+      try {
+        localStorage.setItem('p_users_v3', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    if (currentUser?.id === learnerId) {
+      setCurrentUserState(updatedUser);
+      setSessionItem('p_current_user', JSON.stringify(updatedUser));
+    }
+    if (loggedInLearner?.id === learnerId) {
+      setLoggedInLearnerState(updatedUser);
+      setSessionItem('p_learner_logged_in', JSON.stringify(updatedUser));
+    }
+
+    if (isSupabaseConfigured) {
+      try {
+        await updateUserInSupabase(learnerId, {
+          name: updatedUser.name,
+          email: updatedUser.email,
+          password: updatedUser.password,
+          gradeOrYear: updatedUser.gradeOrYear,
+          admissionNumber: updatedUser.admissionNumber,
+          department: updatedUser.department,
+          avatar: updatedUser.avatar,
+          section: updatedUser.section,
+        });
+      } catch (err) {
+        console.warn('Could not sync user update to Supabase:', err);
+      }
+    }
+
+    return { success: true, message: `Successfully updated ${updatedUser.name}'s record.` };
   };
 
   // Assign Learner to Staff / Teacher
@@ -2701,6 +2767,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteAnnouncement,
         restockBook,
         updateUserProfile,
+        updateLearnerByAdmin,
         isOnline,
         pendingOfflineChangesCount,
         isSyncingOfflineChanges,

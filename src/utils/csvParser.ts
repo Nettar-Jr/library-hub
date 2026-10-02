@@ -4,6 +4,7 @@
  */
 
 import { Book, LibraryUser } from '../types';
+import { parseAcademicClass } from './academicClasses';
 
 /**
  * Robust CSV Line & Cell Parser compliant with RFC 4180.
@@ -355,10 +356,17 @@ export function normalizeRosterRows(
     let gradeOrYear = (raw[mapping.gradeOrYear] || '').trim();
     let department = (raw[mapping.department] || '').trim();
 
-    if (role === 'student' && !gradeOrYear) {
-      gradeOrYear = 'Year 9';
-      messages.push('Grade/Year unassigned, defaulted to Year 9.');
-      if (status !== 'error') status = 'warning';
+    if (role === 'student') {
+      if (!gradeOrYear) {
+        gradeOrYear = '9E';
+        messages.push('Grade/Year unassigned, defaulted to 9E (Year 9 Emerald).');
+        if (status !== 'error') status = 'warning';
+      } else {
+        const parsed = parseAcademicClass(gradeOrYear);
+        if (parsed) {
+          gradeOrYear = parsed.code;
+        }
+      }
     }
 
     if (role === 'teacher' && !department) {

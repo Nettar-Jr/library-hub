@@ -39,7 +39,10 @@ import {
   ExternalLink,
   Tag,
   Receipt,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Pencil,
+  X,
+  Save
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CameraBarcodeScanner } from './CameraBarcodeScanner';
@@ -63,7 +66,8 @@ export const DeskUtilities: React.FC = () => {
     renewLoan,
     updateBookUsageType,
     addBook,
-    activeSection
+    activeSection,
+    updateLearnerByAdmin
   } = useApp();
 
   const [activeSubTab, setActiveSubTab] = useState<'users' | 'scanner' | 'print' | 'import' | 'emails'>('users');
@@ -80,6 +84,41 @@ export const DeskUtilities: React.FC = () => {
   const [userEmail, setUserEmail] = useState('');
   const [formError, setFormError] = useState('');
   const [successToast, setSuccessToast] = useState('');
+
+  // Edit User State (Admin / Librarian)
+  const [editingUser, setEditingUser] = useState<LibraryUser | null>(null);
+  const [editUserName, setEditUserName] = useState('');
+  const [editUserGrade, setEditUserGrade] = useState('9E');
+  const [editUserEmail, setEditUserEmail] = useState('');
+  const [editUserAdmission, setEditUserAdmission] = useState('');
+  const [isSavingUserEdit, setIsSavingUserEdit] = useState(false);
+
+  const startEditUser = (u: LibraryUser) => {
+    setEditingUser(u);
+    setEditUserName(u.name);
+    setEditUserGrade(u.gradeOrYear || '9E');
+    setEditUserEmail(u.email);
+    setEditUserAdmission(u.admissionNumber || '');
+  };
+
+  const handleSaveUserEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+    if (!editUserName.trim()) return;
+    setIsSavingUserEdit(true);
+    const res = await updateLearnerByAdmin(editingUser.id, {
+      name: editUserName.trim(),
+      gradeOrYear: editUserGrade.trim(),
+      email: editUserEmail.trim(),
+      admissionNumber: editUserAdmission.trim() || undefined,
+    });
+    setIsSavingUserEdit(false);
+    if (res.success) {
+      setSuccessToast(res.message);
+      setEditingUser(null);
+      setTimeout(() => setSuccessToast(''), 3000);
+    }
+  };
 
   // Card Selection for Printing
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
@@ -775,10 +814,18 @@ export const DeskUtilities: React.FC = () => {
                           </span>
                         </td>
                         <td className="py-3 px-4 text-slate-500 font-mono text-[10px]">{user.email}</td>
-                        <td className="py-3 px-4 text-right pr-6">
+                        <td className="py-3 px-4 text-right pr-6 flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => startEditUser(user)}
+                            className="flex items-center gap-1 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 font-bold px-2.5 py-1.5 rounded-lg text-[10px] cursor-pointer border border-slate-200"
+                            title="Edit User Record (Name, Class, Admission No.)"
+                          >
+                            <Pencil className="w-3 h-3 text-blue-600" />
+                            Edit
+                          </button>
                           <button
                             onClick={() => handlePrintIndividual(user)}
-                            className="flex items-center gap-1 bg-cyan-50 hover:bg-cyan-100 text-cyan-700 font-bold px-3 py-1.5 rounded-lg text-[10px] cursor-pointer ml-auto"
+                            className="flex items-center gap-1 bg-cyan-50 hover:bg-cyan-100 text-cyan-700 font-bold px-3 py-1.5 rounded-lg text-[10px] cursor-pointer"
                           >
                             <Printer className="w-3 h-3" />
                             Badge Card
@@ -938,6 +985,133 @@ export const DeskUtilities: React.FC = () => {
                         className="w-1/2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold p-2.5 rounded-xl text-xs cursor-pointer"
                       >
                         Save Account
+                      </button>
+                    </div>
+                  </form>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>
+
+          {/* Modal to edit User Record (Librarian/Admin only) */}
+          <AnimatePresence>
+            {editingUser && (
+              <div 
+                role="dialog"
+                aria-modal="true"
+                className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4"
+              >
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="bg-white border border-slate-200 rounded-3xl max-w-md w-full p-6 shadow-xl space-y-5"
+                >
+                  <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                    <div>
+                      <h4 className="font-display font-extrabold text-base text-slate-900 flex items-center gap-2">
+                        <Pencil className="w-4 h-4 text-cyan-600" />
+                        Edit User Record
+                      </h4>
+                      <p className="text-xs text-slate-500">
+                        Administrative update for {editingUser.name}
+                      </p>
+                    </div>
+                    <button 
+                      onClick={() => setEditingUser(null)}
+                      className="p-1 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <form onSubmit={handleSaveUserEdit} className="space-y-4 text-xs">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wider">
+                        Official Full Name
+                      </label>
+                      <input 
+                        type="text" 
+                        required
+                        value={editUserName}
+                        onChange={(e) => setEditUserName(e.target.value)}
+                        className="w-full p-2.5 border border-slate-200 rounded-xl text-xs outline-none focus:border-cyan-500 font-semibold text-slate-900"
+                        placeholder="Full legal name"
+                      />
+                      <p className="text-[10px] text-slate-400">
+                        Only administrators and librarians can modify student names. Students cannot change their own name.
+                      </p>
+                    </div>
+
+                    {editingUser.role === 'student' && (
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wider">
+                          Academic Class / Year (1–12: D, G, E, O, R)
+                        </label>
+                        <select 
+                          value={editUserGrade}
+                          onChange={(e) => setEditUserGrade(e.target.value)}
+                          className="w-full p-2.5 border border-slate-200 rounded-xl text-xs bg-white outline-none focus:border-cyan-500 cursor-pointer font-semibold text-slate-900"
+                        >
+                          <optgroup label="Secondary Senior (Years 10–12: D, G, E, O, R • Max 3 Books)">
+                            {SENIOR_SECONDARY_CLASSES.map((c) => (
+                              <option key={c.code} value={c.code}>{c.code} — {c.fullLabel}</option>
+                            ))}
+                          </optgroup>
+                          <optgroup label="Secondary Junior (Years 7–9: D, G, E, O, R • Max 2 Books)">
+                            {JUNIOR_SECONDARY_CLASSES.map((c) => (
+                              <option key={c.code} value={c.code}>{c.code} — {c.fullLabel}</option>
+                            ))}
+                          </optgroup>
+                          <optgroup label="Primary Section (Years 1–6: D, G, E, O, R • Manual Limit)">
+                            {PRIMARY_ACADEMIC_CLASSES.map((c) => (
+                              <option key={c.code} value={c.code}>{c.code} — {c.fullLabel}</option>
+                            ))}
+                          </optgroup>
+                        </select>
+                      </div>
+                    )}
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wider">
+                        Admission Number
+                      </label>
+                      <input 
+                        type="text" 
+                        value={editUserAdmission}
+                        onChange={(e) => setEditUserAdmission(e.target.value)}
+                        placeholder="e.g. PIS/SS/23/2345"
+                        className="w-full p-2.5 border border-slate-200 rounded-xl text-xs outline-none focus:border-cyan-500 font-mono"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wider">
+                        Email Address
+                      </label>
+                      <input 
+                        type="email" 
+                        required
+                        value={editUserEmail}
+                        onChange={(e) => setEditUserEmail(e.target.value)}
+                        className="w-full p-2.5 border border-slate-200 rounded-xl text-xs outline-none focus:border-cyan-500 font-mono"
+                      />
+                    </div>
+
+                    <div className="flex gap-3 pt-3 border-t border-slate-100">
+                      <button 
+                        type="button" 
+                        onClick={() => setEditingUser(null)}
+                        className="w-1/2 border border-slate-200 text-slate-600 font-bold p-2.5 rounded-xl text-xs cursor-pointer hover:bg-slate-50 transition"
+                      >
+                        Cancel
+                      </button>
+                      <button 
+                        type="submit" 
+                        disabled={isSavingUserEdit}
+                        className="w-1/2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold p-2.5 rounded-xl text-xs cursor-pointer transition shadow-xs"
+                      >
+                        {isSavingUserEdit ? 'Saving...' : 'Save Changes'}
                       </button>
                     </div>
                   </form>

@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { useApp, getGradeLevelForUser, getUserBorrowLimitInfo } from '../context/AppContext';
 import { HeroSpotlight } from './HeroSpotlight';
 import { AnnouncementBoard } from './AnnouncementBoard';
+import { EpicClassroomBanner } from './EpicClassroomBanner';
 import { 
   BookOpen, 
   Library, 
@@ -735,6 +736,9 @@ export const DashboardView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Epic Digital Reading Classroom */}
+      <EpicClassroomBanner />
 
       {/* -------------------------------------------------------------------------
        * 4. NOTICES & BULLETIN (ACCOMMODATING BOTH CAMPUSES)

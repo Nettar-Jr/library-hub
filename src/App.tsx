@@ -32,6 +32,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { Login } from './components/Login';
 import { HomeDiscoveryHub } from './components/HomeDiscoveryHub';
+import { EpicClassroomBanner } from './components/EpicClassroomBanner';
 import { Sidebar } from './components/Sidebar';
 import { DashboardView } from './components/DashboardView';
 import { ProfileView } from './components/ProfileView';
@@ -45,7 +46,10 @@ function HomeView() {
       {/* 1. Hero, 2. Limited Catalog Preview, 3. What You Can Do */}
       <HomeDiscoveryHub />
 
-      {/* 4. Bulletin & Notices Section (Accommodates 2 Primary + 2 College) */}
+      {/* 2. Epic Digital Reading Classroom (Assigned Books by Librarians) */}
+      <EpicClassroomBanner />
+
+      {/* 3. Bulletin & Notices Section (Accommodates 2 Primary + 2 College) */}
       <section className="bg-white rounded-3xl px-3 sm:px-5 py-4 sm:py-6 shadow-xs border border-slate-200">
         <AnnouncementBoard isHomePreview={true} />
       </section>

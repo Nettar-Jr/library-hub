@@ -25,7 +25,10 @@ import {
   Layers, 
   ArrowRight,
   Filter,
-  Trash2
+  Trash2,
+  Pencil,
+  Lock,
+  Save
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { LibraryUser } from '../types';
@@ -38,6 +41,7 @@ export const ClassRosterManagementModal: React.FC = () => {
     assignLearnerToTeacher, 
     assignMultipleLearnersToTeacher,
     createUser,
+    updateLearnerByAdmin,
     isAdmin,
     activeSection,
     currentUser
@@ -49,6 +53,46 @@ export const ClassRosterManagementModal: React.FC = () => {
   const [selectedLearnerIds, setSelectedLearnerIds] = useState<string[]>([]);
   const [bulkTeacherId, setBulkTeacherId] = useState<string>('');
   const [feedbackMessage, setFeedbackMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+
+  // Edit student modal state (admin/librarian only)
+  const [editingLearner, setEditingLearner] = useState<LibraryUser | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editGrade, setEditGrade] = useState('');
+  const [editAdmissionNumber, setEditAdmissionNumber] = useState('');
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+
+  const startEditLearner = (learner: LibraryUser) => {
+    setEditingLearner(learner);
+    setEditName(learner.name);
+    setEditEmail(learner.email);
+    setEditGrade(learner.gradeOrYear || '9E');
+    setEditAdmissionNumber(learner.admissionNumber || '');
+  };
+
+  const handleSaveLearnerEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingLearner) return;
+    if (!editName.trim()) {
+      setFeedbackMessage({ text: 'Student name cannot be blank.', type: 'error' });
+      return;
+    }
+    setIsSavingEdit(true);
+    const res = await updateLearnerByAdmin(editingLearner.id, {
+      name: editName.trim(),
+      email: editEmail.trim(),
+      gradeOrYear: editGrade.trim(),
+      admissionNumber: editAdmissionNumber.trim() || undefined,
+    });
+    setIsSavingEdit(false);
+    if (res.success) {
+      setFeedbackMessage({ text: res.message, type: 'success' });
+      setEditingLearner(null);
+      setTimeout(() => setFeedbackMessage(null), 3000);
+    } else {
+      setFeedbackMessage({ text: res.message, type: 'error' });
+    }
+  };
 
   // Auto-derived section based on logged in librarian
   const autoSection: 'college' | 'primary' = 
@@ -608,7 +652,8 @@ export const ClassRosterManagementModal: React.FC = () => {
                     <th className="py-3 px-4">Admission No.</th>
                     <th className="py-3 px-4">Library Card ID</th>
                     <th className="py-3 px-4">Assigned Teacher</th>
-                    <th className="py-3 px-4 text-right">Quick Assignment</th>
+                    <th className="py-3 px-4">Assign Staff</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -677,7 +722,7 @@ export const ClassRosterManagementModal: React.FC = () => {
                             </span>
                           )}
                         </td>
-                        <td className="py-3 px-4 text-right">
+                        <td className="py-3 px-4">
                           <select
                             value={learner.assignedTeacherId || ''}
                             onChange={(e) => handleIndividualAssign(learner.id, e.target.value)}
@@ -689,13 +734,24 @@ export const ClassRosterManagementModal: React.FC = () => {
                             ))}
                           </select>
                         </td>
+                        <td className="py-3 px-4 text-right">
+                          <button
+                            type="button"
+                            onClick={() => startEditLearner(learner)}
+                            className="inline-flex items-center gap-1 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 font-bold px-2.5 py-1.5 rounded-xl text-xs transition cursor-pointer border border-slate-200 shadow-2xs"
+                            title="Edit Student Information (Name, Class, Admission No.)"
+                          >
+                            <Pencil className="w-3 h-3 text-blue-600" />
+                            <span>Edit Record</span>
+                          </button>
+                        </td>
                       </tr>
                     );
                   })}
 
                   {filteredLearners.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="py-8 text-center text-slate-400 font-medium italic">
+                      <td colSpan={7} className="py-8 text-center text-slate-400 font-medium italic">
                         No learners found matching the selected filter criteria.
                       </td>
                     </tr>
@@ -722,6 +778,131 @@ export const ClassRosterManagementModal: React.FC = () => {
             Done & Close
           </button>
         </div>
+
+        {/* Edit Student Record Modal (Librarian/Admin only) */}
+        <AnimatePresence>
+          {editingLearner && (
+            <div className="fixed inset-0 z-60 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="bg-white rounded-3xl p-6 sm:p-7 max-w-lg w-full border border-slate-200 shadow-2xl space-y-5"
+              >
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div>
+                    <h3 className="font-display font-black text-base text-slate-900 flex items-center gap-2">
+                      <Pencil className="w-4 h-4 text-blue-600" />
+                      Edit Student Record
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Administrative record update for {editingLearner.name}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setEditingLearner(null)}
+                    className="p-1 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <form onSubmit={handleSaveLearnerEdit} className="space-y-4 text-xs">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Student Official Full Name
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:border-blue-600 focus:bg-white rounded-xl font-semibold outline-none transition text-slate-900"
+                      placeholder="Student full legal name"
+                    />
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      Only administrators and librarians can modify student names. Students cannot change their own name.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Academic Class / Year
+                      </label>
+                      <select
+                        value={editGrade}
+                        onChange={(e) => setEditGrade(e.target.value)}
+                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:border-blue-600 focus:bg-white rounded-xl font-semibold outline-none transition text-slate-900 cursor-pointer"
+                      >
+                        <optgroup label="Secondary Senior (Years 10–12 • Max 3 Books)">
+                          {SENIOR_SECONDARY_CLASSES.map((c) => (
+                            <option key={c.code} value={c.code}>{c.code} — {c.fullLabel}</option>
+                          ))}
+                        </optgroup>
+                        <optgroup label="Secondary Junior (Years 7–9 • Max 2 Books)">
+                          {JUNIOR_SECONDARY_CLASSES.map((c) => (
+                            <option key={c.code} value={c.code}>{c.code} — {c.fullLabel}</option>
+                          ))}
+                        </optgroup>
+                        <optgroup label="Primary Section (Years 1–6 • Manual Limit)">
+                          {PRIMARY_ACADEMIC_CLASSES.map((c) => (
+                            <option key={c.code} value={c.code}>{c.code} — {c.fullLabel}</option>
+                          ))}
+                        </optgroup>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Admission Number
+                      </label>
+                      <input
+                        type="text"
+                        value={editAdmissionNumber}
+                        onChange={(e) => setEditAdmissionNumber(e.target.value)}
+                        placeholder="e.g. PIS/SS/23/2345"
+                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:border-blue-600 focus:bg-white rounded-xl font-medium outline-none transition text-slate-900 font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Email Address
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      value={editEmail}
+                      onChange={(e) => setEditEmail(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:border-blue-600 focus:bg-white rounded-xl font-medium outline-none transition text-slate-900 font-mono"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => setEditingLearner(null)}
+                      className="px-4 py-2 border border-slate-200 text-slate-600 font-bold rounded-xl hover:bg-slate-50 transition cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSavingEdit}
+                      className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-2 rounded-xl transition cursor-pointer shadow-xs"
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                      <span>{isSavingEdit ? 'Saving...' : 'Save Changes'}</span>
+                    </button>
+                  </div>
+                </form>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
       </motion.div>
     </div>
   );
