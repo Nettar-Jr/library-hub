@@ -5,7 +5,7 @@
 
 import React from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import { AppProvider, useApp } from './context/AppContext';
+import { AppProvider, useApp, getUserBorrowLimitInfo } from './context/AppContext';
 import { Navbar } from './components/Navbar';
 import { ClassRosterManagementModal } from './components/ClassRosterManagementModal';
 import { AnnouncementBoard } from './components/AnnouncementBoard';
@@ -32,6 +32,9 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { Login } from './components/Login';
 import { HomeDiscoveryHub } from './components/HomeDiscoveryHub';
+import { Sidebar } from './components/Sidebar';
+import { DashboardView } from './components/DashboardView';
+import { ProfileView } from './components/ProfileView';
 
 /* -------------------------------------------------------------
  * 1. Home View Component
@@ -91,7 +94,7 @@ function CatalogView() {
               <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-xs space-y-3">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
                   <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
-                    Student Account
+                    Member Account
                   </span>
                   <span className="text-[10px] font-mono font-semibold bg-blue-50 text-blue-800 px-2 py-0.5 rounded-md border border-blue-200/60">
                     {loggedInLearner.libraryCardId || 'CARD-ACTIVE'}
@@ -102,7 +105,7 @@ function CatalogView() {
                     {loggedInLearner.name}
                   </h3>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    {loggedInLearner.gradeOrYear || 'Secondary Student'} • {loggedInLearner.assignedTeacherName || 'General Curriculum'}
+                    {loggedInLearner.gradeOrYear || 'Active Member'} • {loggedInLearner.assignedTeacherName || 'General Curriculum'}
                   </p>
                 </div>
               </div>
@@ -416,96 +419,153 @@ function GalleryView() {
 function AppContent() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { isLibrarianLoggedIn, loggedInLearner, userRole } = useApp();
+  const { currentUser, isLibrarianLoggedIn, loggedInLearner } = useApp();
+
+  const isUserLoggedIn = Boolean(currentUser || loggedInLearner || isLibrarianLoggedIn);
+
+  const [isSidebarFolded, setIsSidebarFolded] = React.useState<boolean>(() => {
+    try {
+      return localStorage.getItem('p_sidebar_folded') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = React.useState<boolean>(false);
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-between font-sans text-slate-800 antialiased selection:bg-blue-500 selection:text-white">
+    <div className="min-h-screen bg-slate-50 flex font-sans text-slate-800 antialiased selection:bg-blue-500 selection:text-white">
       
-      {/* Main navigation */}
-      <Navbar />
+      {/* Foldable Sidebar - Rendered for logged-in users (Learners, Staff, and Admins) */}
+      {isUserLoggedIn && (
+        <Sidebar 
+          isMobileOpen={isMobileSidebarOpen}
+          setIsMobileOpen={setIsMobileSidebarOpen}
+          isFolded={isSidebarFolded}
+          setIsFolded={(val) => {
+            setIsSidebarFolded((prev) => {
+              const nextVal = typeof val === 'function' ? (val as any)(prev) : val;
+              try {
+                localStorage.setItem('p_sidebar_folded', String(nextVal));
+              } catch {}
+              return nextVal;
+            });
+          }}
+        />
+      )}
 
-      {/* Class Roster Management Modal (Global Admin Trigger) */}
-      <ClassRosterManagementModal />
+      {/* Main Content Column */}
+      <div className="flex-1 flex flex-col justify-between min-w-0">
+        
+        {/* Main navigation */}
+        <Navbar 
+          onToggleSidebarMobile={() => setIsMobileSidebarOpen(prev => !prev)}
+          onToggleSidebarFold={() => {
+            setIsSidebarFolded(prev => {
+              const nextVal = !prev;
+              try { localStorage.setItem('p_sidebar_folded', String(nextVal)); } catch {}
+              return nextVal;
+            });
+          }}
+          isFolded={isSidebarFolded}
+        />
 
-      {/* Main Content Area with Route Transitions */}
-      <main className="flex-grow max-w-[90rem] w-full mx-auto px-2 sm:px-3 lg:px-4 py-6">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={location.pathname}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.2 }}
-          >
-            <Routes location={location}>
-              <Route path="/" element={<HomeView />} />
-              <Route path="/home" element={<Navigate to="/" replace />} />
-              <Route path="/catalog" element={<CatalogView />} />
-              <Route path="/library" element={<Navigate to="/catalog" replace />} />
-              <Route path="/gallery" element={<GalleryView />} />
-              <Route path="/announcements" element={<Navigate to="/" replace />} />
-              <Route path="/bulletin" element={<Navigate to="/" replace />} />
-              <Route path="/submit" element={<SubmitView />} />
-              <Route path="/analytics" element={<AnalyticsView />} />
-              <Route path="/circulation" element={<CirculationView />} />
-              <Route path="/moderator" element={<ModeratorView />} />
-              <Route path="/moderation" element={<Navigate to="/moderator" replace />} />
-              <Route path="/desk-utilities" element={<DeskView />} />
-              <Route path="/desk" element={<Navigate to="/desk-utilities" replace />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/admin" element={<Login adminMode />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </motion.div>
-        </AnimatePresence>
-      </main>
+        {/* Class Roster Management Modal (Global Admin Trigger) */}
+        <ClassRosterManagementModal />
 
-      {/* Footer */}
-      <footer className="bg-white text-slate-500 py-10 border-t border-slate-200 mt-16 text-center text-xs">
-        <div className="max-w-[90rem] mx-auto px-2 sm:px-4 space-y-3">
-          <p className="font-semibold text-slate-700 uppercase tracking-widest text-[11px]">
-            Premier International School Digital Library Portal
-          </p>
-          <p className="text-slate-500 leading-relaxed max-w-md mx-auto text-xs">
-            Providing students, educators, and staff with catalog discovery, library circulation, and academic reading resources.
-          </p>
-          <div className="pt-2 text-[11px] text-slate-500 font-medium flex flex-wrap justify-center items-center gap-4">
-            <span>&copy; 2026 Premier International School.</span>
-            <span>•</span>
-            <button 
-              type="button"
-              onClick={() => navigate('/')}
-              className="hover:text-blue-600 underline cursor-pointer"
+        {/* Main Content Area with Route Transitions */}
+        <main className="flex-grow max-w-[90rem] w-full mx-auto px-2 sm:px-3 lg:px-4 py-6">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={location.pathname}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2 }}
             >
-              Library Home
-            </button>
-            <span>•</span>
-            <button 
-              type="button"
-              onClick={() => navigate('/catalog')}
-              className="hover:text-blue-600 underline cursor-pointer"
-            >
-              Catalog
-            </button>
-            <span>•</span>
-            <button 
-              type="button"
-              onClick={() => navigate('/gallery')}
-              className="hover:text-blue-600 underline cursor-pointer"
-            >
-              Creative Gallery
-            </button>
-            <span>•</span>
-            <button 
-              type="button"
-              onClick={() => navigate('/admin')}
-              className="hover:text-blue-600 underline cursor-pointer"
-            >
-              Staff & Admin Portal
-            </button>
+              <Routes location={location}>
+                {/* When logged in, "/" redirects to "/dashboard". When not logged in, "/" is the landing page. */}
+                <Route 
+                  path="/" 
+                  element={isUserLoggedIn ? <Navigate to="/dashboard" replace /> : <HomeView />} 
+                />
+                <Route 
+                  path="/dashboard" 
+                  element={isUserLoggedIn ? <DashboardView /> : <Navigate to="/login?redirect=/dashboard" replace />} 
+                />
+                <Route 
+                  path="/profile" 
+                  element={isUserLoggedIn ? <ProfileView /> : <Navigate to="/login?redirect=/profile" replace />} 
+                />
+                <Route path="/home" element={<Navigate to={isUserLoggedIn ? "/dashboard" : "/"} replace />} />
+                <Route path="/catalog" element={<CatalogView />} />
+                <Route path="/library" element={<Navigate to="/catalog" replace />} />
+                <Route path="/gallery" element={<GalleryView />} />
+                <Route path="/announcements" element={<Navigate to={isUserLoggedIn ? "/dashboard" : "/"} replace />} />
+                <Route path="/bulletin" element={<Navigate to={isUserLoggedIn ? "/dashboard" : "/"} replace />} />
+                <Route path="/submit" element={<SubmitView />} />
+                <Route path="/analytics" element={<AnalyticsView />} />
+                <Route path="/circulation" element={<CirculationView />} />
+                <Route path="/moderator" element={<ModeratorView />} />
+                <Route path="/moderation" element={<Navigate to="/moderator" replace />} />
+                <Route path="/desk-utilities" element={<DeskView />} />
+                <Route path="/desk" element={<Navigate to="/desk-utilities" replace />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/admin" element={<Login adminMode />} />
+                <Route path="*" element={<Navigate to={isUserLoggedIn ? "/dashboard" : "/"} replace />} />
+              </Routes>
+            </motion.div>
+          </AnimatePresence>
+        </main>
+
+        {/* Footer */}
+        <footer className="bg-white text-slate-500 py-10 border-t border-slate-200 mt-16 text-center text-xs">
+          <div className="max-w-[90rem] mx-auto px-2 sm:px-4 space-y-3">
+            <p className="font-semibold text-slate-700 uppercase tracking-widest text-[11px]">
+              Premier International School Digital Library Portal
+            </p>
+            <p className="text-slate-500 leading-relaxed max-w-md mx-auto text-xs">
+              Providing students, educators, and staff with catalog discovery, library circulation, and academic reading resources.
+            </p>
+            <div className="pt-2 text-[11px] text-slate-500 font-medium flex flex-wrap justify-center items-center gap-4">
+              <span>&copy; 2026 Premier International School.</span>
+              <span>•</span>
+              <button 
+                type="button"
+                onClick={() => navigate(isUserLoggedIn ? '/dashboard' : '/')}
+                className="hover:text-blue-600 underline cursor-pointer"
+              >
+                {isUserLoggedIn ? 'Dashboard' : 'Library Home'}
+              </button>
+              <span>•</span>
+              <button 
+                type="button"
+                onClick={() => navigate('/catalog')}
+                className="hover:text-blue-600 underline cursor-pointer"
+              >
+                Catalog
+              </button>
+              <span>•</span>
+              <button 
+                type="button"
+                onClick={() => navigate('/gallery')}
+                className="hover:text-blue-600 underline cursor-pointer"
+              >
+                Creative Gallery
+              </button>
+              <span>•</span>
+              <button 
+                type="button"
+                onClick={() => navigate('/admin')}
+                className="hover:text-blue-600 underline cursor-pointer"
+              >
+                Staff & Admin Portal
+              </button>
+            </div>
           </div>
-        </div>
-      </footer>
+        </footer>
+
+      </div>
 
     </div>
   );

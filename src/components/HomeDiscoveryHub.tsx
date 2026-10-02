@@ -511,7 +511,7 @@ export const HomeDiscoveryHub: React.FC = () => {
                 </div>
                 <div className="flex-1 min-w-0 pr-6 space-y-1">
                   <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-100 uppercase tracking-wider">
-                    {selectedBookModal.section === 'primary' ? 'Primary Library' : 'College Library'}
+                    Library Collection
                   </span>
                   <h3 className="font-display font-bold text-base sm:text-lg text-slate-900 leading-snug">
                     {selectedBookModal.title}

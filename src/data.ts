@@ -7,11 +7,11 @@ import { Book, CirculationRecord, StudentSubmission, Announcement, HeroSpotlight
 
 export const initialCollegeSpotlight: HeroSpotlightData = {
   id: 'spotlight-college',
-  title: 'Things Fall Apart',
-  subtitle: 'By Chinua Achebe • African Literature',
-  description: 'A landmark African masterpiece chronicling Okonkwo and pre-colonial life in southeastern Nigeria during the arrival of European missionaries and administrators.',
-  featuredBookId: 'book-1',
-  badgeText: '⭐ BOOK OF THE WEEK',
+  title: 'Gifted Hands: The Ben Carson Story',
+  subtitle: 'By Ben Carson • History & Culture',
+  description: 'The inspiring autobiography of Dr. Ben Carson, chronicling his journey from inner-city Detroit to becoming director of pediatric neurosurgery at Johns Hopkins Hospital.',
+  featuredBookId: '6695f950-694c-4127-bff0-d59c46bae562',
+  badgeText: 'BOOK OF THE WEEK',
   bgGradient: 'from-blue-900 via-indigo-950 to-slate-900',
   coverUrl: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=700',
   section: 'college'
@@ -23,7 +23,7 @@ export const initialPrimarySpotlight: HeroSpotlightData = {
   subtitle: 'By Rick Riordan • Fantasy & Adventure',
   description: 'Percy discovers he is a modern demigod son of Poseidon and must retrieve Zeus\'s stolen master bolt in a quest spanning mythological monsters and Mount Olympus.',
   featuredBookId: 'book-3',
-  badgeText: '⭐ BOOK OF THE WEEK',
+  badgeText: 'BOOK OF THE WEEK',
   bgGradient: 'from-emerald-950 via-slate-900 to-teal-950',
   coverUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&q=80&w=700',
   section: 'primary'

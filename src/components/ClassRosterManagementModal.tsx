@@ -4,7 +4,15 @@
  */
 
 import React, { useState } from 'react';
-import { useApp } from '../context/AppContext';
+import { useApp, getUserBorrowLimitInfo } from '../context/AppContext';
+import { 
+  ALL_ACADEMIC_CLASSES, 
+  PRIMARY_ACADEMIC_CLASSES, 
+  JUNIOR_SECONDARY_CLASSES, 
+  SENIOR_SECONDARY_CLASSES,
+  ALL_YEARS,
+  parseAcademicClass
+} from '../utils/academicClasses';
 import { 
   Users, 
   UserPlus, 
@@ -75,7 +83,15 @@ export const ClassRosterManagementModal: React.FC = () => {
       l.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (l.libraryCardId && l.libraryCardId.toLowerCase().includes(searchQuery.toLowerCase()));
 
-    const matchesGrade = selectedGrade === 'all' || l.gradeOrYear === selectedGrade;
+    const matchesGrade = selectedGrade === 'all'
+      ? true
+      : selectedGrade.startsWith('year-')
+      ? (() => {
+          const yearNum = parseInt(selectedGrade.replace('year-', ''), 10);
+          const parsed = parseAcademicClass(l.gradeOrYear);
+          return parsed ? parsed.year === yearNum : false;
+        })()
+      : (l.gradeOrYear === selectedGrade || parseAcademicClass(l.gradeOrYear)?.code === selectedGrade);
 
     const matchesTeacher = 
       selectedTeacherFilter === 'all'
@@ -283,12 +299,44 @@ export const ClassRosterManagementModal: React.FC = () => {
               <select
                 value={selectedGrade}
                 onChange={(e) => setSelectedGrade(e.target.value)}
-                className="text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                className="text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer max-w-[180px] sm:max-w-[220px]"
               >
-                <option value="all">All Grades/Years</option>
-                {distinctGrades.map((g) => (
-                  <option key={g} value={g}>{g}</option>
-                ))}
+                <option value="all">All Classes / Years (1–12)</option>
+                <optgroup label="Filter by Academic Year (All Streams)">
+                  {ALL_YEARS.map((y) => (
+                    <option key={`year-${y}`} value={`year-${y}`}>
+                      Year {y} (D, G, E, O, R)
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="Secondary Senior (Years 10–12: D, G, E, O, R)">
+                  {SENIOR_SECONDARY_CLASSES.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.code} — {c.fullLabel}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="Secondary Junior (Years 7–9: D, G, E, O, R)">
+                  {JUNIOR_SECONDARY_CLASSES.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.code} — {c.fullLabel}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="Primary Section (Years 1–6: D, G, E, O, R)">
+                  {PRIMARY_ACADEMIC_CLASSES.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.code} — {c.fullLabel}
+                    </option>
+                  ))}
+                </optgroup>
+                {distinctGrades.some(g => !ALL_ACADEMIC_CLASSES.some(c => c.code === g)) && (
+                  <optgroup label="Other Enrolled Labels">
+                    {distinctGrades.filter(g => !ALL_ACADEMIC_CLASSES.some(c => c.code === g)).map(g => (
+                      <option key={g} value={g}>{g}</option>
+                    ))}
+                  </optgroup>
+                )}
               </select>
 
               {/* Filter Teacher */}
@@ -379,31 +427,34 @@ export const ClassRosterManagementModal: React.FC = () => {
                     <>
                       <div>
                         <label className="block text-[10px] font-bold uppercase tracking-wider text-indigo-300 mb-1">
-                          Class / Grade (e.g. 7-12 D, G, E)
+                          Class / Year (Years 1–12: D, G, E, O, R)
                         </label>
                         <select
                           value={newUserGrade}
                           onChange={(e) => setNewUserGrade(e.target.value)}
                           className="w-full text-xs font-semibold bg-indigo-900 border border-indigo-700 text-white rounded-xl px-3 py-2 focus:ring-2 focus:ring-amber-400 outline-none cursor-pointer"
                         >
-                          <option value="7D">7D</option>
-                          <option value="7G">7G</option>
-                          <option value="7E">7E</option>
-                          <option value="8D">8D</option>
-                          <option value="8G">8G</option>
-                          <option value="8E">8E</option>
-                          <option value="9D">9D</option>
-                          <option value="9G">9G</option>
-                          <option value="9E">9E</option>
-                          <option value="10D">10D</option>
-                          <option value="10G">10G</option>
-                          <option value="10E">10E</option>
-                          <option value="11D">11D</option>
-                          <option value="11G">11G</option>
-                          <option value="11E">11E</option>
-                          <option value="12D">12D</option>
-                          <option value="12G">12G</option>
-                          <option value="12E">12E</option>
+                          <optgroup label="Secondary Senior (Years 10–12 • Max 3 Books)">
+                            {SENIOR_SECONDARY_CLASSES.map((c) => (
+                              <option key={c.code} value={c.code}>
+                                {c.code} — {c.fullLabel}
+                              </option>
+                            ))}
+                          </optgroup>
+                          <optgroup label="Secondary Junior (Years 7–9 • Max 2 Books)">
+                            {JUNIOR_SECONDARY_CLASSES.map((c) => (
+                              <option key={c.code} value={c.code}>
+                                {c.code} — {c.fullLabel}
+                              </option>
+                            ))}
+                          </optgroup>
+                          <optgroup label="Primary Section (Years 1–6 • Manual Limit)">
+                            {PRIMARY_ACADEMIC_CLASSES.map((c) => (
+                              <option key={c.code} value={c.code}>
+                                {c.code} — {c.fullLabel}
+                              </option>
+                            ))}
+                          </optgroup>
                         </select>
                       </div>
 
@@ -588,9 +639,25 @@ export const ClassRosterManagementModal: React.FC = () => {
                           </div>
                         </td>
                         <td className="py-3 px-4">
-                          <span className="px-2.5 py-1 bg-slate-100 text-slate-700 rounded-full font-bold text-[10px]">
-                            {learner.gradeOrYear || 'Unspecified'}
-                          </span>
+                          {(() => {
+                            const borrowLimit = getUserBorrowLimitInfo(learner, activeSection);
+                            return (
+                              <div className="flex flex-col gap-1 items-start">
+                                <span className="px-2.5 py-0.5 bg-slate-100 text-slate-700 rounded-full font-bold text-[10px]">
+                                  {learner.gradeOrYear || 'Unspecified'}
+                                </span>
+                                <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded border ${
+                                  borrowLimit.gradeCategory === 'senior-secondary'
+                                    ? 'bg-purple-50 text-purple-700 border-purple-200'
+                                    : borrowLimit.gradeCategory === 'junior-secondary'
+                                    ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                    : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                }`}>
+                                  {borrowLimit.maxAllowed !== null ? `${borrowLimit.maxAllowed} books max` : 'Manual limit'}
+                                </span>
+                              </div>
+                            );
+                          })()}
                         </td>
                         <td className="py-3 px-4 font-mono text-[11px] font-semibold text-slate-700">
                           {learner.admissionNumber || '—'}

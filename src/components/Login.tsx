@@ -45,18 +45,20 @@ export const Login: React.FC<LoginProps> = ({ targetTab, adminMode }) => {
   const [error, setError] = useState<string | null>(null);
 
   // Resolve target route after login
-  const resolveTargetRoute = (target?: string, isAdmin?: boolean): string => {
+  const resolveTargetRoute = (target?: string, _isAdmin?: boolean): string => {
     if (redirectPath) return redirectPath;
     if (target) {
+      if (target === 'dashboard') return '/dashboard';
       if (target === 'catalog' || target === 'library') return '/catalog';
       if (target === 'gallery') return '/gallery';
       if (target === 'submit') return '/submit';
       if (target === 'moderator' || target === 'moderation') return '/moderator';
       if (target === 'desk' || target === 'desk-utilities') return '/desk-utilities';
       if (target === 'analytics') return '/analytics';
-      if (target === 'announcements' || target === 'bulletin') return '/';
+      if (target === 'circulation') return '/circulation';
+      if (target === 'announcements' || target === 'bulletin') return '/dashboard';
     }
-    return isAdmin ? '/circulation' : '/catalog';
+    return '/dashboard';
   };
 
   // Submit Handler
@@ -133,13 +135,13 @@ export const Login: React.FC<LoginProps> = ({ targetTab, adminMode }) => {
             } else if (targetUser.section === 'college') {
               setActiveSection('college');
             }
-            setActiveTab(targetTab || 'circulation');
+            setActiveTab(targetTab || 'dashboard');
             navigate(resolveTargetRoute(targetTab, true));
             setIsLoading(false);
             return;
           } else if (targetUser.role === 'staff' || targetUser.role === 'teacher') {
             setCurrentUser(targetUser);
-            setActiveTab(targetTab || 'circulation');
+            setActiveTab(targetTab || 'dashboard');
             navigate(resolveTargetRoute(targetTab, true));
             setIsLoading(false);
             return;
@@ -170,18 +172,18 @@ export const Login: React.FC<LoginProps> = ({ targetTab, adminMode }) => {
             } else if (targetUser.section === 'college') {
               setActiveSection('college');
             }
-            setActiveTab(targetTab || 'circulation');
+            setActiveTab(targetTab || 'dashboard');
             navigate(resolveTargetRoute(targetTab, true));
           } else if (targetUser.role === 'staff' || targetUser.role === 'teacher') {
             setCurrentUser(targetUser);
-            setActiveTab(targetTab || 'circulation');
+            setActiveTab(targetTab || 'dashboard');
             navigate(resolveTargetRoute(targetTab, true));
           } else {
             setCurrentUser(targetUser);
             setLoggedInLearner(targetUser);
             const studentGrade = getGradeLevelForUser(targetUser, 'college');
             setActiveSection(studentGrade === 'primary' ? 'primary' : 'college');
-            setActiveTab(targetTab || 'library');
+            setActiveTab(targetTab || 'dashboard');
             navigate(resolveTargetRoute(targetTab, false));
           }
           setIsLoading(false);
@@ -203,7 +205,7 @@ export const Login: React.FC<LoginProps> = ({ targetTab, adminMode }) => {
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.2 }}
-        className="w-full max-w-sm sm:max-w-md bg-white rounded-3xl p-7 sm:p-9 border border-slate-200/90 shadow-xs space-y-6"
+        className="w-full max-w-sm sm:max-w-md bg-white rounded-3xl p-7 sm:p-9 border border-slate-200/90 shadow-xs flex flex-col gap-6"
       >
         {/* Title in brand color */}
         <h1 className="font-display font-black text-2xl sm:text-3xl text-center text-blue-600 tracking-tight">
@@ -211,12 +213,12 @@ export const Login: React.FC<LoginProps> = ({ targetTab, adminMode }) => {
         </h1>
 
         {/* Faint grey text with hr lines extending to the full width of the input fields */}
-        <div className="flex items-center w-full">
-          <hr className="flex-grow border-t border-slate-200" />
-          <span className="px-3 text-slate-400 text-xs sm:text-sm font-normal whitespace-nowrap">
+        <div className="flex items-center justify-center w-full my-2 py-1 relative">
+          <div className="flex-grow h-px bg-slate-200" aria-hidden="true" />
+          <span className="px-3.5 text-slate-400 text-xs sm:text-sm font-normal whitespace-nowrap select-none bg-white">
             {isAdminPath ? 'log in with educator email' : 'log in with learner email'}
           </span>
-          <hr className="flex-grow border-t border-slate-200" />
+          <div className="flex-grow h-px bg-slate-200" aria-hidden="true" />
         </div>
 
         {/* Error Alert if any */}
@@ -231,9 +233,9 @@ export const Login: React.FC<LoginProps> = ({ targetTab, adminMode }) => {
         )}
 
         {/* Login Form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4 mt-1">
           {/* Input field 1: Username / Email without icons */}
-          <div>
+          <div className="w-full relative">
             <input
               id="login-username"
               type="text"

@@ -33,6 +33,7 @@ import {
   dequeueOfflineMutation,
   setLastSyncTimestamp,
 } from '../services/offlineSync';
+import { parseAcademicClass } from '../utils/academicClasses';
 
 export interface EmailLog {
   id: string;
@@ -186,6 +187,8 @@ interface AppContextType {
   updateAnnouncement: (id: string, updates: Partial<Announcement>) => void;
   deleteAnnouncement: (id: string) => void;
   restockBook: (bookId: string, quantity: number) => void;
+  // User Profile Management
+  updateUserProfile: (updates: Partial<LibraryUser>) => Promise<{ success: boolean; message: string }>;
   // Offline & Service Worker Sync
   isOnline: boolean;
   pendingOfflineChangesCount: number;
@@ -224,7 +227,7 @@ const initialUsers: LibraryUser[] = [
     id: 'user-student-1',
     name: 'Chidi Okafor',
     role: 'learner',
-    gradeOrYear: 'Year 9E',
+    gradeOrYear: '9E',
     admissionNumber: 'PIS/SS/23/2345',
     password: 'PIS/SS/23/2345',
     libraryCardId: 'LIB-STUD-2345',
@@ -239,7 +242,7 @@ const initialUsers: LibraryUser[] = [
     id: 'user-student-2',
     name: 'Zainab Bello',
     role: 'learner',
-    gradeOrYear: 'Primary 5B',
+    gradeOrYear: '5G',
     admissionNumber: 'PIS/PRI/24/1102',
     password: 'PIS/PRI/24/1102',
     libraryCardId: 'LIB-PUPIL-1102',
@@ -247,6 +250,21 @@ const initialUsers: LibraryUser[] = [
     section: 'primary',
     avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=200',
     createdAt: '2026-01-12',
+  },
+  {
+    id: 'user-student-3',
+    name: 'Amina Danjuma',
+    role: 'learner',
+    gradeOrYear: '11D',
+    admissionNumber: 'PIS/SS/22/1988',
+    password: 'PIS/SS/22/1988',
+    libraryCardId: 'LIB-STUD-1988',
+    email: 'aminad@premierinternationalschool.org',
+    assignedTeacherId: 'user-staff-1',
+    assignedTeacherName: 'David Mensah',
+    section: 'college',
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
+    createdAt: '2026-01-15',
   },
   {
     id: 'user-staff-1',
@@ -307,27 +325,33 @@ const removeSessionItem = (key: string): void => {
 export function getGradeLevelForUser(user: LibraryUser | User | null, defaultSection?: LibrarySection): 'primary' | 'secondary' {
   if (user) {
     if (user.section === 'primary') return 'primary';
-    if (user.section === 'college') return 'secondary';
-    const grade = ((user as LibraryUser).gradeOrYear || (user as any).grade_or_year || '').toLowerCase();
+    if (user.section === 'college' || (user.section as string) === 'secondary') return 'secondary';
+    const grade = ((user as LibraryUser).gradeOrYear || (user as any).grade_or_year || '').trim();
+    const parsed = parseAcademicClass(grade);
+    if (parsed) return parsed.section;
+
+    const g = grade.toLowerCase();
     if (
-      grade.includes('pri') || 
-      grade.includes('pupil') || 
-      grade.includes('nursery') || 
-      grade.includes('kindergarten') ||
-      /^primary/i.test(grade) ||
-      /^year\s*[1-6]\b/i.test(grade) ||
-      /^grade\s*[1-6]\b/i.test(grade) ||
-      /^class\s*[1-6]\b/i.test(grade)
+      g.includes('pri') || 
+      g.includes('pupil') || 
+      g.includes('nursery') || 
+      g.includes('kindergarten') ||
+      /^primary/i.test(g) ||
+      /^year\s*[1-6]\b/i.test(g) ||
+      /^grade\s*[1-6]\b/i.test(g) ||
+      /^class\s*[1-6]\b/i.test(g) ||
+      /^([1-6])[dgeor]\b/i.test(g)
     ) {
       return 'primary';
     }
     if (
-      grade.includes('sec') || 
-      grade.includes('college') ||
-      /^year\s*(7|8|9|10|11|12|13)\b/i.test(grade) ||
-      /^grade\s*(7|8|9|10|11|12)\b/i.test(grade) ||
-      /^ss\s*[1-3]\b/i.test(grade) ||
-      /^jss\s*[1-3]\b/i.test(grade)
+      g.includes('sec') || 
+      g.includes('college') ||
+      /^year\s*(7|8|9|10|11|12|13)\b/i.test(g) ||
+      /^grade\s*(7|8|9|10|11|12)\b/i.test(g) ||
+      /^ss\s*[1-3]\b/i.test(g) ||
+      /^jss\s*[1-3]\b/i.test(g) ||
+      /^([7-9]|1[0-2])[dgeor]\b/i.test(g)
     ) {
       return 'secondary';
     }
@@ -336,6 +360,153 @@ export function getGradeLevelForUser(user: LibraryUser | User | null, defaultSec
     if (adm.includes('SS') || adm.includes('COL') || adm.includes('SEC')) return 'secondary';
   }
   return defaultSection === 'primary' ? 'primary' : 'secondary';
+}
+
+/**
+ * Borrowing Limit Rules:
+ * - Secondary Section:
+ *   - Year 7 - 9 (Junior Secondary): Max 2 books
+ *   - Year 10 - 12 (Senior Secondary): Max 3 books
+ * - Primary Section:
+ *   - No automated limit (Primary section librarian manages pupil limits manually)
+ */
+export interface UserBorrowLimitInfo {
+  maxAllowed: number | null; // null means no automated limit (primary section or staff)
+  isPrimaryManual: boolean;
+  section: 'primary' | 'secondary' | 'staff';
+  label: string;
+  ruleDescription: string;
+  gradeCategory: 'junior-secondary' | 'senior-secondary' | 'primary' | 'staff';
+}
+
+export function getUserBorrowLimitInfo(
+  userOrGrade: LibraryUser | User | string | null,
+  activeSection?: LibrarySection
+): UserBorrowLimitInfo {
+  if (!userOrGrade) {
+    return {
+      maxAllowed: 2,
+      isPrimaryManual: false,
+      section: 'secondary',
+      label: 'Max 2 books (Year 7–9)',
+      ruleDescription: 'Secondary Year 7–9: Maximum 2 books can be borrowed at a time.',
+      gradeCategory: 'junior-secondary'
+    };
+  }
+
+  // Staff, teachers, librarians have no pupil loan caps
+  if (typeof userOrGrade === 'object') {
+    const role = (userOrGrade as any).role;
+    if (role === 'teacher' || role === 'staff' || role === 'librarian' || role === 'admin') {
+      return {
+        maxAllowed: null,
+        isPrimaryManual: false,
+        section: 'staff',
+        label: 'Staff Member',
+        ruleDescription: 'Staff and faculty members have no automated pupil borrowing limits.',
+        gradeCategory: 'staff'
+      };
+    }
+  }
+
+  // Derive grade level / section
+  const isExplicitPrimary = typeof userOrGrade === 'object'
+    ? userOrGrade.section === 'primary' || getGradeLevelForUser(userOrGrade, activeSection) === 'primary'
+    : (
+        userOrGrade.toLowerCase().includes('primary') || 
+        userOrGrade.toLowerCase().includes('pri') || 
+        userOrGrade.toLowerCase().includes('pupil') ||
+        userOrGrade.toLowerCase().includes('nursery') ||
+        userOrGrade.toLowerCase().includes('kindergarten') ||
+        /^primary/i.test(userOrGrade) || 
+        /^pri\b/i.test(userOrGrade) ||
+        /^year\s*[1-6]\b/i.test(userOrGrade) || 
+        /^grade\s*[1-6]\b/i.test(userOrGrade) ||
+        /^class\s*[1-6]\b/i.test(userOrGrade) ||
+        (activeSection === 'primary' && !/(year|grade|class)\s*(7|8|9|10|11|12|13)\b/i.test(userOrGrade))
+      );
+
+  // Primary section: NO automated limit (primary librarian manages pupil limits manually)
+  if (isExplicitPrimary) {
+    return {
+      maxAllowed: null,
+      isPrimaryManual: true,
+      section: 'primary',
+      label: 'Primary Section (Manual limit)',
+      ruleDescription: 'Primary has no automated limit — the primary section librarian handles her pupils’ limits manually.',
+      gradeCategory: 'primary'
+    };
+  }
+
+  // Secondary section:
+  const rawGrade = typeof userOrGrade === 'object'
+    ? ((userOrGrade as LibraryUser).gradeOrYear || (userOrGrade as any).grade_or_year || (userOrGrade as any).grade || '')
+    : userOrGrade;
+
+  const parsedClass = parseAcademicClass(rawGrade);
+  if (parsedClass) {
+    if (parsedClass.section === 'primary') {
+      return {
+        maxAllowed: null,
+        isPrimaryManual: true,
+        section: 'primary',
+        label: `${parsedClass.code} (${parsedClass.fullLabel})`,
+        ruleDescription: 'Primary has no automated limit — the primary section librarian handles her pupils’ limits manually.',
+        gradeCategory: 'primary'
+      };
+    }
+    if (parsedClass.stage === 'junior-secondary') {
+      return {
+        maxAllowed: 2,
+        isPrimaryManual: false,
+        section: 'secondary',
+        label: `Max 2 books (${parsedClass.code})`,
+        ruleDescription: `Secondary Year ${parsedClass.year} ${parsedClass.streamName} (${parsedClass.code}): Maximum 2 books can be borrowed at a time.`,
+        gradeCategory: 'junior-secondary'
+      };
+    }
+    return {
+      maxAllowed: 3,
+      isPrimaryManual: false,
+      section: 'secondary',
+      label: `Max 3 books (${parsedClass.code})`,
+      ruleDescription: `Secondary Year ${parsedClass.year} ${parsedClass.streamName} (${parsedClass.code}): Maximum 3 books can be borrowed at a time.`,
+      gradeCategory: 'senior-secondary'
+    };
+  }
+
+  const g = rawGrade.toLowerCase().trim();
+
+  // Year 10 - 12 (Senior Secondary): 3 books max
+  // Matches: Year 10, Year 11, Year 12, Year 13, Grade 10-12, SS 1-3, SSS 1-3, SS1-3, SSS1-3, Form 4-6, 10A, 11B, 12C
+  const isSenior = 
+    /(year|grade|class)\s*(10|11|12|13)\b/i.test(g) ||
+    /\b(ss|sss)\s*[1-3]\b/i.test(g) ||
+    /\b(ss|sss)[1-3]\b/i.test(g) ||
+    /\b1[0-3][a-z]?\b/i.test(g) ||
+    /\bform\s*[4-6]\b/i.test(g);
+
+  if (isSenior) {
+    return {
+      maxAllowed: 3,
+      isPrimaryManual: false,
+      section: 'secondary',
+      label: 'Max 3 books (Year 10–12)',
+      ruleDescription: 'Secondary Year 10–12: Maximum 3 books can be borrowed at a time.',
+      gradeCategory: 'senior-secondary'
+    };
+  }
+
+  // Year 7 - 9 (Junior Secondary): 2 books max
+  // Matches: Year 7, Year 8, Year 9, Grade 7-9, JSS 1-3, JS 1-3, JSS1-3, 7A, 8B, 9E, Form 1-3
+  return {
+    maxAllowed: 2,
+    isPrimaryManual: false,
+    section: 'secondary',
+    label: 'Max 2 books (Year 7–9)',
+    ruleDescription: 'Secondary Year 7–9: Maximum 2 books can be borrowed at a time.',
+    gradeCategory: 'junior-secondary'
+  };
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -799,13 +970,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  const setBookAsSpotlight = (bookId: string, customBadge = '⭐ BOOK OF THE WEEK') => {
+  const setBookAsSpotlight = (bookId: string, customBadge = 'BOOK OF THE WEEK') => {
     const targetBook = books.find(b => b.id === bookId) || initialBooks.find(b => b.id === bookId);
     if (!targetBook) {
       return { success: false, message: 'Book not found in library holdings.' };
     }
 
-    const section: 'college' | 'primary' = targetBook.section === 'primary' ? 'primary' : 'college';
+    const section: 'college' | 'primary' = targetBook.section === 'primary' 
+      ? 'primary' 
+      : (targetBook.section === 'college' ? 'college' : (currentUser?.section === 'primary' || activeSection === 'primary' ? 'primary' : 'college'));
     const gradient = section === 'primary' 
       ? 'from-emerald-950 via-slate-900 to-teal-950' 
       : 'from-blue-900 via-indigo-950 to-slate-900';
@@ -1362,6 +1535,68 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  // Update Current User Profile (Nickname, Class/Grade, Avatar, Password)
+  const updateUserProfile = async (updates: Partial<LibraryUser>): Promise<{ success: boolean; message: string }> => {
+    if (!currentUser) {
+      return { success: false, message: 'No user is currently signed in.' };
+    }
+
+    const updatedUser: LibraryUser = {
+      ...currentUser,
+      ...updates,
+    };
+
+    // If grade was updated, derive and update section if needed
+    if (updates.gradeOrYear) {
+      const derivedGrade = getGradeLevelForUser(updatedUser, activeSection);
+      updatedUser.section = derivedGrade === 'primary' ? 'primary' : 'college';
+    }
+
+    // 1. Update state
+    setCurrentUserState(updatedUser);
+    if (loggedInLearner && loggedInLearner.id === updatedUser.id) {
+      setLoggedInLearnerState(updatedUser);
+      setSessionItem('p_learner_logged_in', JSON.stringify(updatedUser));
+    }
+    setSessionItem('p_current_user', JSON.stringify(updatedUser));
+
+    // Update formatted learner name if applicable
+    if (updatedUser.role === 'learner' || updatedUser.role === 'student') {
+      const displayName = updatedUser.nickname || updatedUser.name;
+      const formatted = `${displayName} (${updatedUser.gradeOrYear || 'Student'})`;
+      setCurrentLearnerName(formatted);
+      setSessionItem('p_learner_name', formatted);
+    }
+
+    // 2. Update in users array and localStorage
+    setUsers(prev => {
+      const next = prev.map(u => u.id === updatedUser.id ? updatedUser : u);
+      try {
+        localStorage.setItem('p_users_v3', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    // 3. Persist to Supabase if configured
+    if (isSupabaseConfigured) {
+      try {
+        await updateUserInSupabase(updatedUser.id, {
+          name: updatedUser.name,
+          email: updatedUser.email,
+          password: updatedUser.password,
+          gradeOrYear: updatedUser.gradeOrYear,
+          department: updatedUser.department,
+          avatar: updatedUser.avatar,
+          section: updatedUser.section,
+        });
+      } catch (err) {
+        console.warn('Could not sync user profile to Supabase:', err);
+      }
+    }
+
+    return { success: true, message: 'Profile updated successfully!' };
+  };
+
   // Assign Learner to Staff / Teacher
   const assignLearnerToTeacher = (learnerId: string, teacherId: string | null) => {
     const learner = users.find(u => u.id === learnerId);
@@ -1674,6 +1909,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const book = books[bookIndex];
     if (book.availableCopies <= 0) {
       return { success: false, message: `"${book.title}" is currently fully checked out.` };
+    }
+
+    // Resolve borrower info and borrowing limits
+    const cleanLearnerName = learnerName.split('(')[0].trim().toLowerCase();
+    const matchedUser = users.find(u => 
+      u.name.toLowerCase() === cleanLearnerName ||
+      u.name.toLowerCase() === learnerName.trim().toLowerCase() ||
+      learnerName.toLowerCase().includes(u.name.toLowerCase())
+    );
+
+    // Extract grade from parenthetical if user not found directly or to supplement
+    const extractedGrade = learnerName.match(/\(([^)]+)\)/)?.[1]?.trim() || '';
+
+    // Combined target to evaluate limit accurately
+    const targetBorrower = matchedUser 
+      ? { ...matchedUser, gradeOrYear: extractedGrade || matchedUser.gradeOrYear }
+      : (extractedGrade || learnerName);
+
+    // Calculate active loans for this borrower (loans that are not returned)
+    const currentActiveLoans = circulation.filter(
+      (c) => c.status !== 'returned' && (
+        c.learnerName.toLowerCase() === learnerName.toLowerCase() ||
+        c.learnerName.split('(')[0].trim().toLowerCase() === cleanLearnerName ||
+        (matchedUser && c.learnerName.toLowerCase().includes(matchedUser.name.toLowerCase()))
+      )
+    );
+
+    const limitInfo = getUserBorrowLimitInfo(targetBorrower, activeSection);
+
+    // Enforce borrowing limit for Secondary section (Year 7-9: max 2, Year 10-12: max 3).
+    // Primary has no automated limit so the primary librarian handles pupil limits manually.
+    if (limitInfo.maxAllowed !== null && currentActiveLoans.length >= limitInfo.maxAllowed) {
+      return {
+        success: false,
+        message: `Borrowing limit reached for ${matchedUser?.name || learnerName.split('(')[0].trim()} (${limitInfo.label}): Secondary students in ${limitInfo.gradeCategory === 'senior-secondary' ? 'Year 10–12' : 'Year 7–9'} can borrow a maximum of ${limitInfo.maxAllowed} books at a time. The student currently has ${currentActiveLoans.length} active borrowed book(s). Please return a book before borrowing another.`
+      };
     }
 
     // Update book available count
@@ -2429,6 +2700,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateAnnouncement,
         deleteAnnouncement,
         restockBook,
+        updateUserProfile,
         isOnline,
         pendingOfflineChangesCount,
         isSyncingOfflineChanges,

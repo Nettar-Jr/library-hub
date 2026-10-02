@@ -7,7 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { useApp, getGradeLevelForUser } from '../context/AppContext';
 import { HeroSpotlightData, Book } from '../types';
 import { initialBooks } from '../data';
-import { Bookmark, Edit3, BookOpen, Headphones, X, Check, ArrowRight, Building2, Backpack, CheckCircle2 } from 'lucide-react';
+import { Edit3, BookOpen, Headphones, X, Check, ArrowRight, Building2, Backpack, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 const GRADIENT_PRESETS = [
@@ -47,14 +47,19 @@ export const HeroSpotlight: React.FC = () => {
   const studentGradeLevel = getGradeLevelForUser(studentUser, activeSection);
   const currentEffectiveSection: 'college' | 'primary' = isStudent 
     ? (studentGradeLevel === 'primary' ? 'primary' : 'college')
-    : (spotlightData.section || (activeSection === 'primary' ? 'primary' : 'college'));
+    : (activeSection === 'primary' ? 'primary' : (spotlightData.section === 'primary' ? 'primary' : 'college'));
 
-  // Sync form when spotlightData or activeSection updates
+  // Strictly bind spotlight to section: primary students see primarySpotlight, secondary students see collegeSpotlight
+  const activeSpotlight: HeroSpotlightData = currentEffectiveSection === 'primary' 
+    ? primarySpotlight 
+    : collegeSpotlight;
+
+  // Sync form when activeSpotlight or activeSection updates
   useEffect(() => {
     const currentSec = (activeSection === 'primary') ? 'primary' : 'college';
     setModalSection(currentSec);
-    setEditForm(spotlightData);
-  }, [spotlightData, activeSection]);
+    setEditForm(currentSec === 'primary' ? primarySpotlight : collegeSpotlight);
+  }, [primarySpotlight, collegeSpotlight, activeSection]);
 
   // Ensure fresh fetch of Book of the Week document for student on load
   useEffect(() => {
@@ -79,17 +84,17 @@ export const HeroSpotlight: React.FC = () => {
   // 1. Resolve exact Book instance so preview detail modal NEVER opens a different book
   const booksPool = (allBooks && allBooks.length > 0) ? allBooks : books;
   
-  const featuredBook = booksPool.find(b => b.id === spotlightData.featuredBookId)
-    || booksPool.find(b => b.title.toLowerCase().trim() === spotlightData.title.toLowerCase().trim())
-    || books.find(b => b.id === spotlightData.featuredBookId)
-    || books.find(b => b.title.toLowerCase().trim() === spotlightData.title.toLowerCase().trim())
-    || initialBooks.find(b => b.id === spotlightData.featuredBookId);
+  const featuredBook = booksPool.find(b => b.id === activeSpotlight.featuredBookId)
+    || booksPool.find(b => b.title.toLowerCase().trim() === activeSpotlight.title.toLowerCase().trim())
+    || books.find(b => b.id === activeSpotlight.featuredBookId)
+    || books.find(b => b.title.toLowerCase().trim() === activeSpotlight.title.toLowerCase().trim())
+    || initialBooks.find(b => b.id === activeSpotlight.featuredBookId);
 
-  // Directly display the dynamic chosen title from the database document / spotlightData
-  const displayTitle = spotlightData.title || featuredBook?.title || 'Featured Masterpiece';
-  const displaySubtitle = spotlightData.subtitle || (featuredBook ? `By ${featuredBook.author} • ${featuredBook.category}` : '');
-  const displayDescription = spotlightData.description || featuredBook?.description || featuredBook?.summary || '';
-  const displayCover = spotlightData.coverUrl || featuredBook?.coverUrl || featuredBook?.coverImage;
+  // Directly display the dynamic chosen title from the database document / activeSpotlight
+  const displayTitle = activeSpotlight.title || featuredBook?.title || 'Featured Masterpiece';
+  const displaySubtitle = activeSpotlight.subtitle || (featuredBook ? `By ${featuredBook.author} • ${featuredBook.category}` : '');
+  const displayDescription = activeSpotlight.description || featuredBook?.description || featuredBook?.summary || '';
+  const displayCover = activeSpotlight.coverUrl || featuredBook?.coverUrl || featuredBook?.coverImage;
 
   const resolvedBook: Book = featuredBook ? {
     ...featuredBook,
@@ -98,7 +103,7 @@ export const HeroSpotlight: React.FC = () => {
     coverUrl: displayCover || featuredBook.coverUrl,
     description: displayDescription || featuredBook.description,
   } : {
-    id: spotlightData.featuredBookId || `spotlight-${currentEffectiveSection}`,
+    id: activeSpotlight.featuredBookId || `spotlight-${currentEffectiveSection}`,
     title: displayTitle,
     author: displaySubtitle.replace(/^By\s+/i, '').split('•')[0].trim() || 'Featured Author',
     isbn: 'N/A',
@@ -147,14 +152,15 @@ export const HeroSpotlight: React.FC = () => {
         subtitle: `By ${selected.author} • ${selected.category}`,
         description: selected.description || selected.summary || prev.description,
         coverUrl: selected.coverUrl || selected.coverImage || prev.coverUrl,
-        section: selected.section === 'primary' ? 'primary' : 'college',
+        section: modalSection,
       }));
     }
   };
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    updateHeroSpotlight(editForm, modalSection);
+    const finalized = { ...editForm, section: modalSection };
+    updateHeroSpotlight(finalized, modalSection);
     setSaveSuccess(true);
     setTimeout(() => {
       setSaveSuccess(false);
@@ -169,7 +175,7 @@ export const HeroSpotlight: React.FC = () => {
   return (
     <>
       <section 
-        className={`rounded-3xl p-6 sm:p-8 md:p-9 mb-6 text-white relative overflow-hidden shadow-md bg-gradient-to-r ${spotlightData.bgGradient || (currentEffectiveSection === 'primary' ? 'from-emerald-950 via-slate-900 to-teal-950' : 'from-blue-900 via-indigo-950 to-slate-900')} transition-colors duration-500 border border-slate-700/60`}
+        className={`rounded-3xl p-6 sm:p-8 md:p-9 mb-6 text-white relative overflow-hidden shadow-md bg-gradient-to-r ${activeSpotlight.bgGradient || (currentEffectiveSection === 'primary' ? 'from-emerald-950 via-slate-900 to-teal-950' : 'from-blue-900 via-indigo-950 to-slate-900')} transition-colors duration-500 border border-slate-700/60`}
         aria-label="Featured Book Spotlight"
       >
         {/* Admin Edit Trigger Pill */}
@@ -179,7 +185,7 @@ export const HeroSpotlight: React.FC = () => {
             onClick={() => {
               const currentSec = (activeSection === 'primary') ? 'primary' : 'college';
               setModalSection(currentSec);
-              setEditForm(spotlightData);
+              setEditForm(currentSec === 'primary' ? primarySpotlight : collegeSpotlight);
               setIsEditing(true);
             }}
             className="absolute top-4 right-4 z-20 px-3.5 py-1.5 bg-black/50 hover:bg-black/75 text-white rounded-xl text-xs font-semibold backdrop-blur-md border border-white/20 flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
@@ -194,14 +200,9 @@ export const HeroSpotlight: React.FC = () => {
           {/* Left Content Column */}
           <div className="md:col-span-8 space-y-3.5 text-center md:text-left">
             <div className="flex flex-wrap items-center justify-center md:justify-start gap-2">
-              <div className="inline-flex items-center gap-1.5 bg-amber-400 text-slate-950 rounded-full px-3 py-1 text-xs font-black shadow-xs">
-                <Bookmark className="w-3.5 h-3.5 fill-slate-950" />
-                <span>{spotlightData.badgeText || '⭐ BOOK OF THE WEEK'}</span>
+              <div className="inline-flex items-center bg-amber-400 text-slate-950 rounded-full px-3.5 py-1 text-xs font-black shadow-xs tracking-wider uppercase">
+                <span>{(activeSpotlight.badgeText || 'BOOK OF THE WEEK').replace(/[⭐★]/g, '').trim()}</span>
               </div>
-
-              <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-white/15 border border-white/20 text-slate-200 tracking-wide uppercase">
-                {currentEffectiveSection === 'primary' ? 'Primary Library' : 'Secondary College'}
-              </span>
             </div>
 
             <h1 className="font-display font-black text-2xl sm:text-3xl md:text-4xl leading-tight text-white tracking-tight">
@@ -449,7 +450,7 @@ export const HeroSpotlight: React.FC = () => {
                       const val = e.target.value;
                       setEditForm(prev => ({ ...prev, badgeText: val }));
                     }}
-                    placeholder="e.g. ⭐ BOOK OF THE WEEK"
+                    placeholder="e.g. BOOK OF THE WEEK"
                     className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-medium text-slate-800 outline-none focus:ring-1 focus:ring-slate-500"
                   />
                 </div>

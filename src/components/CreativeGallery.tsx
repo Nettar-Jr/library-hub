@@ -135,7 +135,7 @@ export const CreativeGallery: React.FC = () => {
       <div className="space-y-4">
         <div>
           <h2 className="font-display text-2xl sm:text-3xl font-black tracking-tight text-slate-900">
-            Student Creative Gallery
+            Creative Gallery
           </h2>
           <p className="text-sm text-slate-600">
             Original art, illustrations, audio recordings, video projects, stories, poems, and academic essays authored by Premier learners.

@@ -210,9 +210,6 @@ export const SubmitWorkForm: React.FC = () => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 sm:p-8 rounded-3xl border border-slate-300 shadow-sm">
         <div>
           <div className="flex items-center gap-2">
-            <span className="bg-slate-100 text-slate-800 text-xs font-semibold px-3 py-1 rounded-full inline-flex items-center gap-1.5 border border-slate-200">
-              <PenTool className="w-3.5 h-3.5 text-blue-600" /> Student Submissions
-            </span>
             {revisionCount > 0 && (
               <span className="bg-rose-100 text-rose-950 text-xs font-bold px-3 py-1 rounded-full font-mono flex items-center gap-1 border border-rose-300">
                 <AlertCircle className="w-3.5 h-3.5 text-rose-700" /> {revisionCount} Revision Requested

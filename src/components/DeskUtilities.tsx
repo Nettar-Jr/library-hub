@@ -4,7 +4,13 @@
  */
 
 import React, { useState } from 'react';
-import { useApp } from '../context/AppContext';
+import { useApp, getUserBorrowLimitInfo } from '../context/AppContext';
+import { 
+  ALL_ACADEMIC_CLASSES, 
+  PRIMARY_ACADEMIC_CLASSES, 
+  JUNIOR_SECONDARY_CLASSES, 
+  SENIOR_SECONDARY_CLASSES 
+} from '../utils/academicClasses';
 import { LibraryUser } from '../types';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import { 
@@ -56,7 +62,8 @@ export const DeskUtilities: React.FC = () => {
     flagBookAsLostOrMisplaced,
     renewLoan,
     updateBookUsageType,
-    addBook
+    addBook,
+    activeSection
   } = useApp();
 
   const [activeSubTab, setActiveSubTab] = useState<'users' | 'scanner' | 'print' | 'import' | 'emails'>('users');
@@ -68,7 +75,7 @@ export const DeskUtilities: React.FC = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [userName, setUserName] = useState('');
   const [userRole, setUserRole] = useState<'student' | 'teacher'>('student');
-  const [gradeOrYear, setGradeOrYear] = useState('Year 9');
+  const [gradeOrYear, setGradeOrYear] = useState('9E');
   const [department, setDepartment] = useState('English Department');
   const [userEmail, setUserEmail] = useState('');
   const [formError, setFormError] = useState('');
@@ -365,18 +372,38 @@ export const DeskUtilities: React.FC = () => {
   // Retrieve scanned user profile
   const scannedUser = users.find(u => u.id === scannedUserId);
   const scannedUserFullName = scannedUser 
-    ? `${scannedUser.name} (${scannedUser.role === 'student' ? scannedUser.gradeOrYear : 'Teacher'})` 
+    ? `${scannedUser.name} (${scannedUser.role === 'student' || scannedUser.role === 'learner' ? (scannedUser.gradeOrYear || 'Learner') : 'Teacher'})` 
     : '';
 
   // Filter circulation records for scanned user
-  const scannedUserCirculations = scannedUserFullName 
-    ? circulation.filter(r => r.learnerName.includes(scannedUser.name))
+  const scannedUserCirculations = scannedUser 
+    ? circulation.filter(r => r.learnerName.toLowerCase().includes(scannedUser.name.toLowerCase()))
     : [];
+
+  const scannedUserActiveLoans = scannedUserCirculations.filter(r => r.status !== 'returned');
+
+  const scannedUserBorrowLimit = scannedUser 
+    ? getUserBorrowLimitInfo(scannedUser, activeSection)
+    : null;
+
+  const isScannedUserLimitReached = Boolean(
+    scannedUserBorrowLimit &&
+    scannedUserBorrowLimit.maxAllowed !== null &&
+    scannedUserActiveLoans.length >= scannedUserBorrowLimit.maxAllowed
+  );
 
   // Approve checkout via scanner
   const handleScannerCheckout = (e: React.FormEvent) => {
     e.preventDefault();
     if (!scannedUser || !checkoutBookId) return;
+
+    if (isScannedUserLimitReached && scannedUserBorrowLimit) {
+      setScannerMessage({
+        type: 'error',
+        text: `Cannot issue book: ${scannedUser.name} has reached the borrowing limit (${scannedUserActiveLoans.length}/${scannedUserBorrowLimit.maxAllowed} books). Please return a book first.`
+      });
+      return;
+    }
 
     const res = checkoutBook(checkoutBookId, scannedUserFullName, checkoutDays);
     if (res.success) {
@@ -837,20 +864,35 @@ export const DeskUtilities: React.FC = () => {
 
                       {userRole === 'student' ? (
                         <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Grade/Year</label>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                            Academic Class / Year (1–12: D, G, E, O, R)
+                          </label>
                           <select 
                             value={gradeOrYear}
                             onChange={(e) => setGradeOrYear(e.target.value)}
-                            className="w-full p-2.5 border border-slate-200 rounded-xl text-xs bg-white outline-none focus:border-cyan-500"
+                            className="w-full p-2.5 border border-slate-200 rounded-xl text-xs bg-white outline-none focus:border-cyan-500 cursor-pointer font-medium"
                           >
-                            <option value="Primary 4">Primary 4</option>
-                            <option value="Primary 5">Primary 5</option>
-                            <option value="Primary 6">Primary 6</option>
-                            <option value="Year 7">Year 7</option>
-                            <option value="Year 8">Year 8</option>
-                            <option value="Year 9">Year 9</option>
-                            <option value="Year 10">Year 10</option>
-                            <option value="Year 11">Year 11</option>
+                            <optgroup label="Secondary Senior (Years 10–12: Diamond, Gold, Emerald, Onyx, Ruby • Max 3 Books)">
+                              {SENIOR_SECONDARY_CLASSES.map((c) => (
+                                <option key={c.code} value={c.code}>
+                                  {c.code} — {c.fullLabel}
+                                </option>
+                              ))}
+                            </optgroup>
+                            <optgroup label="Secondary Junior (Years 7–9: Diamond, Gold, Emerald, Onyx, Ruby • Max 2 Books)">
+                              {JUNIOR_SECONDARY_CLASSES.map((c) => (
+                                <option key={c.code} value={c.code}>
+                                  {c.code} — {c.fullLabel}
+                                </option>
+                              ))}
+                            </optgroup>
+                            <optgroup label="Primary Section (Years 1–6: Diamond, Gold, Emerald, Onyx, Ruby • Manual Limit)">
+                              {PRIMARY_ACADEMIC_CLASSES.map((c) => (
+                                <option key={c.code} value={c.code}>
+                                  {c.code} — {c.fullLabel}
+                                </option>
+                              ))}
+                            </optgroup>
                           </select>
                         </div>
                       ) : (
@@ -1200,9 +1242,26 @@ export const DeskUtilities: React.FC = () => {
                       <h3 className="font-display font-extrabold text-xl text-slate-900">
                         {scannedUser.name}
                       </h3>
-                      <p className="text-xs text-slate-500 font-mono mt-1">
-                        Card ID: {scannedUser.libraryCardId} • Role: {scannedUser.role.toUpperCase()}
-                      </p>
+                      <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                        <span className="text-xs text-slate-500 font-mono">
+                          Card ID: {scannedUser.libraryCardId} • Role: {scannedUser.role.toUpperCase()}
+                        </span>
+                        {scannedUserBorrowLimit && (
+                          <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
+                            isScannedUserLimitReached
+                              ? 'bg-rose-50 text-rose-800 border-rose-200'
+                              : scannedUserBorrowLimit.isPrimaryManual
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                              : 'bg-blue-50 text-blue-800 border-blue-200'
+                          }`}>
+                            {scannedUserBorrowLimit.maxAllowed !== null
+                              ? `${scannedUserBorrowLimit.label} (${scannedUserActiveLoans.length}/${scannedUserBorrowLimit.maxAllowed} active)`
+                              : scannedUserBorrowLimit.isPrimaryManual
+                              ? `Primary: Manual limit (${scannedUserActiveLoans.length} active)`
+                              : 'Staff Member'}
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     <button 
@@ -1351,9 +1410,36 @@ export const DeskUtilities: React.FC = () => {
 
                   {/* Quick checkout form */}
                   <form onSubmit={handleScannerCheckout} className="border-t border-slate-100 pt-5 space-y-4">
-                    <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono flex items-center gap-1">
-                      <Plus className="w-3.5 h-3.5" /> Approve Direct Catalog borrowing
-                    </h4>
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono flex items-center gap-1">
+                        <Plus className="w-3.5 h-3.5" /> Approve Direct Catalog borrowing
+                      </h4>
+                      {scannedUserBorrowLimit && (
+                        <span className="text-[10px] font-bold text-slate-500 font-mono">
+                          {scannedUserBorrowLimit.label}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Borrow limit warning / status */}
+                    {isScannedUserLimitReached && scannedUserBorrowLimit && (
+                      <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4 flex-shrink-0 text-rose-600" />
+                        <div>
+                          <span className="font-bold">Borrowing Limit Reached: </span>
+                          <span>
+                            {scannedUser.name} currently has {scannedUserActiveLoans.length}/{scannedUserBorrowLimit.maxAllowed} active borrowed books (Secondary {scannedUserBorrowLimit.gradeCategory === 'senior-secondary' ? 'Year 10–12 max 3' : 'Year 7–9 max 2'} books). Please check in an active loan before issuing another.
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {!isScannedUserLimitReached && scannedUserBorrowLimit?.isPrimaryManual && (
+                      <div className="p-2.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs flex items-center gap-2">
+                        <Info className="w-4 h-4 flex-shrink-0 text-emerald-600" />
+                        <span>Primary Section Pupil: No automated limit (handled manually by the primary section librarian).</span>
+                      </div>
+                    )}
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                       <div className="md:col-span-2 space-y-1">
@@ -1362,7 +1448,8 @@ export const DeskUtilities: React.FC = () => {
                           value={checkoutBookId}
                           onChange={(e) => setCheckoutBookId(e.target.value)}
                           required
-                          className="w-full p-2.5 border border-slate-200 rounded-xl text-xs bg-white outline-none focus:border-cyan-500 font-medium"
+                          disabled={isScannedUserLimitReached}
+                          className="w-full p-2.5 border border-slate-200 rounded-xl text-xs bg-white disabled:bg-slate-100 disabled:text-slate-400 outline-none focus:border-cyan-500 font-medium cursor-pointer"
                         >
                           <option value="">-- Choose a Catalog Book --</option>
                           {books.map(b => (
@@ -1378,7 +1465,8 @@ export const DeskUtilities: React.FC = () => {
                         <select
                           value={checkoutDays}
                           onChange={(e) => setCheckoutDays(Number(e.target.value))}
-                          className="w-full p-2.5 border border-slate-200 rounded-xl text-xs bg-white outline-none focus:border-cyan-500 font-medium"
+                          disabled={isScannedUserLimitReached}
+                          className="w-full p-2.5 border border-slate-200 rounded-xl text-xs bg-white disabled:bg-slate-100 disabled:text-slate-400 outline-none focus:border-cyan-500 font-medium cursor-pointer"
                         >
                           <option value={7}>7 Days</option>
                           <option value={14}>14 Days (Default)</option>
@@ -1390,11 +1478,13 @@ export const DeskUtilities: React.FC = () => {
 
                     <button
                       type="submit"
-                      disabled={!checkoutBookId}
-                      className="w-full bg-slate-900 hover:bg-slate-800 disabled:bg-slate-100 disabled:text-slate-400 text-white font-sans font-bold py-2.5 rounded-xl text-xs cursor-pointer flex items-center justify-center gap-1.5 transition shadow-xs"
+                      disabled={!checkoutBookId || isScannedUserLimitReached}
+                      className="w-full bg-slate-900 hover:bg-slate-800 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed text-white font-sans font-bold py-2.5 rounded-xl text-xs cursor-pointer flex items-center justify-center gap-1.5 transition shadow-xs"
                     >
                       <Check className="w-4 h-4" />
-                      Approve Borrow Request
+                      {isScannedUserLimitReached 
+                        ? `Borrowing Limit Reached (${scannedUserActiveLoans.length}/${scannedUserBorrowLimit?.maxAllowed} Max)` 
+                        : 'Approve Borrow Request'}
                     </button>
                   </form>
 

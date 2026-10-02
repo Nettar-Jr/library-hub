@@ -139,6 +139,8 @@ export interface CirculationRecord {
 export interface LibraryUser {
   id: string;
   name: string;
+  nickname?: string; // Preferred name or nickname
+  username?: string; // Unique username or handle
   role: 'learner' | 'staff' | 'admin' | 'student' | 'teacher' | 'librarian';
   gradeOrYear?: string; // e.g., '9E', 'Year 9', 'Primary 5'
   department?: string;  // e.g., 'English Department', 'Science Department'

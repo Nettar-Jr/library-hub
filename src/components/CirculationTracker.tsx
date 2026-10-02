@@ -4,7 +4,13 @@
  */
 
 import React, { useState, useMemo } from 'react';
-import { useApp } from '../context/AppContext';
+import { useApp, getUserBorrowLimitInfo } from '../context/AppContext';
+import { 
+  ALL_ACADEMIC_CLASSES, 
+  PRIMARY_ACADEMIC_CLASSES, 
+  JUNIOR_SECONDARY_CLASSES, 
+  SENIOR_SECONDARY_CLASSES 
+} from '../utils/academicClasses';
 import { CirculationRecord } from '../types';
 import { 
   CheckCircle2, 
@@ -55,7 +61,7 @@ export const CirculationTracker: React.FC = () => {
   // Checkout Form states
   const [selectedBookId, setSelectedBookId] = useState('');
   const [studentName, setStudentName] = useState('');
-  const [grade, setGrade] = useState('Year 9');
+  const [grade, setGrade] = useState('9E');
   const [loanDuration, setLoanDuration] = useState(14);
 
   // Print Modal state
@@ -75,9 +81,48 @@ export const CirculationTracker: React.FC = () => {
     actionUserId?: string;
   } | null>(null);
 
+  // Derive live borrowing limit info and active loan status for checkout form
+  const matchedStudentUser = useMemo(() => {
+    if (!studentName.trim()) return null;
+    const clean = studentName.trim().toLowerCase();
+    return users.find(u => 
+      u.name.toLowerCase() === clean ||
+      u.name.toLowerCase().includes(clean) ||
+      clean.includes(u.name.toLowerCase())
+    ) || null;
+  }, [studentName, users]);
+
+  const liveBorrowLimitInfo = useMemo(() => {
+    const target = matchedStudentUser 
+      ? { ...matchedStudentUser, gradeOrYear: grade }
+      : `${studentName} (${grade})`;
+    return getUserBorrowLimitInfo(target, activeSection);
+  }, [matchedStudentUser, grade, studentName, activeSection]);
+
+  const activeStudentLoans = useMemo(() => {
+    if (!studentName.trim()) return [];
+    const clean = studentName.trim().toLowerCase();
+    return circulation.filter(c => 
+      c.status !== 'returned' && (
+        c.learnerName.toLowerCase().includes(clean) ||
+        (matchedStudentUser && c.learnerName.toLowerCase().includes(matchedStudentUser.name.toLowerCase()))
+      )
+    );
+  }, [studentName, matchedStudentUser, circulation]);
+
+  const isCheckoutLimitReached = liveBorrowLimitInfo.maxAllowed !== null && activeStudentLoans.length >= liveBorrowLimitInfo.maxAllowed;
+
   const handleCheckoutSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedBookId || !studentName.trim()) return;
+
+    if (isCheckoutLimitReached) {
+      setMsg({
+        type: 'error',
+        text: `Cannot issue book: Borrowing limit reached (${activeStudentLoans.length}/${liveBorrowLimitInfo.maxAllowed} books). Return an existing loan first.`
+      });
+      return;
+    }
 
     const fullName = `${studentName.trim()} (${grade})`;
     const res = checkoutBook(selectedBookId, fullName, loanDuration);
@@ -281,6 +326,21 @@ export const CirculationTracker: React.FC = () => {
         </div>
       </div>
 
+      {/* Policy Reminder Banner */}
+      <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center flex-shrink-0 font-bold">
+            <BookOpen className="w-4 h-4" />
+          </div>
+          <div>
+            <span className="font-extrabold text-slate-900 block sm:inline">Borrowing Limit Policy: </span>
+            <span className="text-slate-600">
+              Secondary <span className="font-bold text-slate-800">Year 7–9: max 2 books</span> • Secondary <span className="font-bold text-slate-800">Year 10–12: max 3 books</span> • Primary Section has <span className="font-bold text-emerald-700">no automated limit</span> (managed manually by primary librarian).
+            </span>
+          </div>
+        </div>
+      </div>
+
       {/* Manual Checkout Form */}
       <AnimatePresence>
         {showCheckoutForm && (
@@ -289,13 +349,18 @@ export const CirculationTracker: React.FC = () => {
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             onSubmit={handleCheckoutSubmit}
-            className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-lg space-y-4 overflow-hidden"
+            className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-lg space-y-5 overflow-hidden"
           >
-            <div className="border-b border-slate-100 pb-3">
-              <h2 className="font-display font-black text-base text-slate-900 flex items-center gap-2">
-                <UserPlus className="w-4 h-4 text-blue-600" /> Assign a New Physical Book Loan
-              </h2>
-              <p className="text-xs text-slate-500">Select a catalog title and specify the patron information.</p>
+            <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
+              <div>
+                <h2 className="font-display font-black text-base text-slate-900 flex items-center gap-2">
+                  <UserPlus className="w-4 h-4 text-blue-600" /> Assign a New Physical Book Loan
+                </h2>
+                <p className="text-xs text-slate-500">Select a catalog title and specify the patron information.</p>
+              </div>
+              <span className="text-[11px] font-bold px-3 py-1 bg-slate-100 text-slate-700 rounded-full font-mono">
+                {liveBorrowLimitInfo.label}
+              </span>
             </div>
             
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -308,7 +373,7 @@ export const CirculationTracker: React.FC = () => {
                   required
                   value={selectedBookId}
                   onChange={(e) => setSelectedBookId(e.target.value)}
-                  className="w-full text-xs border border-slate-300 bg-slate-50 rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-600 font-semibold text-slate-800"
+                  className="w-full text-xs border border-slate-300 bg-slate-50 rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-600 font-semibold text-slate-800 cursor-pointer"
                 >
                   <option value="">-- Choose Book --</option>
                   {books.map((b) => (
@@ -326,12 +391,29 @@ export const CirculationTracker: React.FC = () => {
                 <input
                   id="checkout-student-name"
                   type="text"
+                  list="enrolled-students-list"
                   required
                   value={studentName}
-                  onChange={(e) => setStudentName(e.target.value)}
-                  placeholder="e.g. Alabi Mumuni"
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setStudentName(val);
+                    const matched = users.find(u => u.name.toLowerCase() === val.trim().toLowerCase());
+                    if (matched && matched.gradeOrYear) {
+                      setGrade(matched.gradeOrYear);
+                    }
+                  }}
+                  placeholder="e.g. Chidi Okafor or Amina Danjuma"
                   className="w-full text-xs border border-slate-300 bg-slate-50 rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-600 font-semibold text-slate-800"
                 />
+                <datalist id="enrolled-students-list">
+                  {users
+                    .filter(u => u.role === 'learner' || u.role === 'student')
+                    .map(u => (
+                      <option key={u.id} value={u.name}>
+                        {u.gradeOrYear ? `${u.name} (${u.gradeOrYear})` : u.name}
+                      </option>
+                    ))}
+                </datalist>
               </div>
 
               <div className="grid grid-cols-2 gap-2">
@@ -343,14 +425,29 @@ export const CirculationTracker: React.FC = () => {
                     id="checkout-grade"
                     value={grade}
                     onChange={(e) => setGrade(e.target.value)}
-                    className="w-full text-xs border border-slate-300 bg-slate-50 rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-600 font-semibold text-slate-800"
+                    className="w-full text-xs border border-slate-300 bg-slate-50 rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-600 font-semibold text-slate-800 cursor-pointer"
                   >
-                    <option value="Year 11">Year 11</option>
-                    <option value="Year 10">Year 10</option>
-                    <option value="Year 9">Year 9</option>
-                    <option value="Year 8">Year 8</option>
-                    <option value="Primary 5">Primary 5</option>
-                    <option value="Primary 4">Primary 4</option>
+                    <optgroup label="Secondary Senior (Years 10–12: D, G, E, O, R • Max 3 books)">
+                      {SENIOR_SECONDARY_CLASSES.map((c) => (
+                        <option key={c.code} value={c.code}>
+                          {c.code} — {c.fullLabel} (Max 3 books)
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Secondary Junior (Years 7–9: D, G, E, O, R • Max 2 books)">
+                      {JUNIOR_SECONDARY_CLASSES.map((c) => (
+                        <option key={c.code} value={c.code}>
+                          {c.code} — {c.fullLabel} (Max 2 books)
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Primary Section (Years 1–6: D, G, E, O, R • Manual limit)">
+                      {PRIMARY_ACADEMIC_CLASSES.map((c) => (
+                        <option key={c.code} value={c.code}>
+                          {c.code} — {c.fullLabel} (Manual limit)
+                        </option>
+                      ))}
+                    </optgroup>
                   </select>
                 </div>
 
@@ -362,7 +459,7 @@ export const CirculationTracker: React.FC = () => {
                     id="checkout-duration"
                     value={loanDuration}
                     onChange={(e) => setLoanDuration(parseInt(e.target.value))}
-                    className="w-full text-xs border border-slate-300 bg-slate-50 rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-600 font-semibold text-slate-800"
+                    className="w-full text-xs border border-slate-300 bg-slate-50 rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-600 font-semibold text-slate-800 cursor-pointer"
                   >
                     <option value={7}>7 Days</option>
                     <option value={14}>14 Days</option>
@@ -371,6 +468,43 @@ export const CirculationTracker: React.FC = () => {
                 </div>
               </div>
             </div>
+
+            {/* Live Borrow Limit Status Card */}
+            {studentName.trim() && (
+              <div className={`p-3.5 rounded-2xl border text-xs flex items-center justify-between gap-3 ${
+                isCheckoutLimitReached
+                  ? 'bg-rose-50 border-rose-200 text-rose-900'
+                  : liveBorrowLimitInfo.isPrimaryManual
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                  : 'bg-blue-50 border-blue-200 text-blue-900'
+              }`}>
+                <div className="flex items-center gap-2">
+                  <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
+                    isCheckoutLimitReached ? 'bg-rose-600 animate-ping' : liveBorrowLimitInfo.isPrimaryManual ? 'bg-emerald-600' : 'bg-blue-600'
+                  }`} />
+                  <div>
+                    <span className="font-extrabold">{studentName}: </span>
+                    {isCheckoutLimitReached ? (
+                      <span className="font-semibold text-rose-700">
+                        Borrowing limit reached ({activeStudentLoans.length}/{liveBorrowLimitInfo.maxAllowed} books). Secondary {liveBorrowLimitInfo.gradeCategory === 'senior-secondary' ? 'Year 10–12 allows max 3' : 'Year 7–9 allows max 2'} books. Student must return a book before borrowing another.
+                      </span>
+                    ) : liveBorrowLimitInfo.isPrimaryManual ? (
+                      <span>
+                        Primary Section — No automated limit. Primary librarian handles pupil limits manually ({activeStudentLoans.length} active loans currently registered).
+                      </span>
+                    ) : (
+                      <span>
+                        Within limit ({activeStudentLoans.length}/{liveBorrowLimitInfo.maxAllowed} books borrowed). {liveBorrowLimitInfo.maxAllowed! - activeStudentLoans.length} slot(s) remaining for {liveBorrowLimitInfo.label}.
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <span className="font-mono font-bold text-[11px] px-2.5 py-1 rounded-full bg-white/80 border border-slate-200 flex-shrink-0">
+                  {liveBorrowLimitInfo.maxAllowed !== null ? `${activeStudentLoans.length}/${liveBorrowLimitInfo.maxAllowed} books` : `${activeStudentLoans.length} active`}
+                </span>
+              </div>
+            )}
 
             <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
               <button
@@ -382,9 +516,10 @@ export const CirculationTracker: React.FC = () => {
               </button>
               <button
                 type="submit"
-                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-6 rounded-full text-xs cursor-pointer shadow-md shadow-blue-500/20"
+                disabled={isCheckoutLimitReached}
+                className="bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white font-bold py-2.5 px-6 rounded-full text-xs cursor-pointer shadow-md shadow-blue-500/20 transition-all"
               >
-                Assign Loan
+                {isCheckoutLimitReached ? `Limit Reached (${activeStudentLoans.length}/${liveBorrowLimitInfo.maxAllowed})` : 'Assign Loan'}
               </button>
             </div>
           </motion.form>

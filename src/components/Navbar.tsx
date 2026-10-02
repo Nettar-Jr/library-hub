@@ -12,68 +12,52 @@ import {
   Search, 
   X, 
   Headphones, 
-  GraduationCap, 
-  Users, 
-  LogOut, 
-  ChevronDown, 
-  Library, 
-  ScanLine, 
-  ShieldAlert,
   LogIn,
-  Bell,
-  Home,
-  CheckCircle2,
-  Building2,
-  Sparkles
+  Menu
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { OfflineSyncIndicator } from './OfflineSyncIndicator';
 import { PWAInstallButton } from './PWAInstallButton';
 
-export const Navbar: React.FC = () => {
+interface NavbarProps {
+  onToggleSidebarMobile?: () => void;
+  onToggleSidebarFold?: () => void;
+  isFolded?: boolean;
+}
+
+export const Navbar: React.FC<NavbarProps> = ({
+  onToggleSidebarMobile,
+  onToggleSidebarFold,
+  isFolded,
+}) => {
   const { 
     currentUser,
-    isLearner,
-    isStaff,
-    isAdmin,
-    activeSection,
-    setActiveSection,
-    activeView,
     setActiveView,
     searchQuery,
     setSearchQuery,
-    setIsRosterModalOpen,
-    submissions,
     books,
-    logout,
     syncPendingOfflineChanges,
     isSyncingOfflineChanges
   } = useApp();
 
   const navigate = useNavigate();
 
-  // Dropdown / Popover states
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  // Search Popover state
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const searchContainerRef = useRef<HTMLDivElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdowns on click outside or Escape key
+  // Close search on click outside or Escape key
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Node;
       if (searchContainerRef.current && !searchContainerRef.current.contains(target)) {
         setIsSearchOpen(false);
       }
-      if (menuRef.current && !menuRef.current.contains(target)) {
-        setIsMenuOpen(false);
-      }
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setIsSearchOpen(false);
-        setIsMenuOpen(false);
       }
     };
 
@@ -84,9 +68,6 @@ export const Navbar: React.FC = () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, []);
-
-  // Pending moderation submissions count
-  const pendingSubmissionsCount = submissions.filter((s) => s.status === 'pending').length;
 
   // Search filter matches
   const matchedBooks = searchQuery.trim()
@@ -122,14 +103,7 @@ export const Navbar: React.FC = () => {
   const handleNavClick = (view: NavView, path: string) => {
     setActiveView(view);
     navigate(path);
-    setIsMenuOpen(false);
     setIsSearchOpen(false);
-  };
-
-  const handleLogoutClick = () => {
-    logout();
-    navigate('/');
-    setIsMenuOpen(false);
   };
 
   // Quick subject tags for search overlay (academic & institutional)
@@ -142,40 +116,46 @@ export const Navbar: React.FC = () => {
     { label: 'Coding & Tech', query: 'Coding' },
   ];
 
-  // User display metadata
-  const userDisplayName = currentUser?.name || (isAdmin ? 'Chief Librarian' : isStaff ? 'Faculty Member' : 'Student Member');
-  const userInitial = userDisplayName.charAt(0).toUpperCase() || 'U';
-  const userSubtext = isAdmin 
-    ? 'Chief Librarian' 
-    : isStaff 
-    ? (currentUser?.department || 'Faculty') 
-    : (currentUser?.gradeOrYear ? `Grade ${currentUser.gradeOrYear}` : 'Student');
-
   return (
     <header className="sticky top-2 z-40 px-1.5 sm:px-3 w-full max-w-[90rem] mx-auto mb-4">
       {/* Main Clean Navbar Pill */}
       <div className="w-full h-16 rounded-2xl bg-white border border-slate-200 shadow-xs px-4 sm:px-6 flex items-center justify-between gap-3 sm:gap-6 transition-all">
         
-        {/* ZONE A: Brand Logo (Left) */}
-        <button
-          type="button"
-          onClick={() => handleNavClick('EXPLORE', '/')}
-          className="flex items-center gap-2.5 cursor-pointer select-none group rounded-xl shrink-0 text-left outline-none"
-          title="LibraryHub · Premier International School"
-          aria-label="LibraryHub Home"
-        >
-          <div className="p-2 bg-blue-600 rounded-xl text-white shadow-xs flex items-center justify-center">
-            <BookOpen className="w-5 h-5" aria-hidden="true" />
-          </div>
-          <div className="flex flex-col">
-            <span className="font-display font-bold text-base sm:text-lg tracking-tight text-slate-900 leading-none">
-              Library<span className="text-blue-600">Hub</span>
-            </span>
-            <span className="font-sans text-[9px] text-slate-400 font-semibold tracking-wider uppercase mt-0.5">
-              PREMIER INTERNATIONAL SCHOOL
-            </span>
-          </div>
-        </button>
+        {/* ZONE A: Brand Logo + Sidebar Toggle (Left) */}
+        <div className="flex items-center gap-2">
+          {currentUser && (
+            /* Mobile hamburger menu toggle */
+            <button
+              type="button"
+              onClick={onToggleSidebarMobile}
+              className="md:hidden p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition cursor-pointer"
+              title="Open Sidebar Navigation Menu"
+              aria-label="Open Sidebar Navigation Menu"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={() => handleNavClick('EXPLORE', currentUser ? '/dashboard' : '/')}
+            className="flex items-center gap-2.5 cursor-pointer select-none group rounded-xl shrink-0 text-left outline-none"
+            title="LibraryHub · Premier International School"
+            aria-label="LibraryHub Home"
+          >
+            <div className="p-2 bg-blue-600 rounded-xl text-white shadow-xs flex items-center justify-center">
+              <BookOpen className="w-5 h-5" aria-hidden="true" />
+            </div>
+            <div className="flex flex-col">
+              <span className="font-display font-bold text-base sm:text-lg tracking-tight text-slate-900 leading-none">
+                Library<span className="text-blue-600">Hub</span>
+              </span>
+              <span className="font-sans text-[9px] text-slate-400 font-semibold tracking-wider uppercase mt-0.5">
+                PREMIER INTERNATIONAL SCHOOL
+              </span>
+            </div>
+          </button>
+        </div>
 
         {/* ZONE B: Search Bar (ONLY VISIBLE WHEN LOGGED IN) */}
         {currentUser && (
@@ -327,229 +307,29 @@ export const Navbar: React.FC = () => {
               <span>Sign In</span>
             </button>
           ) : (
-            /* LOGGED IN: Profile Menu Dropdown */
-            <div ref={menuRef} className="relative">
-              <button
-                type="button"
-                aria-expanded={isMenuOpen}
-                aria-haspopup="true"
-                onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className="flex items-center gap-2.5 border border-slate-200 rounded-xl px-3 py-1.5 hover:bg-slate-50 transition-colors cursor-pointer outline-none select-none"
-                aria-label="Toggle Portal Navigation Menu"
-              >
-                <div className="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center text-xs font-bold shadow-xs shrink-0">
-                  {userInitial}
-                </div>
-
-                <div className="flex flex-col text-left pr-0.5">
-                  <span className="text-xs font-bold text-slate-900 truncate max-w-[120px] sm:max-w-[140px] leading-tight flex items-center gap-1">
-                    <span>{userDisplayName}</span>
-                    {pendingSubmissionsCount > 0 && (isAdmin || isStaff) && (
-                      <span className="w-2 h-2 rounded-full bg-blue-500 inline-block" />
-                    )}
-                  </span>
-                  <span className="text-[9px] font-semibold text-slate-500 uppercase tracking-wider">
-                    {userSubtext}
-                  </span>
-                </div>
-
-                <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isMenuOpen ? 'rotate-180' : ''}`} />
-              </button>
-
-              {/* Master Navigation Dropdown Popover */}
-              <AnimatePresence>
-                {isMenuOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 6, scale: 0.98 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 6, scale: 0.98 }}
-                    transition={{ duration: 0.15 }}
-                    className="absolute right-0 top-full mt-2 w-72 sm:w-80 bg-white rounded-2xl shadow-xl border border-slate-200 p-3.5 z-50 space-y-3 text-left max-h-[85vh] overflow-y-auto"
-                  >
-                    {/* User Profile Header */}
-                    <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
-                      <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center text-sm font-bold shadow-xs shrink-0">
-                        {userInitial}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs sm:text-sm font-bold text-slate-900 truncate">
-                          {userDisplayName}
-                        </div>
-                        <div className="text-[11px] text-slate-500 font-medium truncate">
-                          {currentUser?.email || `${userDisplayName.toLowerCase().replace(/\s+/g, '')}@premier-school.edu`}
-                        </div>
-                        <div className="mt-0.5">
-                          <span className="text-[9px] font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-700 inline-block">
-                            {userSubtext}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Learner Assigned Teacher Info */}
-                    {isLearner && currentUser?.assignedTeacherName && (
-                      <div className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 flex items-center gap-2">
-                        <GraduationCap className="w-4 h-4 text-blue-600 shrink-0" />
-                        <div>
-                          <span className="font-semibold text-[10px] text-slate-500 uppercase tracking-wider block">
-                            Faculty Advisor:
-                          </span>
-                          <span className="font-bold text-xs text-slate-900">{currentUser.assignedTeacherName}</span>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* SECTION 1: Core Navigation */}
-                    <div className="space-y-1">
-                      <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider px-2">
-                        Library Navigation
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => handleNavClick('EXPLORE', '/')}
-                        className={`w-full flex items-center gap-2.5 p-2 rounded-xl text-xs font-semibold transition cursor-pointer text-left ${
-                          activeView === 'EXPLORE' ? 'bg-blue-50 text-blue-700' : 'hover:bg-slate-50 text-slate-700'
-                        }`}
-                      >
-                        <Home className="w-4 h-4 text-slate-500" />
-                        <span>Library Home</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleNavClick('BOOKSHELF', '/catalog')}
-                        className={`w-full flex items-center gap-2.5 p-2 rounded-xl text-xs font-semibold transition cursor-pointer text-left ${
-                          activeView === 'BOOKSHELF' ? 'bg-blue-50 text-blue-700' : 'hover:bg-slate-50 text-slate-700'
-                        }`}
-                      >
-                        <Library className="w-4 h-4 text-slate-500" />
-                        <span>Catalog</span>
-                      </button>
-                    </div>
-
-                    {/* Optional Learner Reading Activities (Behind login only) */}
-                    {isLearner && (
-                      <div className="space-y-1 pt-2 border-t border-slate-100">
-                        <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider px-2">
-                          Student Reading
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleNavClick('COMMUNITY', '/gallery')}
-                          className={`w-full flex items-center gap-2.5 p-2 rounded-xl text-xs font-semibold transition cursor-pointer text-left ${
-                            activeView === 'COMMUNITY' ? 'bg-blue-50 text-blue-700' : 'hover:bg-slate-50 text-slate-700'
-                          }`}
-                        >
-                          <BookOpen className="w-4 h-4 text-slate-500" />
-                          <span>Student Work & Reviews</span>
-                        </button>
-                      </div>
-                    )}
-
-                    {/* SECTION 2: Staff / Teacher Workspace */}
-                    {isStaff && !isAdmin && (
-                      <div className="space-y-1 pt-2 border-t border-slate-100">
-                        <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider px-2">
-                          Faculty Workspace
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => handleNavClick('MODERATION', '/moderator')}
-                          className={`w-full flex items-center justify-between p-2 rounded-xl text-xs font-semibold transition cursor-pointer text-left ${
-                            activeView === 'MODERATION' ? 'bg-blue-50 text-blue-700' : 'hover:bg-slate-50 text-slate-700'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <ShieldAlert className="w-4 h-4 text-slate-500" />
-                            <span>Review Queue</span>
-                          </div>
-                          {pendingSubmissionsCount > 0 && (
-                            <span className="bg-blue-600 text-white text-[10px] font-bold px-1.5 py-0.2 rounded-full">
-                              {pendingSubmissionsCount}
-                            </span>
-                          )}
-                        </button>
-                      </div>
-                    )}
-
-                    {/* SECTION 3: Librarian Operations */}
-                    {isAdmin && (
-                      <div className="space-y-1 pt-2 border-t border-slate-100">
-                        <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider px-2">
-                          Circulation Management
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => handleNavClick('CIRCULATION', '/circulation')}
-                          className={`w-full flex items-center gap-2.5 p-2 rounded-xl text-xs font-semibold transition cursor-pointer text-left ${
-                            activeView === 'CIRCULATION' ? 'bg-blue-50 text-blue-700' : 'hover:bg-slate-50 text-slate-700'
-                          }`}
-                        >
-                          <Library className="w-4 h-4 text-slate-500" />
-                          <span>Circulation Desk</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => handleNavClick('DESK_UTILITIES', '/desk-utilities')}
-                          className={`w-full flex items-center gap-2.5 p-2 rounded-xl text-xs font-semibold transition cursor-pointer text-left ${
-                            activeView === 'DESK_UTILITIES' ? 'bg-blue-50 text-blue-700' : 'hover:bg-slate-50 text-slate-700'
-                          }`}
-                        >
-                          <ScanLine className="w-4 h-4 text-slate-500" />
-                          <span>Circulation Tools</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsMenuOpen(false);
-                            setIsRosterModalOpen(true);
-                          }}
-                          className="w-full flex items-center gap-2.5 p-2 rounded-xl text-xs font-semibold hover:bg-slate-50 text-slate-700 transition cursor-pointer text-left"
-                        >
-                          <Users className="w-4 h-4 text-slate-500" />
-                          <span>Class Rosters & Cohorts</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => handleNavClick('MODERATION', '/moderator')}
-                          className={`w-full flex items-center justify-between p-2 rounded-xl text-xs font-semibold transition cursor-pointer text-left ${
-                            activeView === 'MODERATION' ? 'bg-blue-50 text-blue-700' : 'hover:bg-slate-50 text-slate-700'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <ShieldAlert className="w-4 h-4 text-slate-500" />
-                            <span>Review Queue</span>
-                          </div>
-                          {pendingSubmissionsCount > 0 && (
-                            <span className="bg-blue-600 text-white text-[10px] font-bold px-1.5 py-0.2 rounded-full">
-                              {pendingSubmissionsCount}
-                            </span>
-                          )}
-                        </button>
-                      </div>
-                    )}
-
-                    {/* SECTION 4: Log Out */}
-                    <div className="pt-2 border-t border-slate-100">
-                      <button
-                        type="button"
-                        onClick={handleLogoutClick}
-                        className="w-full flex items-center justify-center gap-2 py-2 px-3 hover:bg-rose-50 text-rose-700 font-semibold rounded-xl text-xs transition cursor-pointer"
-                      >
-                        <LogOut className="w-3.5 h-3.5" />
-                        <span>Log Out</span>
-                      </button>
-                    </div>
-                  </motion.div>
+            /* LOGGED IN: Avatar button directly leading to /profile */
+            <button
+              type="button"
+              onClick={() => navigate('/profile')}
+              className="p-1 rounded-2xl hover:bg-slate-100 transition cursor-pointer select-none outline-none group flex items-center gap-2"
+              title={`${currentUser.nickname || currentUser.name} · View & Edit Profile`}
+              aria-label="View & Edit Profile"
+            >
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center text-sm font-bold shadow-xs overflow-hidden border border-slate-200 group-hover:ring-2 group-hover:ring-blue-500/40 transition">
+                {currentUser.avatar ? (
+                  <img
+                    src={currentUser.avatar}
+                    alt={currentUser.name}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      (e.target as HTMLElement).style.display = 'none';
+                    }}
+                  />
+                ) : (
+                  <span>{(currentUser.nickname || currentUser.name || 'U').charAt(0).toUpperCase()}</span>
                 )}
-              </AnimatePresence>
-            </div>
+              </div>
+            </button>
           )}
 
         </div>

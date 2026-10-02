@@ -6,7 +6,6 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { BookCard } from './BookCard';
-import { HeroSpotlight } from './HeroSpotlight';
 import { BookDetailModal } from './BookDetailModal';
 import { Book, BOOK_CATEGORIES } from '../types';
 import { 
@@ -368,10 +367,6 @@ export const BookCatalog: React.FC = () => {
 
   return (
     <main className="max-w-7xl mx-auto px-2 sm:px-4 py-4 sm:py-6 space-y-6">
-      
-      {/* 1. Curated Hero Spotlight (shown in default collection view when no active search) */}
-      {!searchQuery && !hasSecondaryFilters && <HeroSpotlight />}
-
       {/* Global Staff Inventory Control Bar (Only Staff / Admin can see Primary and Secondary Inventory) */}
       {(isAdmin || isStaff) && (
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 bg-slate-900 text-white rounded-2xl shadow-xs border border-slate-800">
@@ -436,9 +431,7 @@ export const BookCatalog: React.FC = () => {
           <div className="flex items-center gap-2">
             <BookOpen className="w-4 h-4 text-blue-700 shrink-0" />
             <span className="font-bold">
-              {(currentUser?.section || loggedInLearner?.section) === 'primary' 
-                ? 'Primary School Library Catalog' 
-                : 'College / Secondary Library Catalog'}
+              School Library Catalog
             </span>
             <span className="text-blue-400 hidden sm:inline">•</span>
             <span className="text-blue-700 hidden sm:inline">
