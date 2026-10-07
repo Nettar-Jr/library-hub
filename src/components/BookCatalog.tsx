@@ -11,8 +11,8 @@ import { Book, BOOK_CATEGORIES } from '../types';
 import { 
   Search, 
   X, 
-  ChevronLeft, 
-  ChevronRight, 
+  ArrowLeft, 
+  ArrowRight, 
   Filter, 
   Layers, 
   LayoutGrid,
@@ -1888,7 +1888,7 @@ const SwimlaneRow: React.FC<SwimlaneRowProps> = ({
               className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer active:scale-95"
               aria-label={`Scroll ${title} left`}
             >
-              <ChevronLeft className="w-4 h-4" />
+              <ArrowLeft className="w-4 h-4" />
             </button>
             <button
               type="button"
@@ -1896,7 +1896,7 @@ const SwimlaneRow: React.FC<SwimlaneRowProps> = ({
               className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer active:scale-95"
               aria-label={`Scroll ${title} right`}
             >
-              <ChevronRight className="w-4 h-4" />
+              <ArrowRight className="w-4 h-4" />
             </button>
           </div>
 
