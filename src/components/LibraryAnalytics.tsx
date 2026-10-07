@@ -3,38 +3,27 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
-import { Book } from '../types';
 import { 
-  BookOpen, 
-  TrendingUp, 
-  Layers, 
+  CheckCircle, 
   AlertCircle, 
-  Plus, 
-  Info, 
-  Star, 
-  Library, 
-  Clock, 
-  Check,
-  ChevronDown,
-  ChevronUp,
-  GraduationCap,
-  Printer,
-  Send,
-  FileText,
-  User,
-  Search,
-  CheckCircle,
-  Bookmark,
-  ShieldAlert,
-  Building2,
+  Download, 
+  Image as ImageIcon, 
+  Printer, 
+  Eye, 
+  FileDown, 
+  X,
+  BookOpen,
+  Layers,
   Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { ReportData, downloadPdfReport } from '../utils/reportPdfGenerator';
+import { downloadPictorialReportPng, getPictorialReportDataUrl } from '../utils/pictorialReportGenerator';
 
 interface DDCClassInfo {
-  id: string; // '000', '100', etc.
+  id: string;
   name: string;
   range: string;
   description: string;
@@ -44,36 +33,44 @@ interface DDCClassInfo {
 }
 
 const DDC_CLASSES: DDCClassInfo[] = [
-  { id: '000', name: 'Computer Science & General Information', range: '000 - 099', description: 'Systems, algorithms, data structures, and computer architectures.', color: 'text-sky-600', bgColor: 'bg-sky-50', borderColor: 'border-sky-100' },
-  { id: '100', name: 'Philosophy & Psychology', range: '100 - 199', description: 'Metaphysics, classical philosophy, Socratic ethics, and human psychology.', color: 'text-violet-600', bgColor: 'bg-violet-50', borderColor: 'border-violet-100' },
+  { id: '000', name: 'Computer Science & Technology', range: '000 - 099', description: 'Systems, algorithms, data structures, and computer architectures.', color: 'text-sky-600', bgColor: 'bg-sky-50', borderColor: 'border-sky-100' },
+  { id: '100', name: 'Philosophy & Ethics', range: '100 - 199', description: 'Metaphysics, classical philosophy, Socratic ethics, and human psychology.', color: 'text-violet-600', bgColor: 'bg-violet-50', borderColor: 'border-violet-100' },
   { id: '200', name: 'Religion & Mythology', range: '200 - 299', description: 'Comparative religions, ancient mythologies, and spiritual histories.', color: 'text-purple-600', bgColor: 'bg-purple-50', borderColor: 'border-purple-100' },
-  { id: '300', name: 'Social Sciences & Government', range: '300 - 399', description: 'Sociology, economics, political systems, government policy, and anthropology.', color: 'text-blue-600', bgColor: 'bg-blue-50', borderColor: 'border-blue-100' },
+  { id: '300', name: 'Social Sciences & Society', range: '300 - 399', description: 'Sociology, economics, political systems, government policy, and folktales.', color: 'text-blue-600', bgColor: 'bg-blue-50', borderColor: 'border-blue-100' },
   { id: '400', name: 'Language & Linguistics', range: '400 - 499', description: 'English grammar rules, linguistics research, and foreign languages.', color: 'text-teal-600', bgColor: 'bg-teal-50', borderColor: 'border-teal-100' },
-  { id: '500', name: 'Pure Science & Mathematics', range: '500 - 599', description: 'Astrophysics, advanced mathematics, physics formulas, chemistry, and biology.', color: 'text-emerald-600', bgColor: 'bg-emerald-50', borderColor: 'border-emerald-100' },
+  { id: '500', name: 'Pure Science & Nature', range: '500 - 599', description: 'Astrophysics, advanced mathematics, physics formulas, chemistry, and biology.', color: 'text-emerald-600', bgColor: 'bg-emerald-50', borderColor: 'border-emerald-100' },
   { id: '600', name: 'Technology & Applied Science', range: '600 - 699', description: 'Applied engineering, computer networks, architecture, and tech innovations.', color: 'text-rose-600', bgColor: 'bg-rose-50', borderColor: 'border-rose-100' },
-  { id: '700', name: 'Arts, Recreation & Sports', range: '700 - 799', description: 'Art history, painting guides, architectural aesthetics, and sports history.', color: 'text-pink-600', bgColor: 'bg-pink-50', borderColor: 'border-pink-100' },
-  { id: '800', name: 'Literature, Fiction & Poetry', range: '800 - 899', description: 'Original stories, African poetry, literary classics, and modern novels.', color: 'text-amber-600', bgColor: 'bg-amber-50', borderColor: 'border-amber-100' },
-  { id: '900', name: 'History, Geography & Biography', range: '900 - 999', description: 'World history, West African empires, geography maps, and explorer biographies.', color: 'text-indigo-600', bgColor: 'bg-indigo-50', borderColor: 'border-indigo-100' }
+  { id: '700', name: 'Arts & Recreation', range: '700 - 799', description: 'Art history, painting guides, architectural aesthetics, and sports history.', color: 'text-pink-600', bgColor: 'bg-pink-50', borderColor: 'border-pink-100' },
+  { id: '800', name: 'Literature & Fiction', range: '800 - 899', description: 'Original stories, African poetry, literary classics, and modern novels.', color: 'text-amber-600', bgColor: 'bg-amber-50', borderColor: 'border-amber-100' },
+  { id: '900', name: 'History & Culture', range: '900 - 999', description: 'World history, West African empires, geography maps, and explorer biographies.', color: 'text-indigo-600', bgColor: 'bg-indigo-50', borderColor: 'border-indigo-100' }
 ];
 
 export const LibraryAnalytics: React.FC = () => {
-  const { books, allBooks, circulation, allCirculation, currentRole, restockBook, currentLearnerName, checkoutBook, activeSection, setActiveSection } = useApp();
+  const { 
+    books, 
+    allBooks, 
+    circulation, 
+    allCirculation, 
+    activeSection, 
+    setActiveSection,
+  } = useApp();
   
-  // Administrative selection state
-  // 'all' = Consolidated View, 'primary' = Primary School Librarian desk (Adeleke Veronica), 'college' = College Librarian desk (Alabi Abdulmumuni)
+  // Section scoping state:
+  // 'all' = Consolidated school view, 'college' = Secondary College, 'primary' = Primary School
   const [adminSection, setAdminSection] = useState<'all' | 'primary' | 'college'>(
     activeSection === 'primary' ? 'primary' : activeSection === 'college' ? 'college' : 'all'
   );
-  
-  const [selectedDdc, setSelectedDdc] = useState<string | null>(null);
+
+  // Grouping mode: by real catalog category or by active Dewey Decimal range
+  const [groupingMode, setGroupingMode] = useState<'category' | 'dewey'>('category');
+
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [selectedLearnerBook, setSelectedLearnerBook] = useState<Book | null>(null);
-  const [learnerSearchQuery, setLearnerSearchQuery] = useState('');
   
-  // School Management Report Generator states
-  const [isReportOpen, setIsReportOpen] = useState(false);
-  const [reportLog, setReportLog] = useState<string | null>(null);
+  // Modal for Pictorial Report Preview
+  const [previewReportData, setPreviewReportData] = useState<ReportData | null>(null);
+  const [previewImageUri, setPreviewImageUri] = useState<string | null>(null);
+  const [previewScale, setPreviewScale] = useState<'fit' | 'medium' | 'large'>('fit');
 
   // Sync with global activeSection if it changes
   React.useEffect(() => {
@@ -82,76 +79,167 @@ export const LibraryAnalytics: React.FC = () => {
     }
   }, [activeSection]);
 
-  // Filter books based on active Section (for Admins)
-  const getFilteredBooksForAdmin = () => {
-    const source = allBooks || books;
-    if (adminSection === 'all') return source;
-    return source.filter(b => (b.section || 'college') === adminSection);
-  };
-
-  const adminBooks = getFilteredBooksForAdmin();
-
-  // 1. Calculate stock indicators based on filtered books
-  const totalTitles = adminBooks.length;
-  const totalHoldings = adminBooks.reduce((acc, curr) => acc + curr.totalCopies, 0);
-  const totalAvailable = adminBooks.reduce((acc, curr) => acc + curr.availableCopies, 0);
-  const totalBorrowed = totalHoldings - totalAvailable;
-  
-  const totalBorrowingsAcrossHistory = adminBooks.reduce((acc, curr) => acc + curr.readsCount, 0);
-  const averageReadsRate = totalTitles > 0 ? (totalBorrowingsAcrossHistory / totalTitles).toFixed(1) : '0.0';
-  const stockUtilizationRate = totalHoldings > 0 ? Math.round((totalBorrowed / totalHoldings) * 100) : 0;
-
-  // 2. Classifications groupings based on filtered books
-  const ddcStats = DDC_CLASSES.map((ddc) => {
-    const classBooks = adminBooks.filter((b) => b.deweyClass === ddc.id);
-    const uniqueTitles = classBooks.length;
-    const totalStock = classBooks.reduce((acc, curr) => acc + curr.totalCopies, 0);
-    const availStock = classBooks.reduce((acc, curr) => acc + curr.availableCopies, 0);
-    const borrowedStock = totalStock - availStock;
-    const totalReads = classBooks.reduce((acc, curr) => acc + curr.readsCount, 0);
-
-    return {
-      ...ddc,
-      uniqueTitles,
-      totalStock,
-      availStock,
-      borrowedStock,
-      totalReads
-    };
-  });
-
-  // Most popular category (the class with the highest total reads)
-  const sortedByPopularity = [...ddcStats].sort((a, b) => b.totalReads - a.totalReads);
-  const mostPopularClass = sortedByPopularity[0]?.totalReads > 0 ? sortedByPopularity[0] : null;
-
-  // Neglected categories for management report (readsCount under average and has books)
-  const neglectedClasses = ddcStats
-    .filter(c => c.uniqueTitles > 0 && c.totalReads < (totalBorrowingsAcrossHistory / 10))
-    .sort((a, b) => a.totalReads - b.totalReads);
-
-  // 3. Most borrowed books list (Top 5 with at least 1 read)
-  const topBorrowedBooks = [...books]
-    .filter(b => b.readsCount > 0)
-    .sort((a, b) => b.readsCount - a.readsCount)
-    .slice(0, 5);
-
-  // 4. Low stock/alert books for selected section
-  const lowStockBooks = adminBooks.filter((b) => b.availableCopies <= 1);
-
-  const handleRestock = (id: string, title: string) => {
-    restockBook(id, 5);
-    triggerNotification('success', `Successfully replenished +5 physical copies for "${title}"!`);
-  };
-
-  const handleBorrowFromAnalytics = (book: Book) => {
-    const res = checkoutBook(book.id, currentLearnerName);
-    if (res.success) {
-      triggerNotification('success', res.message);
-      setSelectedLearnerBook(null);
-    } else {
-      triggerNotification('error', res.message);
+  const handleSectionSwitch = (sec: 'all' | 'primary' | 'college') => {
+    setAdminSection(sec);
+    if (sec === 'college' || sec === 'primary' || sec === 'all') {
+      setActiveSection(sec);
     }
   };
+
+  // Filter books based on active Section (strictly from real database)
+  const adminBooks = useMemo(() => {
+    const source = allBooks && allBooks.length > 0 ? allBooks : books;
+    if (adminSection === 'all') return source;
+    return source.filter(b => (b.section || 'college') === adminSection);
+  }, [allBooks, books, adminSection]);
+
+  // Filter circulation records strictly from database
+  const effectiveCirculation = useMemo(() => {
+    const source = allCirculation && allCirculation.length > 0 ? allCirculation : circulation;
+    if (adminSection === 'all') return source;
+    return source.filter(c => (c.section || 'college') === adminSection);
+  }, [allCirculation, circulation, adminSection]);
+
+  const allSourceBooks = useMemo(() => {
+    return allBooks && allBooks.length > 0 ? allBooks : books;
+  }, [allBooks, books]);
+
+  // Real Database Numbers: Loan counts strictly derived from circulation records
+  const activeLoansCount = effectiveCirculation.filter(c => c.status === 'borrowed').length;
+  const returnedLoansCount = effectiveCirculation.filter(c => c.status === 'returned').length;
+  const totalCirculationEvents = effectiveCirculation.length;
+
+  const totalTitles = adminBooks.length;
+  const totalHoldings = adminBooks.reduce((acc, curr) => acc + curr.totalCopies, 0);
+  const totalBorrowed = activeLoansCount;
+  const totalAvailable = Math.max(0, totalHoldings - totalBorrowed);
+  const totalBorrowingsAcrossHistory = totalCirculationEvents;
+  const averageReadsRate = totalTitles > 0 ? (totalBorrowingsAcrossHistory / totalTitles).toFixed(1) : '0.0';
+  const stockUtilizationRate = totalHoldings > 0 && totalBorrowed > 0 ? Math.round((totalBorrowed / totalHoldings) * 100) : 0;
+  
+  const overdueRecords = useMemo(() => {
+    const now = Date.now();
+    return effectiveCirculation.filter(c => {
+      if (c.status === 'overdue') return true;
+      if (c.status === 'borrowed' && c.dueDate) {
+        return new Date(c.dueDate).getTime() < now;
+      }
+      return false;
+    });
+  }, [effectiveCirculation]);
+
+  const overdueLoansCount = overdueRecords.length;
+  
+  const returnComplianceRate = totalCirculationEvents > 0 
+    ? Math.round((returnedLoansCount / totalCirculationEvents) * 100)
+    : 0;
+
+  // ---------------------------------------------------------------------------
+  // ACTUAL DATABASE BOOK CATEGORIES - 100% DERIVED FROM REAL DATABASE RECORDS
+  // ---------------------------------------------------------------------------
+  const databaseCategories = useMemo(() => {
+    const map = new Map<string, {
+      category: string;
+      titlesCount: number;
+      totalStock: number;
+      availableStock: number;
+      borrowedStock: number;
+      totalReads: number;
+      deweyCode: string;
+      bookTitles: string[];
+    }>();
+
+    adminBooks.forEach((b) => {
+      const cat = b.category || 'General Fiction';
+      const existing = map.get(cat) || {
+        category: cat,
+        titlesCount: 0,
+        totalStock: 0,
+        availableStock: 0,
+        borrowedStock: 0,
+        totalReads: 0,
+        deweyCode: b.deweyCode || `DDC ${b.deweyClass}` || 'General',
+        bookTitles: []
+      };
+
+      const bookLoansCount = effectiveCirculation.filter(c => c.bookId === b.id).length;
+      const activeBookLoans = effectiveCirculation.filter(c => c.bookId === b.id && c.status === 'borrowed').length;
+      const actualAvail = Math.max(0, b.totalCopies - activeBookLoans);
+
+      existing.titlesCount += 1;
+      existing.totalStock += b.totalCopies;
+      existing.availableStock += actualAvail;
+      existing.borrowedStock += activeBookLoans;
+      existing.totalReads += bookLoansCount;
+      if (!existing.bookTitles.includes(b.title)) {
+        existing.bookTitles.push(b.title);
+      }
+      map.set(cat, existing);
+    });
+
+    return Array.from(map.values()).sort((a, b) => b.totalReads - a.totalReads || b.totalStock - a.totalStock);
+  }, [adminBooks, effectiveCirculation]);
+
+  // Actual Dewey Decimal groups present in database (excludes empty 0-book classes)
+  const actualDdcClasses = useMemo(() => {
+    return DDC_CLASSES
+      .map((ddc) => {
+        const classBooks = adminBooks.filter((b) => b.deweyClass === ddc.id);
+        const uniqueTitles = classBooks.length;
+        const totalStock = classBooks.reduce((acc, curr) => acc + curr.totalCopies, 0);
+        const classActiveLoans = classBooks.reduce((acc, curr) => acc + effectiveCirculation.filter(c => c.bookId === curr.id && c.status === 'borrowed').length, 0);
+        const availStock = Math.max(0, totalStock - classActiveLoans);
+        const borrowedStock = classActiveLoans;
+        const totalReads = classBooks.reduce((acc, curr) => acc + effectiveCirculation.filter(c => c.bookId === curr.id).length, 0);
+        const bookTitles = classBooks.map(b => b.title);
+
+        return {
+          ...ddc,
+          uniqueTitles,
+          totalStock,
+          availStock,
+          borrowedStock,
+          totalReads,
+          bookTitles
+        };
+      })
+      .filter(item => item.uniqueTitles > 0)
+      .sort((a, b) => b.totalReads - a.totalReads || b.totalStock - a.totalStock);
+  }, [adminBooks, effectiveCirculation]);
+
+  // Peak Category from database records
+  const mostPopularCategory = useMemo(() => {
+    return databaseCategories.length > 0 && databaseCategories[0].totalReads > 0 
+      ? databaseCategories[0] 
+      : null;
+  }, [databaseCategories]);
+
+  const avgCategoryReads = databaseCategories.length > 0 && totalBorrowingsAcrossHistory > 0 
+    ? totalBorrowingsAcrossHistory / databaseCategories.length 
+    : 0;
+
+  const lowStockBooks = useMemo(() => {
+    return adminBooks.filter((b) => {
+      const activeBookLoans = effectiveCirculation.filter(c => c.bookId === b.id && c.status === 'borrowed').length;
+      const actualAvail = Math.max(0, b.totalCopies - activeBookLoans);
+      return b.totalCopies > 0 && actualAvail === 0;
+    });
+  }, [adminBooks, effectiveCirculation]);
+
+  const replacementCopiesNeeded = useMemo(() => {
+    return lowStockBooks.reduce((acc, b) => {
+      const activeBookLoans = effectiveCirculation.filter(c => c.bookId === b.id && c.status === 'borrowed').length;
+      return acc + activeBookLoans;
+    }, 0);
+  }, [lowStockBooks, effectiveCirculation]);
+
+  const collegeTitlesCount = useMemo(() => {
+    return allSourceBooks.filter(b => (b.section || 'college') === 'college').length;
+  }, [allSourceBooks]);
+
+  const primaryTitlesCount = useMemo(() => {
+    return allSourceBooks.filter(b => b.section === 'primary').length;
+  }, [allSourceBooks]);
 
   const triggerNotification = (type: 'success' | 'error', text: string) => {
     if (type === 'success') {
@@ -163,927 +251,581 @@ export const LibraryAnalytics: React.FC = () => {
     }
   };
 
-  const dispatchReport = (destination: 'Teachers' | 'Management') => {
-    setReportLog(`Compiling and dispatching Library Utilization Report to ${destination} Room...`);
-    setTimeout(() => {
-      setReportLog(null);
-      triggerNotification('success', `Official DDC report successfully emailed and synced to the ${destination} dashboard!`);
-    }, 2000);
+  // Certified Pictorial Report Data Structure for PDF & PNG Exports (100% Real Database Records)
+  const activeReportData: ReportData = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0];
+    const hasCirculation = totalCirculationEvents > 0;
+
+    return {
+      reportId: `PIS-PICTORIAL-${adminSection.toUpperCase()}-2026`,
+      title: 'Library Strategic Analytics & Pictorial Decision Board',
+      subtitle: `Visual utilization, catalog categories circulation velocity, and inventory decisions (${adminSection === 'all' ? 'All Campuses' : adminSection === 'college' ? 'Secondary College' : 'Primary School'})`,
+      campusSection: adminSection,
+      generatedBy: adminSection === 'primary' ? 'Adeleke Veronica (Primary Librarian)' : 'Alabi Abdulmumuni (College Librarian)',
+      generatedDate: today,
+      executiveSummary: hasCirculation
+        ? `This certified pictorial audit records ${totalTitles} catalog titles with ${totalHoldings} total physical copies across ${databaseCategories.length} active database categories. Stock utilization is at ${stockUtilizationRate}% (${totalBorrowed} borrowed) with ${totalCirculationEvents} total checkouts recorded in database.`
+        : `This certified pictorial audit records ${totalTitles} catalog titles with ${totalHoldings} total physical copies across ${databaseCategories.length} database categories. All ${totalHoldings} copies are on shelves with 0 active loans recorded. Ready for student circulation registration.`,
+      kpis: hasCirculation ? [
+        { label: 'Stock Utilization', value: `${stockUtilizationRate}%`, sublabel: `${totalBorrowed} / ${totalHoldings} lent` },
+        { label: 'Return Compliance', value: `${returnComplianceRate}%`, sublabel: `${overdueLoansCount} overdue items` },
+        { label: 'Catalog Titles', value: totalTitles, sublabel: 'Registered in database' },
+        { label: 'Circulation Velocity', value: `${averageReadsRate}x`, sublabel: 'Avg reads per title' },
+      ] : [
+        { label: 'Total Titles', value: totalTitles, sublabel: 'Registered in database' },
+        { label: 'Total Holdings', value: totalHoldings, sublabel: 'Physical copies on shelf' },
+        { label: 'Active Loans', value: '0', sublabel: 'No active loans' },
+        { label: 'Circulation Velocity', value: '0.0x', sublabel: 'Awaiting student checkouts' },
+      ],
+      subjectBreakdown: databaseCategories.map(cat => ({
+        code: cat.deweyCode.startsWith('DDC') ? cat.deweyCode : `DDC ${cat.deweyCode}`,
+        name: cat.category,
+        titles: cat.titlesCount,
+        stock: cat.totalStock,
+        reads: cat.totalReads,
+        status: cat.availableStock === 0 && cat.totalStock > 0 
+          ? 'Critical Stock' as const
+          : cat.totalReads <= Math.floor(avgCategoryReads / 2) 
+            ? 'Underutilized' as const
+            : 'Optimal' as const
+      })),
+      criticalItems: lowStockBooks.slice(0, 6).map(b => ({
+        title: b.title,
+        author: b.author,
+        code: b.deweyCode || `DDC ${b.deweyClass}`,
+        available: Math.max(0, b.totalCopies - effectiveCirculation.filter(c => c.bookId === b.id && c.status === 'borrowed').length),
+        total: b.totalCopies,
+        priority: 'Immediate Restock'
+      })),
+      decisions: [
+        {
+          decisionNumber: 1,
+          actionTitle: totalCirculationEvents > 0 
+            ? `Review Circulation for ${totalCirculationEvents} Registered Loans`
+            : 'Initialize Learner Registration & Circulation Desk Issuance',
+          targetDepartment: 'Library Operational Services',
+          rationale: totalCirculationEvents > 0
+            ? `Track lending patterns across ${databaseCategories.length} categories to ensure balanced circulation.`
+            : `All ${totalHoldings} holdings are on library shelves. Onboard students to issue library cards and begin tracking lending velocity.`,
+          urgency: 'Immediate'
+        },
+        {
+          decisionNumber: 2,
+          actionTitle: mostPopularCategory 
+            ? `Expand Collection in "${mostPopularCategory.category}" (${mostPopularCategory.totalReads} Reads Recorded)`
+            : `Curate Balanced Collection Development Across ${databaseCategories.length} Categories`,
+          targetDepartment: 'Academic Department Heads',
+          rationale: mostPopularCategory
+            ? `Student inquiry is highest in ${mostPopularCategory.category} (${mostPopularCategory.totalStock} copies registered).`
+            : `Maintain balanced acquisitions across all disciplines for ${adminSection === 'all' ? 'Primary and Secondary' : adminSection} curriculum.`,
+          urgency: 'Upcoming Term'
+        },
+        {
+          decisionNumber: 3,
+          actionTitle: overdueLoansCount > 0
+            ? `Direct Recovery for ${overdueLoansCount} Overdue Books`
+            : 'Establish Proactive Return Due-Date Policies',
+          targetDepartment: 'Circulation Desk Staff',
+          rationale: overdueLoansCount > 0
+            ? `Issue notifications to patrons with overdue loans to sustain return compliance.`
+            : 'Enforce standard 14-day borrowing windows with automated overdue notifications.',
+          urgency: 'Policy Review'
+        }
+      ]
+    };
+  }, [
+    adminSection,
+    totalTitles,
+    totalHoldings,
+    totalBorrowed,
+    totalCirculationEvents,
+    stockUtilizationRate,
+    returnComplianceRate,
+    lowStockBooks,
+    overdueLoansCount,
+    averageReadsRate,
+    databaseCategories,
+    avgCategoryReads,
+    mostPopularCategory,
+    effectiveCirculation
+  ]);
+
+  const handleDownloadPdf = () => {
+    try {
+      const chartUri = getPictorialReportDataUrl(activeReportData);
+      downloadPdfReport(activeReportData, chartUri);
+      triggerNotification('success', `PDF Decision Report downloaded successfully!`);
+    } catch (err) {
+      console.error(err);
+      triggerNotification('error', 'Failed to generate PDF. Please try again.');
+    }
   };
 
-  // Filter learner picks
-  const filteredLearnerBooks = books.filter(b => 
-    b.title.toLowerCase().includes(learnerSearchQuery.toLowerCase()) ||
-    b.author.toLowerCase().includes(learnerSearchQuery.toLowerCase()) ||
-    b.category.toLowerCase().includes(learnerSearchQuery.toLowerCase())
-  );
+  const handleDownloadPictorial = () => {
+    try {
+      downloadPictorialReportPng(activeReportData);
+      triggerNotification('success', `Pictorial Infographic downloaded as high-res PNG!`);
+    } catch (err) {
+      console.error(err);
+      triggerNotification('error', 'Failed to generate image. Please try again.');
+    }
+  };
+
+  const handleOpenPreview = () => {
+    try {
+      const uri = getPictorialReportDataUrl(activeReportData);
+      setPreviewImageUri(uri);
+      setPreviewReportData(activeReportData);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // Active items for the visualizer (either database categories or real DDC classes)
+  const visualizerItems = groupingMode === 'category' ? databaseCategories : actualDdcClasses;
+  const maxCategoryReads = Math.max(...visualizerItems.map(s => s.totalReads), 0);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 pb-12">
       
       {/* ========================================================================= */}
-      {/* 1. LIBRARIAN / ADMIN MODE */}
+      {/* 1. MINIMALIST PAGE HEADER & CAMPUS SELECTOR */}
       {/* ========================================================================= */}
-      {currentRole === 'librarian' && (
-        <div className="space-y-8">
-          
-          {/* Header Banner for Librarians */}
-          <div className="bg-gradient-to-r from-indigo-950 via-slate-900 to-indigo-950 rounded-3xl p-6 text-white border border-indigo-800/30 shadow-md">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-              <div className="space-y-2">
-                <span className="inline-flex items-center gap-1.5 bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider font-mono">
-                  <ShieldAlert className="w-3.5 h-3.5 fill-indigo-400/20 text-indigo-400" /> Administrative Authority Portal
-                </span>
-                <h2 className="font-display text-2xl sm:text-3xl font-black tracking-tight text-white">
-                  Librarian Intel & School Management Reports
-                </h2>
-                <p className="text-xs sm:text-sm text-slate-300 max-w-2xl">
-                  Analyze library usage metrics by academic departments, locate neglected subjects, generate reports for class teachers, and replenish critical book stock.
-                </p>
-              </div>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
+        <div className="space-y-1">
+          <h1 className="font-display text-2xl sm:text-3xl font-black tracking-tight text-slate-900">
+            Pictorial Infographics Board
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-500">
+            Real-time visual metrics, stock health indicators, and Dewey Decimal circulation velocity based on actual database records.
+          </p>
+        </div>
+
+        {/* Minimalist Campus Filter */}
+        <div className="flex items-center gap-1.5 bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shrink-0 self-start sm:self-center">
+          <button
+            type="button"
+            onClick={() => handleSectionSwitch('all')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              adminSection === 'all'
+                ? 'bg-slate-900 text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            All School ({allSourceBooks.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => handleSectionSwitch('college')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              adminSection === 'college'
+                ? 'bg-slate-900 text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Secondary ({collegeTitlesCount})
+          </button>
+          <button
+            type="button"
+            onClick={() => handleSectionSwitch('primary')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              adminSection === 'primary'
+                ? 'bg-slate-900 text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Primary ({primaryTitlesCount})
+          </button>
+        </div>
+      </div>
+
+      {/* Toast notifications */}
+      <AnimatePresence>
+        {successMsg && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-2xl text-xs font-semibold flex items-center justify-between gap-2 shadow-xs"
+          >
+            <div className="flex items-center gap-2.5">
+              <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+              <p>{successMsg}</p>
             </div>
+            <button onClick={() => setSuccessMsg(null)} className="text-emerald-700 hover:text-emerald-900 text-xs">✕</button>
+          </motion.div>
+        )}
+        {errorMsg && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="p-4 bg-rose-50 border border-rose-200 text-rose-900 rounded-2xl text-xs font-semibold flex items-center justify-between gap-2 shadow-xs"
+          >
+            <div className="flex items-center gap-2.5">
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+              <p>{errorMsg}</p>
+            </div>
+            <button onClick={() => setErrorMsg(null)} className="text-rose-700 hover:text-rose-900 text-xs">✕</button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ========================================================================= */}
+      {/* 2. MINIMALIST ACTION TOOLBAR */}
+      {/* ========================================================================= */}
+      <div className="flex flex-wrap items-center justify-end gap-2 bg-transparent border-0 shadow-none">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={handleOpenPreview}
+            className="px-3 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 flex items-center gap-1.5 transition cursor-pointer"
+          >
+            <Eye className="w-3.5 h-3.5 text-slate-600" />
+            Preview
+          </button>
+
+          <button
+            type="button"
+            onClick={handleDownloadPictorial}
+            className="px-3.5 py-1.5 bg-sky-700 hover:bg-sky-800 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition cursor-pointer shadow-3xs"
+          >
+            <ImageIcon className="w-3.5 h-3.5 text-sky-200" />
+            Download Pictorial (PNG)
+          </button>
+
+          <button
+            type="button"
+            onClick={handleDownloadPdf}
+            className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition cursor-pointer shadow-sm"
+          >
+            <FileDown className="w-3.5 h-3.5 text-amber-400" />
+            Download PDF
+          </button>
+
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition cursor-pointer"
+            title="Print View"
+          >
+            <Printer className="w-3.5 h-3.5 text-slate-600" />
+          </button>
+        </div>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* 3. ACTUAL DATABASE COLLECTIONS CIRCULATION VISUALIZER (PICTORIAL BOARD) */}
+      {/* ========================================================================= */}
+      <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-6">
+        
+        {/* Visualizer Header with Real DB Context & Grouping Toggle */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <BookOpen className="w-4 h-4 text-indigo-600" />
+              <h2 className="font-display font-black text-lg text-slate-900">
+                Catalog Collections & Subject Circulation Visualizer
+              </h2>
+            </div>
+            <p className="text-xs text-slate-500">
+              Live circulation velocity, physical stock holdings, and reads distribution strictly based on actual records in the database.
+            </p>
           </div>
 
-          {/* Toast notifications */}
-          <AnimatePresence>
-            {successMsg && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl text-xs font-semibold flex items-center gap-2 shadow-xs"
-              >
-                <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
-                <p>{successMsg}</p>
-              </motion.div>
-            )}
-            {errorMsg && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="p-4 bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl text-xs font-semibold flex items-center gap-2 shadow-xs"
-              >
-                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                <p>{errorMsg}</p>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Key Stock Performance Indicators Row */}
-          <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-3xs flex flex-col justify-between">
-              <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 font-sans">Catalogs Active</span>
-                  <BookOpen className="w-4 h-4 text-indigo-600" />
-                </div>
-                <p className="text-2xl sm:text-3xl font-display font-black text-slate-900">{totalTitles}</p>
-              </div>
-              <span className="text-[10px] text-slate-400 pt-2 block border-t border-slate-50 uppercase font-bold font-mono">
-                {adminSection === 'all' ? 'Combined holdings' : `${adminSection} Section`}
-              </span>
-            </div>
-
-            <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-3xs flex flex-col justify-between">
-              <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 font-sans">Lent vs Total Volumes</span>
-                  <Layers className="w-4 h-4 text-violet-600" />
-                </div>
-                <p className="text-2xl sm:text-3xl font-display font-black text-slate-900">{totalHoldings}</p>
-              </div>
-              <span className="text-[10px] text-slate-400 pt-2 block border-t border-slate-50 font-mono">
-                {totalAvailable} available • {totalBorrowed} lent
-              </span>
-            </div>
-
-            <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-3xs flex flex-col justify-between">
-              <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 font-sans">Active Utilization</span>
-                  <TrendingUp className="w-4 h-4 text-emerald-600" />
-                </div>
-                <div className="flex items-baseline gap-2">
-                  <p className="text-2xl sm:text-3xl font-display font-black text-slate-900">{stockUtilizationRate}%</p>
-                  <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">Optimal</span>
-                </div>
-              </div>
-              <span className="text-[10px] text-slate-400 pt-2 block border-t border-slate-50 font-mono">
-                Lending rate relative to catalog capacity
-              </span>
-            </div>
-
-            <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-3xs flex flex-col justify-between">
-              <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 font-sans">Avg Reads Frequency</span>
-                  <Star className="w-4 h-4 text-amber-500 fill-amber-100" />
-                </div>
-                <p className="text-2xl sm:text-3xl font-display font-black text-slate-900">{averageReadsRate}</p>
-              </div>
-              <span className="text-[10px] text-slate-400 pt-2 block border-t border-slate-50 font-mono">
-                Total borrowings / total catalog count
-              </span>
-            </div>
-          </section>
-
-          {/* Interactive School Management & Teachers Report Generator Card */}
-          <div className="bg-amber-50/50 border border-amber-200/60 rounded-3xl p-6 space-y-6 shadow-3xs">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-2">
-                  <span className="bg-amber-400 text-amber-950 font-sans text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider">
-                    School Management Module
-                  </span>
-                  <span className="text-[11px] font-mono font-bold text-slate-500">• Section Intelligence</span>
-                </div>
-                <h3 className="text-lg font-display font-bold text-slate-900">
-                  Curriculum Alignment & Neglected Asset Report
-                </h3>
-                <p className="text-xs text-slate-500 leading-relaxed max-w-3xl">
-                  Librarians can export specialized reports identifying library disciplines with critically low student engagement. 
-                  Provide teachers with customized, category-specific assignments to revive student research and drive active book usage!
-                </p>
-              </div>
-
+          <div className="flex flex-wrap items-center gap-3">
+            {/* View Mode Toggle: Real Catalog Categories vs. Active Dewey Classes */}
+            <div className="bg-slate-100 p-1 rounded-xl flex items-center gap-1 text-xs">
               <button
-                onClick={() => setIsReportOpen(!isReportOpen)}
-                className="px-5 py-2.5 bg-indigo-950 text-white hover:bg-indigo-900 font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition cursor-pointer shrink-0"
+                type="button"
+                onClick={() => setGroupingMode('category')}
+                className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer ${
+                  groupingMode === 'category' 
+                    ? 'bg-white text-slate-900 shadow-2xs' 
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
               >
-                <FileText className="w-4 h-4 text-amber-300" />
-                {isReportOpen ? 'Collapse Report Module' : 'Generate Administrative Report'}
+                By Category ({databaseCategories.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setGroupingMode('dewey')}
+                className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer ${
+                  groupingMode === 'dewey' 
+                    ? 'bg-white text-slate-900 shadow-2xs' 
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                By Dewey ({actualDdcClasses.length})
               </button>
             </div>
 
-            {/* Expandable detailed report panel */}
-            <AnimatePresence>
-              {isReportOpen && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="overflow-hidden"
-                >
-                  <div className="bg-white border border-slate-100 rounded-2xl p-6 space-y-6">
-                    
-                    {/* Report Meta Header */}
-                    <div className="flex flex-col sm:flex-row justify-between items-start gap-4 pb-4 border-b border-slate-100">
-                      <div>
-                        <h4 className="font-display font-black text-sm uppercase text-indigo-950">
-                          Official Library Utilization Report: {adminSection === 'all' ? 'Consolidated School' : `${adminSection.toUpperCase()} Section`}
-                        </h4>
-                        <p className="text-[11px] text-slate-400 font-mono">Compiled on: 2026-07-02 • Ready for Management Review</p>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                        <span className="text-[10px] font-mono font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
-                          Live Data Compiled
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Report Sections Block */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      
-                      {/* Left Block: Critical Neglected Areas Analysis */}
-                      <div className="space-y-4">
-                        <span className="text-[10px] font-extrabold uppercase text-rose-600 tracking-wider flex items-center gap-1.5 font-mono">
-                          <AlertCircle className="w-4 h-4" /> 1. Neglected Subject Categories
-                        </span>
-                        
-                        <p className="text-xs text-slate-500">
-                          The following Dewey Decimal categories represent under-utilized resources in the current school term:
-                        </p>
-
-                        <div className="space-y-3.5">
-                          {neglectedClasses.length === 0 ? (
-                            <div className="p-4 bg-slate-50 rounded-xl text-center text-xs text-slate-400">
-                              No underutilized categories detected. All library assets are evenly circulated!
-                            </div>
-                          ) : (
-                            neglectedClasses.map((item) => (
-                              <div key={item.id} className="p-3 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-between gap-4">
-                                <div className="space-y-1">
-                                  <div className="flex items-center gap-2">
-                                    <span className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded ${item.bgColor} ${item.color}`}>
-                                      DDC {item.range}
-                                    </span>
-                                    <span className="text-xs font-bold text-slate-700 italic">{item.name}</span>
-                                  </div>
-                                  <span className="block text-[10px] text-slate-400">
-                                    Active books: {item.uniqueTitles} titles • Copies in house: {item.totalStock} copies
-                                  </span>
-                                </div>
-
-                                <div className="text-right">
-                                  <span className="text-xs font-black text-rose-600 font-mono block">{item.totalReads} reads</span>
-                                  <span className="text-[8px] uppercase font-bold text-slate-400 font-sans">Critically Low</span>
-                                </div>
-                              </div>
-                            ))
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Right Block: Suggested Teacher Assignments */}
-                      <div className="space-y-4">
-                        <span className="text-[10px] font-extrabold uppercase text-indigo-700 tracking-wider flex items-center gap-1.5 font-mono">
-                          <GraduationCap className="w-4 h-4" /> 2. Actionable Classroom Assignments
-                        </span>
-                        
-                        <p className="text-xs text-slate-500">
-                          Teachers can issue these specific, catalog-backed study assignments to boost student inquiry in neglected sections:
-                        </p>
-
-                        <div className="space-y-3">
-                          {neglectedClasses.length === 0 ? (
-                            <p className="text-xs text-slate-400 italic">No curriculum interventions needed presently.</p>
-                          ) : (
-                            neglectedClasses.map((item) => {
-                              let assignmentText = "";
-                              if (item.id === '000') {
-                                assignmentText = "Have students check out introductory algorithm manuals (e.g., 'Introduction to Algorithms') and sketch a step-by-step logic flowchart for a morning routine.";
-                              } else if (item.id === '100') {
-                                assignmentText = "Assign senior students to borrow classical dialogues (Plato's 'The Republic') and summarize the 'Allegory of the Cave' in relation to modern media biases.";
-                              } else if (item.id === '300') {
-                                assignmentText = "Issue a micro-economics project requiring students to use classical economics treaties to analyze supply-demand changes in their school store.";
-                              } else if (item.id === '600') {
-                                assignmentText = "Have junior science students research an applied engineering prototype using tech books and build a cardboard physical model.";
-                              } else if (item.id === '900') {
-                                assignmentText = "Instruct students to write an historical profile of a pre-colonial African kingdom (e.g. Songhai or Benin Empire) using regional history texts.";
-                              } else {
-                                assignmentText = `Incorporate library texts from Class ${item.range} in a weekly reading journal review with mandatory catalog citations.`;
-                              }
-
-                              return (
-                                <div key={item.id} className="p-3 bg-indigo-50/40 border border-indigo-100/50 rounded-xl space-y-1.5 text-xs">
-                                  <span className="font-bold text-indigo-950 font-sans block">For {item.name}:</span>
-                                  <p className="text-slate-600 italic leading-relaxed text-[11px]">
-                                    "{assignmentText}"
-                                  </p>
-                                </div>
-                              );
-                            })
-                          )}
-                        </div>
-                      </div>
-
-                    </div>
-
-                    {/* Report logs */}
-                    {reportLog && (
-                      <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold rounded-xl flex items-center gap-2 font-mono">
-                        <Clock className="w-4 h-4 animate-spin" />
-                        <span>{reportLog}</span>
-                      </div>
-                    )}
-
-                    {/* Report Footer Dispatch Buttons */}
-                    <div className="flex flex-col sm:flex-row justify-end items-center gap-3 pt-4 border-t border-slate-100">
-                      <button
-                        onClick={() => window.print()}
-                        className="w-full sm:w-auto px-4 py-2 text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 font-bold text-xs rounded-lg flex items-center justify-center gap-1.5 cursor-pointer transition"
-                      >
-                        <Printer className="w-4 h-4" />
-                        Print Hard Copy
-                      </button>
-
-                      <button
-                        onClick={() => dispatchReport('Teachers')}
-                        className="w-full sm:w-auto px-4 py-2 bg-indigo-900 hover:bg-indigo-800 text-white font-bold text-xs rounded-lg flex items-center justify-center gap-1.5 cursor-pointer transition"
-                      >
-                        <Send className="w-4 h-4" />
-                        Send Report to Teachers Lounge
-                      </button>
-
-                      <button
-                        onClick={() => dispatchReport('Management')}
-                        className="w-full sm:w-auto px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-lg flex items-center justify-center gap-1.5 cursor-pointer transition"
-                      >
-                        <Send className="w-4 h-4 text-amber-400" />
-                        Dispatch to School Management Board
-                      </button>
-                    </div>
-
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-
-          {/* Grid: Left Column (DDC Classification Explorer) • Right Column (Most Popular & Stock Alerts) */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            
-            {/* Dewey Decimal Classification Explorer */}
-            <div className="lg:col-span-2 space-y-6">
-              <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-xs space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-50 pb-3">
-                  <div className="flex items-center gap-2">
-                    <Library className="w-5 h-5 text-indigo-900" />
-                    <h3 className="font-display font-bold text-sm text-slate-900">
-                      DDC 000 - 900 Subjects Classification Explorer
-                    </h3>
-                  </div>
-                  <span className="text-[10px] font-semibold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full uppercase tracking-wider font-mono">
-                    Holdings Auditor
-                  </span>
-                </div>
-
-                <p className="text-xs text-slate-500 leading-relaxed">
-                  These classifications represent how your school's books are physically and systematically arranged. 
-                  <span className="font-bold text-slate-700"> Click on any classification range</span> to expand and view the physical volumes, specific codes, circulation status, and restocking controls.
-                </p>
-
-                {/* DDC list */}
-                <div className="space-y-3 pt-2">
-                  {ddcStats.map((ddc) => {
-                    const isExpanded = selectedDdc === ddc.id;
-                    const percentHolding = totalHoldings > 0 ? Math.round((ddc.totalStock / totalHoldings) * 100) : 0;
-                    const classBooks = adminBooks.filter((b) => b.deweyClass === ddc.id);
-
-                    return (
-                      <div 
-                        key={ddc.id}
-                        className={`border rounded-2xl transition-all duration-200 overflow-hidden ${
-                          isExpanded 
-                            ? 'border-indigo-200 bg-slate-50/40 shadow-xs' 
-                            : 'border-slate-100 hover:border-slate-200 hover:bg-slate-50/20'
-                        }`}
-                      >
-                        {/* Header bar of DDC Class */}
-                        <button
-                          onClick={() => setSelectedDdc(isExpanded ? null : ddc.id)}
-                          className="w-full p-4 flex flex-col sm:flex-row sm:items-center justify-between text-left gap-3 cursor-pointer"
-                        >
-                          <div className="flex items-start gap-3.5">
-                            <span className={`px-2.5 py-1.5 rounded-xl font-mono text-[11px] font-extrabold ${ddc.bgColor} ${ddc.color} border ${ddc.borderColor} shrink-0`}>
-                              Class {ddc.range}
-                            </span>
-                            <div>
-                              <h4 className="text-xs font-bold text-slate-800 font-display line-clamp-1">{ddc.name}</h4>
-                              <span className="text-[10px] text-slate-400 line-clamp-1">{ddc.description}</span>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center justify-between sm:justify-end gap-6 w-full sm:w-auto border-t sm:border-t-0 border-slate-50 pt-2 sm:pt-0">
-                            {/* Short Stats */}
-                            <div className="grid grid-cols-3 gap-4 text-center sm:text-right font-mono">
-                              <div>
-                                <span className="block text-[8px] text-slate-400 uppercase font-sans font-bold">Titles</span>
-                                <span className="text-xs font-bold text-slate-700">{ddc.uniqueTitles}</span>
-                              </div>
-                              <div>
-                                <span className="block text-[8px] text-slate-400 uppercase font-sans font-bold">Stock</span>
-                                <span className="text-xs font-bold text-slate-700">{ddc.totalStock}</span>
-                              </div>
-                              <div>
-                                <span className="block text-[8px] text-slate-400 uppercase font-sans font-bold">Reads</span>
-                                <span className="text-xs font-bold text-indigo-900">{ddc.totalReads}</span>
-                              </div>
-                            </div>
-
-                            {/* Chevron Icon */}
-                            <div className="text-slate-400 bg-slate-100/50 p-1.5 rounded-lg">
-                              {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                            </div>
-                          </div>
-                        </button>
-
-                        {/* Expandable book shelf panel */}
-                        <AnimatePresence>
-                          {isExpanded && (
-                            <motion.div
-                              initial={{ opacity: 0, height: 0 }}
-                              animate={{ opacity: 1, height: 'auto' }}
-                              exit={{ opacity: 0, height: 0 }}
-                              className="border-t border-slate-100 bg-white"
-                            >
-                              <div className="p-4 space-y-4">
-                                
-                                {/* Distribution indicator inside the drawer */}
-                                <div className="bg-slate-50/50 rounded-xl p-3 border border-slate-100 text-[10px] flex flex-col sm:flex-row items-center justify-between gap-3">
-                                  <span className="text-slate-500 text-center sm:text-left">
-                                    This subject represents <strong className="text-slate-700">{percentHolding}%</strong> of currently filtered school library physical copies.
-                                  </span>
-                                  
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-[9px] text-slate-400 font-bold uppercase font-sans">Stock utilization</span>
-                                    <span className="font-mono font-bold text-slate-700">
-                                      {ddc.totalStock - ddc.availStock} / {ddc.totalStock} borrowed
-                                    </span>
-                                  </div>
-                                </div>
-
-                                {/* Books table */}
-                                {classBooks.length === 0 ? (
-                                  <div className="py-6 text-center text-slate-400 space-y-2">
-                                    <Info className="w-8 h-8 mx-auto stroke-1 text-slate-300" />
-                                    <p className="text-xs">No books are cataloged under this Dewey range yet in this school section.</p>
-                                  </div>
-                                ) : (
-                                  <div className="overflow-x-auto rounded-xl border border-slate-100">
-                                    <table className="w-full text-left text-xs">
-                                      <thead className="bg-slate-50/70 border-b border-slate-100 text-[9px] font-bold uppercase text-slate-400 tracking-wider">
-                                        <tr>
-                                          <th className="py-2 px-3">DDC Code</th>
-                                          <th className="py-2 px-3">Book Title / Author</th>
-                                          <th className="py-2 px-3">ISBN</th>
-                                          <th className="py-2 px-3 text-center">Circulation Reads</th>
-                                          <th className="py-2 px-3 text-right">Available / Total Copies</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody className="divide-y divide-slate-100">
-                                        {classBooks.map((book) => {
-                                          const isLow = book.availableCopies <= 1;
-                                          return (
-                                            <tr key={book.id} className="hover:bg-slate-50/40">
-                                              <td className="py-3 px-3 font-mono font-bold text-slate-500">
-                                                {book.deweyCode}
-                                              </td>
-                                              <td className="py-3 px-3">
-                                                <div>
-                                                  <p className="font-bold text-slate-800 italic">{book.title}</p>
-                                                  <p className="text-[10px] text-slate-400 font-medium">by {book.author}</p>
-                                                </div>
-                                              </td>
-                                              <td className="py-3 px-3 font-mono text-[10px] text-slate-400">
-                                                {book.isbn}
-                                              </td>
-                                              <td className="py-3 px-3 text-center font-bold text-indigo-950 font-mono">
-                                                {book.readsCount}
-                                              </td>
-                                              <td className="py-3 px-3 text-right">
-                                                <div className="flex flex-col items-end gap-1">
-                                                  <span className={`font-mono font-extrabold text-[11px] ${isLow ? 'text-rose-600' : 'text-slate-700'}`}>
-                                                    {book.availableCopies} <span className="text-slate-300">/</span> {book.totalCopies}
-                                                  </span>
-                                                  
-                                                  {/* Tiny Progress bar */}
-                                                  <div className="w-16 h-1 bg-slate-100 rounded-full overflow-hidden">
-                                                    <div 
-                                                      className={`h-full ${isLow ? 'bg-rose-500' : 'bg-emerald-500'}`} 
-                                                      style={{ width: `${(book.availableCopies / book.totalCopies) * 100}%` }}
-                                                    />
-                                                  </div>
-                                                </div>
-                                              </td>
-                                            </tr>
-                                          );
-                                        })}
-                                      </tbody>
-                                    </table>
-                                  </div>
-                                )}
-
-                              </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
-                    );
-                  })}
-                </div>
-
+            <div className="flex items-center gap-2 text-xs font-mono">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-sm bg-indigo-600"></span>
+                <span className="text-slate-600">Circulation Recorded</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-sm bg-slate-300"></span>
+                <span className="text-slate-400">0 Loans</span>
               </div>
             </div>
-
-            {/* Right Column: Most Popular & Alerts */}
-            <div className="space-y-6">
-              
-              {/* Highlight Card */}
-              <div className="bg-gradient-to-br from-indigo-950 to-slate-900 text-white rounded-3xl p-6 shadow-sm space-y-4">
-                <span className="inline-flex items-center gap-1.5 bg-amber-400/20 text-amber-300 border border-amber-400/20 text-[9px] font-bold tracking-widest uppercase px-2.5 py-1 rounded-full font-mono">
-                  <Star className="w-3 h-3 fill-amber-300" /> HOT SUBJECT AREA
-                </span>
-                
-                <div className="space-y-1">
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-indigo-200 block">Peak Borrowing Category</span>
-                  <h4 className="text-lg font-display font-black leading-tight text-white">
-                    {mostPopularClass ? mostPopularClass.name : 'Awaiting Lending Activity'}
-                  </h4>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 border-t border-white/10 pt-4 text-xs font-mono">
-                  <div>
-                    <span className="block text-[9px] text-indigo-300 uppercase font-sans font-bold">Total Reads</span>
-                    <span className="text-base font-black text-amber-300">{mostPopularClass ? `${mostPopularClass.totalReads} lendings` : '0 lendings'}</span>
-                  </div>
-                  <div>
-                    <span className="block text-[9px] text-indigo-300 uppercase font-sans font-bold">DDC Code Range</span>
-                    <span className="text-base font-black text-white">{mostPopularClass ? mostPopularClass.range : '—'}</span>
-                  </div>
-                </div>
-                
-                <p className="text-[11px] text-indigo-200 leading-relaxed italic">
-                  {mostPopularClass 
-                    ? 'Engagement is peak in this area. Encourage classroom teachers to reward diverse subject readings!'
-                    : 'Class-level borrowing trends will appear here as books are issued to learners.'}
-                </p>
-              </div>
-
-              {/* Top 5 books list (Visible to admins too for parity) */}
-              <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-xs space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-50 pb-3">
-                  <div className="flex items-center gap-2">
-                    <TrendingUp className="w-4 h-4 text-amber-500" />
-                    <h3 className="font-display font-bold text-xs uppercase tracking-wider text-slate-800">
-                      Top 5 Most Borrowed Books
-                    </h3>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  {topBorrowedBooks.length === 0 ? (
-                    <div className="p-4 text-center text-xs text-slate-400 italic">
-                      No borrowings recorded yet. Statistics update live as books are checked out.
-                    </div>
-                  ) : (
-                    topBorrowedBooks.map((book, idx) => {
-                      const colorMap = [
-                        'bg-amber-400 text-amber-950 border-amber-500', 
-                        'bg-slate-300 text-slate-800 border-slate-400',  
-                        'bg-amber-700 text-white border-amber-800',      
-                        'bg-slate-100 text-slate-600 border-slate-200',  
-                        'bg-slate-100 text-slate-600 border-slate-200',  
-                      ];
-
-                      return (
-                        <div key={book.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-slate-50/50 border border-slate-50 transition-all text-xs">
-                          <div className="flex items-center gap-3">
-                            <span className={`w-6 h-6 rounded-lg text-[10px] font-bold flex items-center justify-center border font-mono shrink-0 ${colorMap[idx]}`}>
-                              #{idx + 1}
-                            </span>
-                            <div>
-                              <h4 className="font-bold text-slate-800 line-clamp-1 italic">{book.title}</h4>
-                              <div className="flex items-center gap-1.5 text-[9px] text-slate-400 font-mono">
-                                <span>DDC: {book.deweyCode}</span>
-                                <span>•</span>
-                                <span>{book.author}</span>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="text-right shrink-0">
-                            <span className="font-mono font-extrabold text-indigo-950 block">{book.readsCount} reads</span>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-
-              {/* Replenishment Alert Panel */}
-              <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-xs space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-50 pb-3">
-                  <div className="flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 text-rose-500 animate-pulse" />
-                    <h3 className="font-display font-bold text-xs uppercase tracking-wider text-slate-800">
-                      Replenishment Alerts ({lowStockBooks.length})
-                    </h3>
-                  </div>
-                  <span className="text-[9px] font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded uppercase font-mono animate-pulse">
-                    Urgent
-                  </span>
-                </div>
-
-                {lowStockBooks.length === 0 ? (
-                  <div className="p-4 text-center text-slate-400 text-xs">
-                    All books in this school section are fully in-stock with sufficient copies!
-                  </div>
-                ) : (
-                  <div className="space-y-3.5 max-h-64 overflow-y-auto scrollbar-none">
-                    {lowStockBooks.map((book) => {
-                      return (
-                        <div key={book.id} className="p-3 bg-rose-50/30 hover:bg-rose-50/60 rounded-xl border border-rose-100/50 flex flex-col justify-between gap-3 text-xs transition">
-                          <div className="flex justify-between items-start gap-2">
-                            <div>
-                              <h4 className="font-bold text-slate-800 italic leading-tight line-clamp-1">{book.title}</h4>
-                              <span className="text-[10px] text-slate-400 font-mono">
-                                DDC Code: {book.deweyCode} • Copies Left: <strong className="text-rose-600">{book.availableCopies}</strong>
-                              </span>
-                            </div>
-                            <span className="text-[9px] uppercase font-bold text-rose-500 shrink-0">
-                              {book.availableCopies === 0 ? 'Out of Stock' : 'Low Stock'}
-                            </span>
-                          </div>
-
-                          <button
-                            onClick={() => handleRestock(book.id, book.title)}
-                            className="w-full py-1.5 px-3 bg-indigo-900 hover:bg-indigo-800 text-white rounded-lg text-[10px] font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-3xs transition"
-                          >
-                            <Plus className="w-3.5 h-3.5" />
-                            Replenish Stock (+5 Copies)
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-            </div>
-
           </div>
-
         </div>
-      )}
 
-      {/* ========================================================================= */}
-      {/* 2. LEARNER / STUDENT / CHILD MODE */}
-      {/* ========================================================================= */}
-      {currentRole === 'learner' && (
-        <div className="space-y-8">
-          
-          {/* Learner Recommendations Header */}
-          <div className="bg-slate-900 rounded-3xl p-6 sm:p-8 text-white border border-slate-800 shadow-sm relative overflow-hidden">
-            <div className="relative z-10 space-y-3">
-              <span className="inline-flex items-center gap-1.5 bg-white/10 text-blue-300 border border-white/10 px-3 py-1 rounded-full text-xs font-medium">
-                <TrendingUp className="w-3.5 h-3.5 text-blue-400" /> Student Reading Activity
-              </span>
-              <h2 className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-white leading-tight">
-                Reading Trends and Recommended Books
-              </h2>
-              <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed font-normal">
-                Discover popular titles borrowed across school classrooms and explore available reading materials.
-              </p>
-            </div>
+        {/* Real Database Categories / Dewey Classes List */}
+        {visualizerItems.length === 0 ? (
+          <div className="py-12 text-center text-slate-400 space-y-2">
+            <Layers className="w-8 h-8 mx-auto text-slate-300 stroke-1" />
+            <p className="text-xs font-medium">No book catalog records found in database for the selected campus filter.</p>
           </div>
-
-          {/* Toast Notification for Borrowing action */}
-          <AnimatePresence>
-            {successMsg && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl text-xs font-semibold flex items-center gap-2.5 shadow-xs"
-              >
-                <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0" />
-                <p>{successMsg}</p>
-              </motion.div>
-            )}
-            {errorMsg && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="p-4 bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl text-xs font-semibold flex items-center gap-2.5 shadow-xs"
-              >
-                <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
-                <p>{errorMsg}</p>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Section 1: The Top 5 Most Borrowed Books Podium / List */}
-          <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-xs space-y-6">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-amber-500" />
-                <h3 className="font-display font-black text-sm uppercase text-slate-800 tracking-tight">
-                  The Top 5 Library Favorites (Loved by Peers!)
-                </h3>
-              </div>
-              <span className="text-[10px] font-extrabold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-full uppercase tracking-wider font-mono">
-                Student Choice Awards
-              </span>
-            </div>
-
-            {/* Layout Grid: Podium-style presentation */}
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-              {topBorrowedBooks.map((book, idx) => {
-                const isGold = idx === 0;
-                const isSilver = idx === 1;
-                const isBronze = idx === 2;
-                
-                const medalBg = isGold 
-                  ? 'bg-amber-400 text-amber-950 border-amber-300' 
-                  : isSilver 
-                    ? 'bg-slate-200 text-slate-800 border-slate-100' 
-                    : isBronze 
-                      ? 'bg-amber-700 text-amber-50 border-amber-600' 
-                      : 'bg-indigo-50 text-indigo-800 border-indigo-100';
+        ) : (
+          <div className="space-y-4">
+            {groupingMode === 'category' ? (
+              // 1. Grouped by Actual Database Categories
+              databaseCategories.map((item) => {
+                const percent = maxCategoryReads > 0 && item.totalReads > 0 
+                  ? Math.max(8, Math.round((item.totalReads / maxCategoryReads) * 100)) 
+                  : 0;
 
                 return (
-                  <motion.div 
-                    key={book.id}
-                    whileHover={{ y: -4, scale: 1.02 }}
-                    onClick={() => setSelectedLearnerBook(book)}
-                    className={`p-5 rounded-2xl border flex flex-col justify-between text-center cursor-pointer transition-all ${
-                      isGold 
-                        ? 'border-amber-200 bg-amber-50/20 ring-4 ring-amber-400/10' 
-                        : 'border-slate-100 bg-slate-50/30 hover:bg-slate-50/60'
-                    }`}
-                  >
-                    <div className="space-y-3">
-                      {/* Badge and ranking */}
-                      <div className="mx-auto flex items-center justify-center">
-                        <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase font-mono border ${medalBg}`}>
-                          Rank #{idx + 1}
+                  <div key={item.category} className="space-y-1.5 bg-slate-50/60 p-3 rounded-2xl border border-slate-100/80 hover:bg-slate-50 transition">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs">
+                      
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="px-2 py-0.5 rounded font-mono font-bold text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-200">
+                          {item.deweyCode.startsWith('DDC') ? item.deweyCode : `DDC ${item.deweyCode}`}
+                        </span>
+                        <span className="font-bold text-slate-900 text-sm">{item.category}</span>
+                        
+                        {/* Sample book titles from database */}
+                        <span className="text-[11px] text-slate-400 italic hidden md:inline truncate max-w-xs">
+                          ({item.bookTitles.slice(0, 2).join(', ')}{item.bookTitles.length > 2 ? '...' : ''})
                         </span>
                       </div>
 
-                      <div className="space-y-1">
-                        <h4 className="font-display font-bold text-xs text-slate-800 italic leading-tight line-clamp-2">
-                          {book.title}
-                        </h4>
-                        <p className="text-[10px] text-slate-400 font-medium">by {book.author}</p>
+                      <div className="flex items-center gap-4 text-slate-500 font-mono text-[11px]">
+                        <span>{item.titlesCount} title{item.titlesCount === 1 ? '' : 's'} ({item.availableStock} / {item.totalStock} copies)</span>
+                        <strong className={item.totalReads > 0 ? "text-slate-900 font-bold" : "text-slate-400 font-medium"}>
+                          {item.totalReads > 0 ? `${item.totalReads} reads` : '0 reads'}
+                        </strong>
                       </div>
                     </div>
 
-                    <div className="pt-4 border-t border-slate-100/60 mt-4 space-y-2">
-                      <span className="text-[10px] font-mono font-extrabold text-indigo-950 block">
-                        Borrowed {book.readsCount} times!
-                      </span>
-
-                      <span className="inline-block text-[9px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
-                        {book.category}
-                      </span>
+                    {/* Accurate Progress Bar Strictly Derived From Database Reads */}
+                    <div className="w-full bg-slate-200/70 h-3.5 rounded-full overflow-hidden flex items-center p-0.5">
+                      {item.totalReads > 0 ? (
+                        <div 
+                          className="h-full rounded-full transition-all duration-500 flex items-center justify-end pr-2 text-[9px] font-bold text-white font-mono bg-gradient-to-r from-indigo-500 to-indigo-700"
+                          style={{ width: `${percent}%` }}
+                        >
+                          {item.totalReads}
+                        </div>
+                      ) : (
+                        <div className="w-full h-full flex items-center px-2">
+                          <span className="text-[9px] text-slate-400 font-mono">0 checkouts in database</span>
+                        </div>
+                      )}
                     </div>
-                  </motion.div>
+                  </div>
                 );
-              })}
-            </div>
-          </div>
+              })
+            ) : (
+              // 2. Grouped by Active Dewey Decimal Classes present in database
+              actualDdcClasses.map((item) => {
+                const maxReads = Math.max(...actualDdcClasses.map(s => s.totalReads), 0);
+                const percent = maxReads > 0 && item.totalReads > 0 
+                  ? Math.max(8, Math.round((item.totalReads / maxReads) * 100)) 
+                  : 0;
 
-          {/* Section 2: Explore Live Library Book Stocks & Pick Choice */}
-          <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-xs space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <Library className="w-5 h-5 text-indigo-950" />
-                  <h3 className="font-display font-black text-sm uppercase text-slate-800 tracking-tight">
-                    Pick a Book & Make Your Choice Presently
+                return (
+                  <div key={item.id} className="space-y-1.5 bg-slate-50/60 p-3 rounded-2xl border border-slate-100/80 hover:bg-slate-50 transition">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs">
+                      
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={`px-2 py-0.5 rounded font-mono font-bold text-[10px] ${item.bgColor} ${item.color} border ${item.borderColor}`}>
+                          Class {item.range}
+                        </span>
+                        <span className="font-bold text-slate-900 text-sm">{item.name}</span>
+                        
+                        {/* Sample book titles from database */}
+                        <span className="text-[11px] text-slate-400 italic hidden md:inline truncate max-w-xs">
+                          ({item.bookTitles.slice(0, 2).join(', ')}{item.bookTitles.length > 2 ? '...' : ''})
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-4 text-slate-500 font-mono text-[11px]">
+                        <span>{item.uniqueTitles} title{item.uniqueTitles === 1 ? '' : 's'} ({item.availStock} / {item.totalStock} copies)</span>
+                        <strong className={item.totalReads > 0 ? "text-slate-900 font-bold" : "text-slate-400 font-medium"}>
+                          {item.totalReads > 0 ? `${item.totalReads} reads` : '0 reads'}
+                        </strong>
+                      </div>
+                    </div>
+
+                    <div className="w-full bg-slate-200/70 h-3.5 rounded-full overflow-hidden flex items-center p-0.5">
+                      {item.totalReads > 0 ? (
+                        <div 
+                          className="h-full rounded-full transition-all duration-500 flex items-center justify-end pr-2 text-[9px] font-bold text-white font-mono bg-gradient-to-r from-indigo-500 to-indigo-700"
+                          style={{ width: `${percent}%` }}
+                        >
+                          {item.totalReads}
+                        </div>
+                      ) : (
+                        <div className="w-full h-full flex items-center px-2">
+                          <span className="text-[9px] text-slate-400 font-mono">0 checkouts in database</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
+
+      </div>
+
+      {/* ========================================================================= */}
+      {/* 4. PICTORIAL INFOGRAPHIC PREVIEW MODAL */}
+      {/* ========================================================================= */}
+      <AnimatePresence>
+        {previewReportData && previewImageUri && (
+          <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className={`bg-white rounded-3xl w-full max-h-[92vh] flex flex-col shadow-2xl overflow-hidden border border-slate-200 transition-all duration-200 ${
+                previewScale === 'fit' ? 'max-w-xl' : previewScale === 'medium' ? 'max-w-2xl' : 'max-w-3xl'
+              }`}
+            >
+              {/* Modal Header */}
+              <div className="p-3.5 sm:p-4 bg-slate-900 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-mono text-amber-400 font-bold">
+                      {previewReportData.reportId}
+                    </span>
+                    <span className="text-[10px] font-mono text-slate-400">
+                      • 4:5 Portrait
+                    </span>
+                  </div>
+                  <h3 className="font-display font-bold text-sm sm:text-base text-white truncate max-w-sm sm:max-w-md">
+                    {previewReportData.title}
                   </h3>
                 </div>
-                <p className="text-xs text-slate-400">
-                  Search through all active books currently cataloged in the library, see their exact physical copies count, and select to read immediately.
-                </p>
-              </div>
 
-              {/* Real-time Filter Search box */}
-              <div className="relative w-full sm:w-72">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  placeholder="Search title, author or category..."
-                  value={learnerSearchQuery}
-                  onChange={(e) => setLearnerSearchQuery(e.target.value)}
-                  className="w-full text-xs pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
-                />
-              </div>
-            </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {/* Scale / Dimension Toggle */}
+                  <div className="bg-slate-800 p-0.5 rounded-lg flex items-center text-[11px] font-semibold text-slate-300">
+                    <button
+                      type="button"
+                      onClick={() => setPreviewScale('fit')}
+                      className={`px-2 py-1 rounded-md transition cursor-pointer ${
+                        previewScale === 'fit' ? 'bg-indigo-600 text-white shadow-2xs' : 'hover:text-white'
+                      }`}
+                      title="Fit to screen without vertical scrolling"
+                    >
+                      Fit Screen
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPreviewScale('medium')}
+                      className={`px-2 py-1 rounded-md transition cursor-pointer ${
+                        previewScale === 'medium' ? 'bg-indigo-600 text-white shadow-2xs' : 'hover:text-white'
+                      }`}
+                      title="Balanced reading size"
+                    >
+                      Standard
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPreviewScale('large')}
+                      className={`px-2 py-1 rounded-md transition cursor-pointer ${
+                        previewScale === 'large' ? 'bg-indigo-600 text-white shadow-2xs' : 'hover:text-white'
+                      }`}
+                      title="High resolution view"
+                    >
+                      Expanded
+                    </button>
+                  </div>
 
-            {/* List and Grid Choice Picker */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredLearnerBooks.length === 0 ? (
-                <div className="sm:col-span-3 py-12 text-center text-slate-400 space-y-2">
-                  <Info className="w-8 h-8 mx-auto text-slate-300 stroke-1" />
-                  <p className="text-xs">No books match your search query. Try another keyword!</p>
+                  <button
+                    type="button"
+                    onClick={handleDownloadPictorial}
+                    className="p-1.5 sm:px-2.5 sm:py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-bold flex items-center gap-1 transition cursor-pointer"
+                    title="Download PNG"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">PNG</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleDownloadPdf}
+                    className="p-1.5 sm:px-2.5 sm:py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-lg text-xs font-bold flex items-center gap-1 transition cursor-pointer"
+                    title="Download PDF"
+                  >
+                    <FileDown className="w-3.5 h-3.5 text-slate-950" />
+                    <span className="hidden sm:inline">PDF</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPreviewReportData(null);
+                      setPreviewImageUri(null);
+                    }}
+                    className="p-1.5 text-slate-400 hover:text-white rounded-lg transition cursor-pointer"
+                    title="Close"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
-              ) : (
-                filteredLearnerBooks.map((book) => {
-                  const isAvailable = book.availableCopies > 0;
-                  return (
-                    <div 
-                      key={book.id} 
-                      className={`p-4 border rounded-2xl flex flex-col justify-between gap-4 transition-all duration-200 hover:shadow-2xs ${
-                        isAvailable 
-                          ? 'border-slate-100 bg-white hover:border-indigo-100' 
-                          : 'border-slate-100 bg-slate-50/50 opacity-80'
-                      }`}
-                    >
-                      <div className="space-y-2.5">
-                        <div className="flex items-start justify-between gap-2">
-                          <span className="bg-indigo-50 text-indigo-800 text-[9px] font-extrabold px-2 py-0.5 rounded uppercase tracking-wide">
-                            {book.category}
-                          </span>
-                          
-                          <span className={`text-[9px] font-mono font-black px-1.5 py-0.5 rounded ${
-                            isAvailable 
-                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' 
-                              : 'bg-rose-50 text-rose-700 border border-rose-100'
-                          }`}>
-                            {isAvailable ? `${book.availableCopies} Copies Available` : 'All Out'}
-                          </span>
-                        </div>
-
-                        <div>
-                          <h4 className="font-display font-bold text-xs text-slate-800 italic line-clamp-1">{book.title}</h4>
-                          <p className="text-[10px] text-slate-400 font-medium">by {book.author}</p>
-                        </div>
-
-                        <p className="text-[10px] text-slate-500 line-clamp-2 leading-relaxed">
-                          {book.description}
-                        </p>
-                      </div>
-
-                      {/* Pick Choice Button */}
-                      <div className="flex items-center justify-between border-t border-slate-50 pt-3">
-                        <span className="text-[9px] text-slate-400 font-mono">DDC Code: {book.deweyCode}</span>
-                        
-                        <button
-                          onClick={() => {
-                            if (isAvailable) {
-                              handleBorrowFromAnalytics(book);
-                            } else {
-                              triggerNotification('error', `"${book.title}" is currently unavailable. Librarians are notified!`);
-                            }
-                          }}
-                          disabled={!isAvailable}
-                          className={`px-3 py-1.5 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
-                            isAvailable 
-                              ? 'bg-indigo-900 hover:bg-indigo-800 text-white shadow-3xs' 
-                              : 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                          }`}
-                        >
-                          <Bookmark className="w-3 h-3 fill-current" />
-                          {isAvailable ? 'Pick Book' : 'Unavailable'}
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-
-          {/* Interactive Pop-Up Modal for Detail Choice */}
-          <AnimatePresence>
-            {selectedLearnerBook && (
-              <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  className="bg-white rounded-3xl max-w-md w-full p-6 border border-slate-100 shadow-xl space-y-4"
-                >
-                  <div className="flex justify-between items-start">
-                    <span className="bg-indigo-50 text-indigo-800 text-[10px] font-extrabold px-2.5 py-1 rounded-md uppercase">
-                      {selectedLearnerBook.category}
-                    </span>
-                    <button 
-                      onClick={() => setSelectedLearnerBook(null)}
-                      className="text-slate-400 hover:text-slate-600 bg-slate-50 p-1.5 rounded-full"
-                    >
-                      <ChevronDown className="w-4 h-4 rotate-90" />
-                    </button>
-                  </div>
-
-                  <div className="space-y-1">
-                    <h3 className="font-display font-black text-base text-slate-900 italic">
-                      {selectedLearnerBook.title}
-                    </h3>
-                    <p className="text-xs text-slate-500 font-bold">Written by {selectedLearnerBook.author}</p>
-                  </div>
-
-                  <p className="text-xs text-slate-600 leading-relaxed italic bg-slate-50 p-3.5 rounded-xl border border-slate-100/60">
-                    "{selectedLearnerBook.description}"
-                  </p>
-
-                  <div className="grid grid-cols-2 gap-4 text-xs font-mono pt-2">
-                    <div>
-                      <span className="text-slate-400 block uppercase font-bold text-[9px] tracking-wider font-sans">Dewey Classification</span>
-                      <span className="text-slate-800 font-bold">Class {selectedLearnerBook.deweyClass} / {selectedLearnerBook.deweyCode}</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 block uppercase font-bold text-[9px] tracking-wider font-sans">Availability Status</span>
-                      <span className={`font-bold ${selectedLearnerBook.availableCopies > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                        {selectedLearnerBook.availableCopies} / {selectedLearnerBook.totalCopies} copies in house
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 pt-4 border-t border-slate-100">
-                    <button
-                      onClick={() => setSelectedLearnerBook(null)}
-                      className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer"
-                    >
-                      Close Synopsis
-                    </button>
-                    <button
-                      onClick={() => handleBorrowFromAnalytics(selectedLearnerBook)}
-                      disabled={selectedLearnerBook.availableCopies <= 0}
-                      className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                        selectedLearnerBook.availableCopies > 0
-                          ? 'bg-indigo-900 hover:bg-indigo-800 text-white shadow-md'
-                          : 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                      }`}
-                    >
-                      <Bookmark className="w-4 h-4 fill-current" />
-                      Make Choice
-                    </button>
-                  </div>
-                </motion.div>
               </div>
-            )}
-          </AnimatePresence>
 
-        </div>
-      )}
+              {/* Modal Body: Un-stretched, crisp document presentation */}
+              <div className="p-4 sm:p-6 overflow-y-auto flex-1 bg-slate-100/90 flex flex-col items-center justify-start min-h-[300px]">
+                <div className="w-full flex items-center justify-center my-auto">
+                  <img 
+                    src={previewImageUri} 
+                    alt={previewReportData.title}
+                    className={`rounded-xl shadow-xl border border-slate-300 object-contain w-auto block select-none transition-all duration-200 ${
+                      previewScale === 'fit' 
+                        ? 'max-h-[58vh] max-w-[440px]' 
+                        : previewScale === 'medium' 
+                          ? 'max-h-[66vh] max-w-[540px]' 
+                          : 'max-h-[76vh] max-w-[640px]'
+                    }`}
+                    style={{ 
+                      aspectRatio: '1200 / 1500',
+                      height: 'auto'
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-3 sm:p-3.5 bg-white border-t border-slate-200 flex items-center justify-between text-xs text-slate-500 font-mono">
+                <span className="truncate pr-2">
+                  Proportion: 4:5 Portrait (1200 × 1500) • Fixed Aspect Ratio
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPreviewReportData(null);
+                    setPreviewImageUri(null);
+                  }}
+                  className="px-3.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg font-bold font-sans cursor-pointer text-xs shrink-0"
+                >
+                  Close Preview
+                </button>
+              </div>
+
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
     </div>
   );

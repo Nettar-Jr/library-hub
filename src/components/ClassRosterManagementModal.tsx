@@ -16,7 +16,6 @@ import {
 import { 
   Users, 
   UserPlus, 
-  GraduationCap, 
   CheckCircle2, 
   X, 
   Search, 
@@ -42,6 +41,7 @@ export const ClassRosterManagementModal: React.FC = () => {
     assignMultipleLearnersToTeacher,
     createUser,
     updateLearnerByAdmin,
+    deleteUser,
     isAdmin,
     activeSection,
     currentUser
@@ -61,6 +61,8 @@ export const ClassRosterManagementModal: React.FC = () => {
   const [editGrade, setEditGrade] = useState('');
   const [editAdmissionNumber, setEditAdmissionNumber] = useState('');
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [learnerToDelete, setLearnerToDelete] = useState<LibraryUser | null>(null);
+  const [isDeletingLearner, setIsDeletingLearner] = useState(false);
 
   const startEditLearner = (learner: LibraryUser) => {
     setEditingLearner(learner);
@@ -345,35 +347,42 @@ export const ClassRosterManagementModal: React.FC = () => {
                 onChange={(e) => setSelectedGrade(e.target.value)}
                 className="text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer max-w-[180px] sm:max-w-[220px]"
               >
-                <option value="all">All Classes / Years (1–12)</option>
+                <option value="all">
+                  {autoSection === 'primary' ? 'All Primary Classes (Years 1–6)' : 'All Secondary Classes (Years 7–12)'}
+                </option>
                 <optgroup label="Filter by Academic Year (All Streams)">
-                  {ALL_YEARS.map((y) => (
+                  {(autoSection === 'primary' ? [1, 2, 3, 4, 5, 6] : [7, 8, 9, 10, 11, 12]).map((y) => (
                     <option key={`year-${y}`} value={`year-${y}`}>
                       Year {y} (D, G, E, O, R)
                     </option>
                   ))}
                 </optgroup>
-                <optgroup label="Secondary Senior (Years 10–12: D, G, E, O, R)">
-                  {SENIOR_SECONDARY_CLASSES.map((c) => (
-                    <option key={c.code} value={c.code}>
-                      {c.code} — {c.fullLabel}
-                    </option>
-                  ))}
-                </optgroup>
-                <optgroup label="Secondary Junior (Years 7–9: D, G, E, O, R)">
-                  {JUNIOR_SECONDARY_CLASSES.map((c) => (
-                    <option key={c.code} value={c.code}>
-                      {c.code} — {c.fullLabel}
-                    </option>
-                  ))}
-                </optgroup>
-                <optgroup label="Primary Section (Years 1–6: D, G, E, O, R)">
-                  {PRIMARY_ACADEMIC_CLASSES.map((c) => (
-                    <option key={c.code} value={c.code}>
-                      {c.code} — {c.fullLabel}
-                    </option>
-                  ))}
-                </optgroup>
+                {autoSection === 'primary' ? (
+                  <optgroup label="Primary Section (Years 1–6: D, G, E, O, R)">
+                    {PRIMARY_ACADEMIC_CLASSES.map((c) => (
+                      <option key={c.code} value={c.code}>
+                        {c.code} — {c.fullLabel}
+                      </option>
+                    ))}
+                  </optgroup>
+                ) : (
+                  <>
+                    <optgroup label="Secondary Senior (Years 10–12: D, G, E, O, R)">
+                      {SENIOR_SECONDARY_CLASSES.map((c) => (
+                        <option key={c.code} value={c.code}>
+                          {c.code} — {c.fullLabel}
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Secondary Junior (Years 7–9: D, G, E, O, R)">
+                      {JUNIOR_SECONDARY_CLASSES.map((c) => (
+                        <option key={c.code} value={c.code}>
+                          {c.code} — {c.fullLabel}
+                        </option>
+                      ))}
+                    </optgroup>
+                  </>
+                )}
                 {distinctGrades.some(g => !ALL_ACADEMIC_CLASSES.some(c => c.code === g)) && (
                   <optgroup label="Other Enrolled Labels">
                     {distinctGrades.filter(g => !ALL_ACADEMIC_CLASSES.some(c => c.code === g)).map(g => (
@@ -651,7 +660,6 @@ export const ClassRosterManagementModal: React.FC = () => {
                     <th className="py-3 px-4">Grade / Class</th>
                     <th className="py-3 px-4">Admission No.</th>
                     <th className="py-3 px-4">Library Card ID</th>
-                    <th className="py-3 px-4">Assigned Teacher</th>
                     <th className="py-3 px-4">Assign Staff</th>
                     <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
@@ -711,18 +719,6 @@ export const ClassRosterManagementModal: React.FC = () => {
                           {learner.libraryCardId || 'N/A'}
                         </td>
                         <td className="py-3 px-4">
-                          {learner.assignedTeacherName ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-full font-bold text-[11px]">
-                              <GraduationCap className="w-3 h-3 text-emerald-600" />
-                              {learner.assignedTeacherName}
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-full font-bold text-[10px]">
-                              ⚠️ Not Assigned
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-3 px-4">
                           <select
                             value={learner.assignedTeacherId || ''}
                             onChange={(e) => handleIndividualAssign(learner.id, e.target.value)}
@@ -735,15 +731,29 @@ export const ClassRosterManagementModal: React.FC = () => {
                           </select>
                         </td>
                         <td className="py-3 px-4 text-right">
-                          <button
-                            type="button"
-                            onClick={() => startEditLearner(learner)}
-                            className="inline-flex items-center gap-1 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 font-bold px-2.5 py-1.5 rounded-xl text-xs transition cursor-pointer border border-slate-200 shadow-2xs"
-                            title="Edit Student Information (Name, Class, Admission No.)"
-                          >
-                            <Pencil className="w-3 h-3 text-blue-600" />
-                            <span>Edit Record</span>
-                          </button>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => startEditLearner(learner)}
+                              className="inline-flex items-center gap-1 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 font-bold px-2.5 py-1.5 rounded-xl text-xs transition cursor-pointer border border-slate-200 shadow-2xs"
+                              title="Edit Student Information (Name, Class, Admission No.)"
+                            >
+                              <Pencil className="w-3 h-3 text-blue-600" />
+                              
+                            </button>
+
+                            {isAdmin && (
+                              <button
+                                type="button"
+                                onClick={() => setLearnerToDelete(learner)}
+                                className="inline-flex items-center gap-1 bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-700 font-bold px-2.5 py-1.5 rounded-xl text-xs transition cursor-pointer border border-slate-200 shadow-2xs"
+                                title="Remove Student Record"
+                              >
+                                <Trash2 className="w-3 h-3 text-rose-600" />
+                                
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -836,21 +846,26 @@ export const ClassRosterManagementModal: React.FC = () => {
                         onChange={(e) => setEditGrade(e.target.value)}
                         className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:border-blue-600 focus:bg-white rounded-xl font-semibold outline-none transition text-slate-900 cursor-pointer"
                       >
-                        <optgroup label="Secondary Senior (Years 10–12 • Max 3 Books)">
-                          {SENIOR_SECONDARY_CLASSES.map((c) => (
-                            <option key={c.code} value={c.code}>{c.code} — {c.fullLabel}</option>
-                          ))}
-                        </optgroup>
-                        <optgroup label="Secondary Junior (Years 7–9 • Max 2 Books)">
-                          {JUNIOR_SECONDARY_CLASSES.map((c) => (
-                            <option key={c.code} value={c.code}>{c.code} — {c.fullLabel}</option>
-                          ))}
-                        </optgroup>
-                        <optgroup label="Primary Section (Years 1–6 • Manual Limit)">
-                          {PRIMARY_ACADEMIC_CLASSES.map((c) => (
-                            <option key={c.code} value={c.code}>{c.code} — {c.fullLabel}</option>
-                          ))}
-                        </optgroup>
+                        {autoSection === 'primary' ? (
+                          <optgroup label="Primary Section (Years 1–6 • Manual Limit)">
+                            {PRIMARY_ACADEMIC_CLASSES.map((c) => (
+                              <option key={c.code} value={c.code}>{c.code} — {c.fullLabel}</option>
+                            ))}
+                          </optgroup>
+                        ) : (
+                          <>
+                            <optgroup label="Secondary Senior (Years 10–12 • Max 3 Books)">
+                              {SENIOR_SECONDARY_CLASSES.map((c) => (
+                                <option key={c.code} value={c.code}>{c.code} — {c.fullLabel}</option>
+                              ))}
+                            </optgroup>
+                            <optgroup label="Secondary Junior (Years 7–9 • Max 2 Books)">
+                              {JUNIOR_SECONDARY_CLASSES.map((c) => (
+                                <option key={c.code} value={c.code}>{c.code} — {c.fullLabel}</option>
+                              ))}
+                            </optgroup>
+                          </>
+                        )}
                       </select>
                     </div>
 
@@ -899,6 +914,60 @@ export const ClassRosterManagementModal: React.FC = () => {
                     </button>
                   </div>
                 </form>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* Delete Learner Confirmation Modal */}
+        <AnimatePresence>
+          {learnerToDelete && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-200 space-y-4"
+              >
+                <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center">
+                  <Trash2 className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-display font-black text-lg text-slate-900">
+                    Remove Learner from Roster
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                    Are you sure you want to permanently remove <strong className="text-slate-800">{learnerToDelete.name}</strong> ({learnerToDelete.gradeOrYear || 'Learner'})? Their library card <span className="font-mono font-bold text-slate-700">{learnerToDelete.libraryCardId}</span> and student records will be removed.
+                  </p>
+                </div>
+                <div className="flex items-center justify-end gap-2.5 pt-2">
+                  <button
+                    type="button"
+                    disabled={isDeletingLearner}
+                    onClick={() => setLearnerToDelete(null)}
+                    className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isDeletingLearner}
+                    onClick={async () => {
+                      setIsDeletingLearner(true);
+                      const res = await deleteUser(learnerToDelete.id);
+                      setIsDeletingLearner(false);
+                      if (res.success) {
+                        setFeedbackMessage({ text: res.message, type: 'success' });
+                        setTimeout(() => setFeedbackMessage(null), 3500);
+                      }
+                      setLearnerToDelete(null);
+                    }}
+                    className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-xs disabled:opacity-50 flex items-center gap-1.5"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>{isDeletingLearner ? 'Removing...' : 'Yes, Remove Learner'}</span>
+                  </button>
+                </div>
               </motion.div>
             </div>
           )}

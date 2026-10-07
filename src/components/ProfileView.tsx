@@ -3,9 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
+import { compressAvatarFile } from '../utils/imageCompressor';
 import { 
   PRIMARY_ACADEMIC_CLASSES, 
   JUNIOR_SECONDARY_CLASSES, 
@@ -29,9 +30,12 @@ import {
   Mail,
   ShieldCheck,
   Sparkles,
-  Lock
+  Lock,
+  Link as LinkIcon,
+  Check
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { PersonalReadingGoals } from './PersonalReadingGoals';
 
 export const ProfileView: React.FC = () => {
   const { currentUser, updateUserProfile, isLearner, isStaff, isAdmin } = useApp();
@@ -46,6 +50,20 @@ export const ProfileView: React.FC = () => {
   const [gradeOrYear, setGradeOrYear] = useState(currentUser?.gradeOrYear || '');
   const [department, setDepartment] = useState(currentUser?.department || '');
   const [avatarUrl, setAvatarUrl] = useState(currentUser?.avatar || '');
+  const [customAvatarUrl, setCustomAvatarUrl] = useState('');
+  const [isAddingUrl, setIsAddingUrl] = useState(false);
+
+  // Sync state when currentUser updates
+  useEffect(() => {
+    if (currentUser) {
+      setFullName(currentUser.name || '');
+      setNickname(currentUser.nickname || '');
+      setUsername(currentUser.username || '');
+      setGradeOrYear(currentUser.gradeOrYear || '');
+      setDepartment(currentUser.department || '');
+      setAvatarUrl(currentUser.avatar || '');
+    }
+  }, [currentUser]);
 
   // Password change states
   const [currentPassword, setCurrentPassword] = useState('');
@@ -78,8 +96,17 @@ export const ProfileView: React.FC = () => {
 
   const userInitial = (nickname || fullName || currentUser.name || 'U').charAt(0).toUpperCase();
 
-  // Handle Photo Upload
-  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Curated profile presets for quick customization
+  const educatorPresets = [
+    { label: 'Alabi (Librarian)', url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=280' },
+    { label: 'Veronica (Primary)', url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=280' },
+    { label: 'Academic Lead', url: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=280' },
+    { label: 'Faculty Advisor', url: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&q=80&w=280' },
+    { label: 'Scholar Specialist', url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=280' },
+  ];
+
+  // Handle Photo Upload with automatic compression
+  const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -88,26 +115,78 @@ export const ProfileView: React.FC = () => {
       return;
     }
 
-    if (file.size > 4 * 1024 * 1024) {
-      setSaveStatus({ type: 'error', message: 'Image size should be under 4MB for optimal performance.' });
-      return;
-    }
+    try {
+      setIsSaving(true);
+      setSaveStatus({ type: 'success', message: 'Optimizing and applying picture...' });
+      
+      // Compress to 280x280 square avatar (~15KB - 25KB) so it saves seamlessly in storage
+      const compressedDataUrl = await compressAvatarFile(file, 280, 0.86);
+      setAvatarUrl(compressedDataUrl);
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const result = event.target?.result as string;
-      if (result) {
-        setAvatarUrl(result);
-        setSaveStatus({ type: 'success', message: 'Picture loaded! Click "Save Changes" to apply.' });
+      // Immediately synchronize profile picture with context, database, header, and dashboard
+      const res = await updateUserProfile({ avatar: compressedDataUrl });
+      if (res.success) {
+        setSaveStatus({ type: 'success', message: 'Profile picture updated! It is now active across your header, dashboard, and account.' });
+      } else {
+        setSaveStatus({ type: 'error', message: res.message });
       }
-    };
-    reader.readAsDataURL(file);
+    } catch (err: any) {
+      setSaveStatus({ type: 'error', message: err?.message || 'Failed to process selected picture.' });
+    } finally {
+      setIsSaving(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
-  const handleRemovePhoto = () => {
+  const handleRemovePhoto = async () => {
     setAvatarUrl('');
     if (fileInputRef.current) fileInputRef.current.value = '';
-    setSaveStatus({ type: 'success', message: 'Picture removed. Default initial will be used.' });
+    try {
+      setIsSaving(true);
+      const res = await updateUserProfile({ avatar: '' });
+      if (res.success) {
+        setSaveStatus({ type: 'success', message: 'Profile picture removed. Default avatar is now active across header and dashboard.' });
+      }
+    } catch {
+      setSaveStatus({ type: 'error', message: 'Could not remove avatar.' });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSelectPreset = async (presetUrl: string) => {
+    setAvatarUrl(presetUrl);
+    try {
+      setIsSaving(true);
+      const res = await updateUserProfile({ avatar: presetUrl });
+      if (res.success) {
+        setSaveStatus({ type: 'success', message: 'Profile picture preset applied to header and dashboard!' });
+      }
+    } catch {
+      setSaveStatus({ type: 'error', message: 'Could not apply avatar preset.' });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleApplyCustomUrl = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!customAvatarUrl.trim()) return;
+    const url = customAvatarUrl.trim();
+    setAvatarUrl(url);
+    try {
+      setIsSaving(true);
+      const res = await updateUserProfile({ avatar: url });
+      if (res.success) {
+        setSaveStatus({ type: 'success', message: 'Custom image URL applied to header and dashboard!' });
+        setCustomAvatarUrl('');
+        setIsAddingUrl(false);
+      }
+    } catch {
+      setSaveStatus({ type: 'error', message: 'Could not apply custom URL.' });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // Official name is locked for students/learners; only administrators or librarians can update it
@@ -198,6 +277,13 @@ export const ProfileView: React.FC = () => {
           </div>
         </div>
 
+        {/* Personal Reading Goals (For learners) */}
+        {isLearner && (
+          <div className="p-6 sm:p-8 pb-0">
+            <PersonalReadingGoals />
+          </div>
+        )}
+
         {/* Profile Content Body */}
         <form onSubmit={handleSaveChanges} className="p-6 sm:p-8 space-y-8">
           
@@ -231,10 +317,13 @@ export const ProfileView: React.FC = () => {
               <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl bg-blue-600 text-white flex items-center justify-center text-3xl font-black shadow-lg overflow-hidden border-4 border-white">
                 {avatarUrl ? (
                   <img
+                    key={avatarUrl}
                     src={avatarUrl}
                     alt={fullName}
                     className="w-full h-full object-cover"
-                    onError={() => setAvatarUrl('')}
+                    onError={(e) => {
+                      (e.target as HTMLElement).style.display = 'none';
+                    }}
                   />
                 ) : (
                   <span>{userInitial}</span>
@@ -261,13 +350,18 @@ export const ProfileView: React.FC = () => {
             </div>
 
             {/* Avatar Controls & Info */}
-            <div className="space-y-2 text-center sm:text-left flex-1">
+            <div className="space-y-3 text-center sm:text-left flex-1">
               <div>
-                <h3 className="font-display font-bold text-base text-slate-900">
-                  Profile Picture
+                <h3 className="font-display font-bold text-base text-slate-900 flex items-center justify-center sm:justify-start gap-2">
+                  <span>Profile Picture</span>
+                  {isAdmin && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 bg-amber-100 text-amber-900 rounded-full border border-amber-200">
+                      Chief Librarian Avatar
+                    </span>
+                  )}
                 </h3>
-                <p className="text-xs text-slate-500">
-                  Upload a picture in place of the default avatar initial. Accepts PNG, JPG, or WebP.
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Upload a photo or choose a preset. Automatically optimized and synced in real-time across your dashboard welcome banner, header, and system records.
                 </p>
               </div>
 
@@ -278,7 +372,16 @@ export const ProfileView: React.FC = () => {
                   className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold shadow-xs flex items-center gap-1.5 transition cursor-pointer"
                 >
                   <Camera className="w-3.5 h-3.5" />
-                  <span>Choose Photo</span>
+                  <span>Upload Photo</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsAddingUrl(!isAddingUrl)}
+                  className="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-medium border border-slate-200 transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <LinkIcon className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Image URL</span>
                 </button>
 
                 {avatarUrl && (
@@ -291,6 +394,57 @@ export const ProfileView: React.FC = () => {
                     <span>Reset Default</span>
                   </button>
                 )}
+              </div>
+
+              {/* Direct URL Input Tray */}
+              {isAddingUrl && (
+                <div className="pt-1">
+                  <div className="flex items-center gap-2 max-w-md">
+                    <input
+                      type="url"
+                      placeholder="https://example.com/photo.jpg"
+                      value={customAvatarUrl}
+                      onChange={(e) => setCustomAvatarUrl(e.target.value)}
+                      className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:bg-white focus:outline-blue-600"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleApplyCustomUrl}
+                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition cursor-pointer"
+                    >
+                      Apply
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Quick Preset Avatars */}
+              <div className="pt-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1.5">
+                  Or select a verified educator avatar:
+                </span>
+                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                  {educatorPresets.map((preset) => (
+                    <button
+                      key={preset.url}
+                      type="button"
+                      onClick={() => handleSelectPreset(preset.url)}
+                      className={`relative w-8 h-8 rounded-xl overflow-hidden border-2 transition cursor-pointer ${
+                        avatarUrl === preset.url 
+                          ? 'border-blue-600 ring-2 ring-blue-500/30' 
+                          : 'border-slate-200 hover:border-slate-400'
+                      }`}
+                      title={preset.label}
+                    >
+                      <img src={preset.url} alt={preset.label} className="w-full h-full object-cover" />
+                      {avatarUrl === preset.url && (
+                        <div className="absolute inset-0 bg-blue-600/40 flex items-center justify-center">
+                          <Check className="w-3.5 h-3.5 text-white" />
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </div>

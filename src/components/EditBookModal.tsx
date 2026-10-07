@@ -7,6 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { Book, BOOK_CATEGORIES } from '../types';
 import { lookupBookByISBN } from '../utils/isbnLookup';
+import { parseRawTextToPages } from '../utils/ebookUtils';
 import { 
   X, 
   Check, 
@@ -20,7 +21,11 @@ import {
   Layers,
   Lock,
   BookmarkCheck,
-  Building2
+  Building2,
+  Trash2,
+  UploadCloud,
+  FileText,
+  Smartphone
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -37,13 +42,20 @@ export const EditBookModal: React.FC<EditBookModalProps> = ({
   onClose,
   onSuccess,
 }) => {
-  const { updateBook } = useApp();
+  const { updateBook, deleteBook, isAdmin, activeSection } = useApp();
 
   const [formData, setFormData] = useState<Partial<Book>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [isLookingUpISBN, setIsLookingUpISBN] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
+
+  // E-Book Manuscript Upload & Preview States
+  const [previewPageIdx, setPreviewPageIdx] = useState(0);
+  const [rawManuscriptText, setRawManuscriptText] = useState('');
+  const [showTextPaste, setShowTextPaste] = useState(false);
 
   // Sync state whenever the book changes or modal opens
   useEffect(() => {
@@ -70,13 +82,82 @@ export const EditBookModal: React.FC<EditBookModalProps> = ({
         isPopular: !!book.isPopular,
         isNew: !!book.isNew,
         isTeacherPick: !!book.isTeacherPick,
+        inventoryType: book.inventoryType || 'physical',
+        ebookFormat: book.ebookFormat || 'pages',
+        ebookPages: book.ebookPages,
+        ebookFileName: book.ebookFileName,
+        ebookFileSize: book.ebookFileSize,
+        ebookFileUrl: book.ebookFileUrl,
       });
+      setPreviewPageIdx(0);
       setFormError(null);
       setFormSuccess(null);
     }
   }, [book, isOpen]);
 
   if (!isOpen || !book) return null;
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const fileName = file.name;
+    const fileSize = `${Math.round(file.size / 1024) || 1} KB`;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      if (file.name.endsWith('.json')) {
+        try {
+          const parsed = JSON.parse(text);
+          const list = Array.isArray(parsed) ? parsed : (parsed.pages || []);
+          if (list.length > 0) {
+            setFormData(prev => ({
+              ...prev,
+              inventoryType: 'ebook',
+              ebookFormat: 'pages',
+              ebookPages: list,
+              ebookFileName: fileName,
+              ebookFileSize: fileSize,
+              pageCount: list.length,
+            }));
+            setFormSuccess(`Loaded ${list.length} pages from ${fileName}!`);
+            setTimeout(() => setFormSuccess(null), 3500);
+            return;
+          }
+        } catch {}
+      }
+      const pages = parseRawTextToPages(text, formData.title || book?.title);
+      setFormData(prev => ({
+        ...prev,
+        inventoryType: 'ebook',
+        ebookFormat: 'pages',
+        ebookPages: pages,
+        ebookFileName: fileName,
+        ebookFileSize: fileSize,
+        pageCount: pages.length,
+      }));
+      setFormSuccess(`Parsed "${fileName}" into ${pages.length} readable pages!`);
+      setTimeout(() => setFormSuccess(null), 3500);
+    };
+    reader.readAsText(file);
+  };
+
+  const handleConvertPastedText = () => {
+    if (!rawManuscriptText.trim()) return;
+    const pages = parseRawTextToPages(rawManuscriptText, formData.title || book?.title);
+    setFormData(prev => ({
+      ...prev,
+      inventoryType: 'ebook',
+      ebookFormat: 'pages',
+      ebookPages: pages,
+      ebookFileName: 'manuscript-entry.txt',
+      ebookFileSize: `${Math.round(rawManuscriptText.length / 1000) || 1} KB`,
+      pageCount: pages.length,
+    }));
+    setShowTextPaste(false);
+    setRawManuscriptText('');
+    setFormSuccess(`Generated ${pages.length} book pages from pasted manuscript!`);
+    setTimeout(() => setFormSuccess(null), 3500);
+  };
 
   const handleISBNLookup = async () => {
     const rawIsbn = (formData.isbn || '').replace(/[^0-9X]/gi, '');
@@ -159,6 +240,12 @@ export const EditBookModal: React.FC<EditBookModalProps> = ({
         isPopular: !!formData.isPopular,
         isNew: !!formData.isNew,
         isTeacherPick: !!formData.isTeacherPick,
+        inventoryType: formData.inventoryType || 'physical',
+        ebookFormat: formData.inventoryType === 'ebook' ? (formData.ebookFormat || 'pages') : undefined,
+        ebookPages: formData.inventoryType === 'ebook' ? (formData.ebookPages || book.ebookPages) : undefined,
+        ebookFileName: formData.ebookFileName || book.ebookFileName,
+        ebookFileSize: formData.ebookFileSize || book.ebookFileSize,
+        ebookFileUrl: formData.ebookFileUrl || book.ebookFileUrl,
       };
 
       const result = await updateBook(book.id, updates);
@@ -236,6 +323,166 @@ export const EditBookModal: React.FC<EditBookModalProps> = ({
 
         {/* Scrollable Form Body */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto text-xs flex-1">
+
+          {/* Format & Inventory Space Selector (Physical vs E-Book) */}
+          <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-3.5 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                Holding Format & Inventory Space *
+              </label>
+              <span className="text-[10px] text-slate-500">
+                Stored in separate inventory partitions
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, inventoryType: 'physical' })}
+                className={`p-3 rounded-xl border text-left transition flex items-center gap-3 cursor-pointer ${
+                  formData.inventoryType !== 'ebook'
+                    ? 'bg-white border-blue-600 ring-2 ring-blue-500/20 text-slate-900 shadow-xs'
+                    : 'bg-white/60 border-slate-200 text-slate-600 hover:bg-white'
+                }`}
+              >
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                  formData.inventoryType !== 'ebook' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'
+                }`}>
+                  <BookOpen className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="font-bold text-xs truncate">Hard Copy (Physical)</div>
+                  <div className="text-[10px] text-slate-500 truncate">Shelf inventory, barcode, circulation desk</div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, inventoryType: 'ebook', ebookFormat: 'pages' })}
+                className={`p-3 rounded-xl border text-left transition flex items-center gap-3 cursor-pointer ${
+                  formData.inventoryType === 'ebook'
+                    ? 'bg-white border-purple-600 ring-2 ring-purple-500/20 text-slate-900 shadow-xs'
+                    : 'bg-white/60 border-slate-200 text-slate-600 hover:bg-white'
+                }`}
+              >
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                  formData.inventoryType === 'ebook' ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-500'
+                }`}>
+                  <Sparkles className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="font-bold text-xs truncate">E-Book (Digital Edition)</div>
+                  <div className="text-[10px] text-slate-500 truncate">Upload manuscript, page-by-page reader</div>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          {/* E-Book Manuscript Upload & Page Generation Section (shown when ebook is chosen) */}
+          {formData.inventoryType === 'ebook' && (
+            <div className="bg-purple-50/60 border border-purple-200 rounded-2xl p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-purple-600" />
+                  <h4 className="font-bold text-slate-900 text-xs">
+                    Digital eBook Manuscript & Page-by-Page Setup
+                  </h4>
+                </div>
+                {formData.ebookPages && formData.ebookPages.length > 0 && (
+                  <span className="text-[10px] font-bold text-purple-700 bg-purple-100 px-2.5 py-0.5 rounded-full">
+                    {formData.ebookPages.length} Pages Paginated
+                  </span>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                {/* File Upload Button */}
+                <label className="border-2 border-dashed border-purple-300 hover:border-purple-400 bg-white rounded-xl p-3.5 flex flex-col items-center justify-center text-center cursor-pointer transition hover:bg-purple-50/30">
+                  <UploadCloud className="w-6 h-6 text-purple-600 mb-1" />
+                  <span className="font-bold text-xs text-purple-900">Upload E-Book File</span>
+                  <span className="text-[10px] text-slate-500 mt-0.5">Supports .txt, .md, .json manuscript</span>
+                  <input
+                    type="file"
+                    accept=".txt,.md,.json,.text"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+                </label>
+
+                {/* Paste text toggle */}
+                <button
+                  type="button"
+                  onClick={() => setShowTextPaste(!showTextPaste)}
+                  className="border border-purple-200 bg-white hover:bg-purple-50/50 rounded-xl p-3.5 flex flex-col items-center justify-center text-center cursor-pointer transition"
+                >
+                  <FileText className="w-6 h-6 text-purple-600 mb-1" />
+                  <span className="font-bold text-xs text-purple-900">{showTextPaste ? 'Hide Text Input' : 'Paste Manuscript Text'}</span>
+                  <span className="text-[10px] text-slate-500 mt-0.5">Type or paste text to auto-generate pages</span>
+                </button>
+              </div>
+
+              {formData.ebookFileName && (
+                <div className="flex items-center justify-between bg-white px-3 py-2 rounded-xl border border-purple-200 text-[11px]">
+                  <span className="font-mono text-purple-900 truncate">📄 {formData.ebookFileName}</span>
+                  <span className="text-slate-500 shrink-0">{formData.ebookFileSize || 'Digital File'}</span>
+                </div>
+              )}
+
+              {showTextPaste && (
+                <div className="space-y-2 bg-white p-3 rounded-xl border border-purple-200">
+                  <label className="block text-[11px] font-semibold text-slate-700">
+                    Paste Book Chapters or Manuscript Text
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={rawManuscriptText}
+                    onChange={(e) => setRawManuscriptText(e.target.value)}
+                    placeholder="Paste the book manuscript, chapter text, or paragraphs here. The system will automatically paginate it into book pages (~240 words per page)..."
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono outline-none focus:ring-1 focus:ring-purple-500"
+                  />
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={handleConvertPastedText}
+                      className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-bold transition cursor-pointer"
+                    >
+                      Paginate & Generate Pages
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Page preview if pages exist */}
+              {formData.ebookPages && formData.ebookPages.length > 0 && (
+                <div className="bg-white rounded-xl p-3 border border-purple-200 space-y-2">
+                  <div className="flex items-center justify-between text-[11px] text-purple-900 font-bold border-b border-purple-100 pb-1.5">
+                    <span className="truncate">Page {previewPageIdx + 1} of {formData.ebookPages.length}: {formData.ebookPages[previewPageIdx]?.chapterTitle}</span>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        disabled={previewPageIdx === 0}
+                        onClick={() => setPreviewPageIdx(p => Math.max(0, p - 1))}
+                        className="px-2 py-0.5 rounded border border-purple-200 text-purple-700 disabled:opacity-40 cursor-pointer"
+                      >
+                        Prev
+                      </button>
+                      <button
+                        type="button"
+                        disabled={previewPageIdx >= formData.ebookPages.length - 1}
+                        onClick={() => setPreviewPageIdx(p => Math.min(formData.ebookPages!.length - 1, p + 1))}
+                        className="px-2 py-0.5 rounded border border-purple-200 text-purple-700 disabled:opacity-40 cursor-pointer"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-700 leading-relaxed font-serif line-clamp-3 italic bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                    "{formData.ebookPages[previewPageIdx]?.content}"
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
           
           {/* Top Row: Cover Preview & Essential Details */}
           <div className="flex flex-col sm:flex-row gap-4 items-start pb-2 border-b border-slate-100">
@@ -312,14 +559,14 @@ export const EditBookModal: React.FC<EditBookModalProps> = ({
               <label className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wider mb-1">
                 Branch / Section
               </label>
-              <select
-                value={formData.section || 'primary'}
-                onChange={(e) => setFormData({ ...formData, section: e.target.value as 'primary' | 'college' })}
-                className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-medium text-slate-800 outline-none focus:ring-1 focus:ring-slate-500 text-xs"
-              >
-                <option value="primary">Primary School Library</option>
-                <option value="college">College / Secondary Library</option>
-              </select>
+              <div className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-800 text-xs flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5 text-slate-500" />
+                <span>
+                  {(formData.section || activeSection) === 'primary' 
+                    ? 'Primary School Library' 
+                    : 'College / Secondary Library'}
+                </span>
+              </div>
             </div>
           </div>
 
@@ -542,22 +789,66 @@ export const EditBookModal: React.FC<EditBookModalProps> = ({
           </div>
 
           {/* Footer Actions */}
-          <div className="pt-4 border-t border-slate-200 flex items-center justify-end gap-2.5">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer transition"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-xs cursor-pointer transition flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
-            >
-              <Check className="w-4 h-4" />
-              <span>{isSubmitting ? 'Saving Changes...' : 'Save Changes'}</span>
-            </button>
+          <div className="pt-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2.5">
+            <div>
+              {isAdmin && book && (
+                confirmDelete ? (
+                  <div className="flex items-center gap-2 bg-rose-50 border border-rose-200 p-1.5 px-2.5 rounded-xl">
+                    <span className="text-[11px] font-bold text-rose-700">Delete from DB permanently?</span>
+                    <button
+                      type="button"
+                      disabled={isDeleting}
+                      onClick={async () => {
+                        setIsDeleting(true);
+                        await deleteBook(book.id);
+                        setIsDeleting(false);
+                        setConfirmDelete(false);
+                        onClose();
+                      }}
+                      className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[11px] font-bold transition cursor-pointer shadow-xs disabled:opacity-50"
+                    >
+                      {isDeleting ? 'Deleting...' : 'Yes, Delete'}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isDeleting}
+                      onClick={() => setConfirmDelete(false)}
+                      className="px-2 py-1 text-slate-500 hover:text-slate-700 text-[11px] font-medium transition cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDelete(true)}
+                    className="px-3 py-2 text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 border border-rose-200 rounded-xl cursor-pointer transition flex items-center gap-1.5"
+                    title="Delete book from database completely"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                    <span>Delete from Database</span>
+                  </button>
+                )
+              )}
+            </div>
+
+            <div className="flex items-center gap-2.5">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-xs cursor-pointer transition flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
+              >
+                <Check className="w-4 h-4" />
+                <span>{isSubmitting ? 'Saving Changes...' : 'Save Changes'}</span>
+              </button>
+            </div>
           </div>
         </form>
       </motion.div>

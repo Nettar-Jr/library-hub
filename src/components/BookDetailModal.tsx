@@ -6,6 +6,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { Book } from '../types';
+import { formatReadingDuration } from '../utils/ebookUtils';
 import { 
   X, 
   Star, 
@@ -21,11 +22,13 @@ import {
   CheckCircle2,
   AlertCircle,
   Trash2,
-  Printer,
-  Pencil
+  Pencil,
+  Sparkles,
+  BookOpen,
+  Bell,
+  BellOff
 } from 'lucide-react';
 import { motion } from 'motion/react';
-import { PhysicalPrintTools } from './PhysicalPrintTools';
 import { EditBookModal } from './EditBookModal';
 
 interface BookDetailModalProps {
@@ -50,8 +53,13 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({ book, onClose 
     isStaff,
     isLearner,
     deleteBook,
-    setBookAsSpotlight
+    setBookAsSpotlight,
+    openEBookReader,
+    getReadingProgress,
+    toggleBookNotification
   } = useApp();
+
+  const readingProgress = getReadingProgress(book.id);
 
   const canEditBook = !isLearner && (isAdmin || isStaff || currentRole === 'STAFF' || currentRole === 'ADMIN');
 
@@ -61,8 +69,9 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({ book, onClose 
   const [reviewComment, setReviewComment] = useState('');
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [isSavedToShelf, setIsSavedToShelf] = useState(false);
-  const [showSpinePrint, setShowSpinePrint] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [confirmDeleteBook, setConfirmDeleteBook] = useState(false);
+  const [isDeletingBook, setIsDeletingBook] = useState(false);
 
   const modalRef = useRef<HTMLDivElement>(null);
 
@@ -203,6 +212,17 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({ book, onClose 
             {/* Book Metadata Header */}
             <div className="space-y-2 flex-1 text-center sm:text-left">
               <div className="flex flex-wrap items-center justify-center sm:justify-start gap-1.5">
+                {book.inventoryType === 'ebook' ? (
+                  <span className="text-[10px] font-bold text-purple-200 bg-purple-900/60 border border-purple-500/40 px-2.5 py-0.5 rounded-full flex items-center gap-1 shadow-2xs">
+                    <Sparkles className="w-2.5 h-2.5 text-purple-300" />
+                    <span>E-Book (Digital Edition)</span>
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-bold text-blue-200 bg-blue-900/60 border border-blue-500/40 px-2.5 py-0.5 rounded-full flex items-center gap-1 shadow-2xs">
+                    <BookOpen className="w-2.5 h-2.5 text-blue-300" />
+                    <span>Hard Copy (Physical)</span>
+                  </span>
+                )}
                 <span className="text-[10px] font-semibold tracking-wider text-slate-300 bg-white/10 px-2.5 py-0.5 rounded-full uppercase">
                   {book.category}
                 </span>
@@ -277,8 +297,72 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({ book, onClose 
             </div>
           )}
 
+          {/* Active Reader Progress Banner (Page by Page Tracking & Automated Reminder Status) */}
+          {readingProgress && readingProgress.currentPage > 0 && (
+            <div className="p-4 bg-gradient-to-r from-purple-50 via-indigo-50/70 to-blue-50 border border-purple-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-purple-950 shadow-xs">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-purple-900">Your Reading Status</span>
+                  <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                    readingProgress.status === 'completed'
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : readingProgress.status === 'more-than-half'
+                      ? 'bg-purple-100 text-purple-800'
+                      : 'bg-blue-100 text-blue-800'
+                  }`}>
+                    {readingProgress.status === 'completed' ? 'Finished Book ✓' : readingProgress.status === 'more-than-half' ? 'More Than Halfway 📖' : 'In Progress'}
+                  </span>
+                </div>
+                <p className="text-xs text-purple-800">
+                  Stopped on <strong>Page {readingProgress.currentPage} of {readingProgress.totalPages}</strong> ({readingProgress.percentCompleted}% read) • {formatReadingDuration(readingProgress.totalDurationSeconds)} reading duration
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = !readingProgress.notificationsEnabled;
+                    toggleBookNotification(book.id, next);
+                    triggerNotification('success', next ? 'Automated reading reminders enabled for this book.' : 'Reminders muted for this book.');
+                  }}
+                  className="p-2 px-2.5 rounded-xl bg-white border border-purple-200 text-purple-700 hover:bg-purple-100/50 transition cursor-pointer flex items-center gap-1.5 text-xs font-semibold"
+                  title={readingProgress.notificationsEnabled !== false ? 'Reading reminders are active for this book. Click to mute.' : 'Reading reminders muted. Click to enable.'}
+                >
+                  {readingProgress.notificationsEnabled !== false ? <Bell className="w-3.5 h-3.5 text-purple-600" /> : <BellOff className="w-3.5 h-3.5 text-slate-400" />}
+                  <span className="text-[11px]">{readingProgress.notificationsEnabled !== false ? 'Reminders On' : 'Reminders Off'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => openEBookReader(book, readingProgress.currentPage)}
+                  className="px-4 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-xl text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer active:scale-98"
+                >
+                  <BookOpen className="w-3.5 h-3.5" />
+                  <span>Resume Page {readingProgress.currentPage}</span>
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Action Row: Borrow/Reserve, Audio Narration & Save to Reading List */}
           <div className="flex flex-col sm:flex-row gap-3">
+            {/* 1. Digital Page-by-Page eBook Reader Button */}
+            {(book.inventoryType === 'ebook' || book.ebookPages?.length || true) && (
+              <button
+                type="button"
+                onClick={() => openEBookReader(book, readingProgress?.currentPage || 1)}
+                className="flex-1 py-3 px-5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 bg-gradient-to-r from-purple-700 via-indigo-700 to-blue-700 hover:from-purple-800 hover:to-indigo-800 text-white shadow-sm hover:shadow-md transition cursor-pointer active:scale-98"
+              >
+                <BookOpen className="w-4 h-4" />
+                <span>
+                  {readingProgress && readingProgress.currentPage > 1
+                    ? `Continue Reading (Page ${readingProgress.currentPage})`
+                    : 'Read eBook Page-by-Page'}
+                </span>
+              </button>
+            )}
+
             {userActiveLoan ? (
               <div className="flex-1 py-3 px-5 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 bg-indigo-50 text-indigo-900 border border-indigo-200">
                 <BookmarkCheck className="w-4 h-4 text-indigo-600" />
@@ -382,29 +466,60 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({ book, onClose 
 
                 <button
                   type="button"
-                  onClick={() => setShowSpinePrint(true)}
-                  className="px-3 py-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 transition cursor-pointer"
-                  title="Print spine label for this book"
-                >
-                  <Printer className="w-4 h-4 text-indigo-600" />
-                  <span className="hidden sm:inline">Print Label</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={async () => {
-                    await deleteBook(book.id);
-                    onClose();
-                  }}
+                  onClick={() => setConfirmDeleteBook(true)}
                   className="px-3 py-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 transition cursor-pointer"
-                  title="Delete title from library catalog"
+                  title="Delete title permanently from the library database"
                 >
                   <Trash2 className="w-4 h-4 text-rose-600" />
-                  <span className="hidden sm:inline">Delete</span>
+                  <span className="hidden sm:inline">Delete from Database</span>
                 </button>
               </>
             )}
           </div>
+
+          {/* Delete Book Confirmation Modal */}
+          {confirmDeleteBook && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs">
+              <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-200 space-y-4">
+                <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center">
+                  <Trash2 className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-display font-black text-lg text-slate-900">
+                    Delete Book from Database Completely
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                    Are you sure you want to permanently delete <strong className="text-slate-800">"{book.title}"</strong> by {book.author} from the database? This title will be completely removed from the library catalog, shelf inventory, and database. This action cannot be undone.
+                  </p>
+                </div>
+                <div className="flex items-center justify-end gap-2.5 pt-2">
+                  <button
+                    type="button"
+                    disabled={isDeletingBook}
+                    onClick={() => setConfirmDeleteBook(false)}
+                    className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isDeletingBook}
+                    onClick={async () => {
+                      setIsDeletingBook(true);
+                      await deleteBook(book.id);
+                      setIsDeletingBook(false);
+                      setConfirmDeleteBook(false);
+                      onClose();
+                    }}
+                    className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-xs disabled:opacity-50 flex items-center gap-1.5"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>{isDeletingBook ? 'Deleting from Database...' : 'Yes, Delete from Database'}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Audio Visualizer if Active */}
           {isPlayingAudio && (
@@ -645,16 +760,6 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({ book, onClose 
             setSelectedBook(updatedBook);
             triggerNotification('success', `"${updatedBook.title}" details updated successfully!`);
           }}
-        />
-      )}
-
-      {/* Physical Print Tools Modal for this book */}
-      {showSpinePrint && (
-        <PhysicalPrintTools
-          isModal={true}
-          initialTab="spine"
-          preselectedBookIds={[book.id]}
-          onClose={() => setShowSpinePrint(false)}
         />
       )}
     </div>

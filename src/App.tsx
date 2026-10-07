@@ -8,6 +8,7 @@ import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-
 import { AppProvider, useApp, getUserBorrowLimitInfo } from './context/AppContext';
 import { Navbar } from './components/Navbar';
 import { ClassRosterManagementModal } from './components/ClassRosterManagementModal';
+import { EBookReaderModal } from './components/EBookReaderModal';
 import { AnnouncementBoard } from './components/AnnouncementBoard';
 import { BookCatalog } from './components/BookCatalog';
 import { CirculationTracker } from './components/CirculationTracker';
@@ -32,7 +33,6 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { Login } from './components/Login';
 import { HomeDiscoveryHub } from './components/HomeDiscoveryHub';
-import { EpicClassroomBanner } from './components/EpicClassroomBanner';
 import { Sidebar } from './components/Sidebar';
 import { DashboardView } from './components/DashboardView';
 import { ProfileView } from './components/ProfileView';
@@ -46,10 +46,7 @@ function HomeView() {
       {/* 1. Hero, 2. Limited Catalog Preview, 3. What You Can Do */}
       <HomeDiscoveryHub />
 
-      {/* 2. Epic Digital Reading Classroom (Assigned Books by Librarians) */}
-      <EpicClassroomBanner />
-
-      {/* 3. Bulletin & Notices Section (Accommodates 2 Primary + 2 College) */}
+      {/* 2. Bulletin & Notices Section (Accommodates 2 Primary + 2 College) */}
       <section className="bg-white rounded-3xl px-3 sm:px-5 py-4 sm:py-6 shadow-xs border border-slate-200">
         <AnnouncementBoard isHomePreview={true} />
       </section>
@@ -221,14 +218,8 @@ function CatalogView() {
           )}
         </div>
       ) : (
-        <div className="space-y-8">
-          {/* Librarian Full View - Unified Dashboard */}
-          <section className="bg-white rounded-3xl p-6 sm:p-8 shadow-xs border border-slate-200/90">
-            <CirculationTracker />
-          </section>
-          <section className="bg-white rounded-3xl p-6 sm:p-8 shadow-xs border border-slate-200/90">
-            <BookCatalog />
-          </section>
+        <div>
+          <BookCatalog />
         </div>
       )}
     </div>
@@ -267,29 +258,9 @@ function SubmitView() {
 }
 
 /* -------------------------------------------------------------
- * 4. Analytics View Component (Staff & Librarian)
+ * 4. Analytics View Component (School Intelligence & Reports)
  * ------------------------------------------------------------- */
 function AnalyticsView() {
-  const { isStaff, isAdmin } = useApp();
-  const navigate = useNavigate();
-
-  if (!isStaff && !isAdmin) {
-    return (
-      <div className="bg-white p-8 rounded-3xl border border-slate-200 text-center space-y-4 max-w-md mx-auto my-12 shadow-sm">
-        <Lock className="w-10 h-10 text-amber-500 mx-auto" />
-        <h3 className="font-display font-extrabold text-lg text-slate-900">Staff Access Required</h3>
-        <p className="text-xs text-slate-500">Collection Analytics and DDC Classification Reports are restricted to teachers and library staff.</p>
-        <button
-          type="button"
-          onClick={() => navigate('/admin')}
-          className="bg-slate-900 text-white text-xs font-bold px-4 py-2.5 rounded-xl hover:bg-slate-800 transition cursor-pointer"
-        >
-          Sign In as Staff or Librarian
-        </button>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
       <LibraryAnalytics />
@@ -423,7 +394,7 @@ function GalleryView() {
 function AppContent() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { currentUser, isLibrarianLoggedIn, loggedInLearner } = useApp();
+  const { currentUser, isLibrarianLoggedIn, loggedInLearner, activeEBookModal, closeEBookReader } = useApp();
 
   const isUserLoggedIn = Boolean(currentUser || loggedInLearner || isLibrarianLoggedIn);
 
@@ -476,6 +447,16 @@ function AppContent() {
 
         {/* Class Roster Management Modal (Global Admin Trigger) */}
         <ClassRosterManagementModal />
+
+        {/* Global Digital eBook Page-by-Page Reader Modal */}
+        {activeEBookModal?.isOpen && activeEBookModal.book && (
+          <EBookReaderModal
+            book={activeEBookModal.book}
+            isOpen={activeEBookModal.isOpen}
+            onClose={closeEBookReader}
+            initialPage={activeEBookModal.initialPage}
+          />
+        )}
 
         {/* Main Content Area with Route Transitions */}
         <main className="flex-grow max-w-[90rem] w-full mx-auto px-2 sm:px-3 lg:px-4 py-6">

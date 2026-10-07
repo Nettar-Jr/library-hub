@@ -10,8 +10,8 @@ import { Book, StudentSubmission, CirculationRecord, BookHold, LibraryUser, Hero
 const DEFAULT_SUPABASE_URL = 'https://dlaxjarpxjopktzijizn.supabase.co';
 const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsYXhqYXJweGpvcGt0emlqaXpuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg5NDAyOTgsImV4cCI6MjEwNDUxNjI5OH0.00MAj4WbyiEyzuAOygFCorGCcmZZBVeD9EP0xaikm8w';
 
-const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL).trim();
-const supabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY).trim();
+const supabaseUrl = ((typeof import.meta !== 'undefined' && import.meta?.env?.VITE_SUPABASE_URL) || DEFAULT_SUPABASE_URL).trim();
+const supabaseAnonKey = ((typeof import.meta !== 'undefined' && import.meta?.env?.VITE_SUPABASE_ANON_KEY) || DEFAULT_SUPABASE_ANON_KEY).trim();
 
 export const isSupabaseConfigured = Boolean(
   supabaseUrl && 
@@ -80,6 +80,12 @@ export function mapRowToBook(row: Record<string, any>): Book {
     ageRange: row.age_range || row.ageRange || 'All Ages',
     readingLevel: row.reading_level || row.readingLevel || 'Standard',
     usageType: row.usage_type || row.format === 'reserve' ? 'reserve' : 'circulation',
+    inventoryType: (row.format === 'ebook' || row.inventory_type === 'ebook' || row.inventoryType === 'ebook') ? 'ebook' : 'physical',
+    ebookFormat: row.ebook_format || row.ebookFormat || 'pages',
+    ebookPages: row.ebook_pages ? (typeof row.ebook_pages === 'string' ? JSON.parse(row.ebook_pages) : row.ebook_pages) : (row.ebookPages || undefined),
+    ebookFileUrl: row.ebook_file_url || row.ebookFileUrl,
+    ebookFileSize: row.ebook_file_size || row.ebookFileSize,
+    ebookFileName: row.ebook_file_name || row.ebookFileName,
     rating: Number(row.rating ?? 5.0),
     pageCount: Number(row.page_count ?? row.pageCount ?? 200),
     section: derivedSection,
@@ -143,7 +149,7 @@ export async function insertBookToSupabase(
       dewey_decimal: book.deweyCode || '000',
       is_audiobook: Boolean(book.hasAudio || book.isAudiobook),
       is_new: Boolean(book.isNew),
-      format: book.usageType || (book.section === 'primary' ? 'primary' : 'circulation'),
+      format: book.inventoryType === 'ebook' ? 'ebook' : (book.usageType || (book.section === 'primary' ? 'primary' : 'circulation')),
     };
 
     const { data, error } = await client
@@ -217,6 +223,9 @@ export async function updateBookInSupabase(
     if (updates.availableCopies !== undefined) payload.available_copies = updates.availableCopies;
     if (updates.readsCount !== undefined) payload.reads_count = updates.readsCount;
     if (updates.deweyCode !== undefined) payload.dewey_decimal = updates.deweyCode;
+    if (updates.inventoryType !== undefined) {
+      payload.format = updates.inventoryType === 'ebook' ? 'ebook' : (updates.usageType || 'circulation');
+    }
 
     const { error } = await client
       .from('books')
@@ -532,6 +541,33 @@ export async function updateCirculationInSupabase(
 }
 
 /**
+ * Delete a circulation record from Supabase
+ */
+export async function deleteCirculationRecordFromSupabase(
+  id: string
+): Promise<{ success: boolean; error: string | null }> {
+  const client = getSupabaseClient();
+  if (!client) {
+    return { success: false, error: 'Supabase is not configured' };
+  }
+
+  try {
+    const { error } = await client
+      .from('circulation_records')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, error: null };
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Unknown network error' };
+  }
+}
+
+/**
  * Maps book_holds table row to BookHold interface
  */
 export function mapRowToHold(row: Record<string, any>): BookHold {
@@ -654,17 +690,23 @@ export function mapRowToUser(row: Record<string, any>): LibraryUser {
     name.includes('adeleke') ||
     grade.includes('primary') ||
     grade.includes('nursery') ||
-    grade.includes('pri')
+    grade.includes('pri') ||
+    /^([1-6])[dgeor]\b/i.test(grade) ||
+    /^year\s*[1-6]\b/i.test(grade)
   ) {
     derivedSection = 'primary';
   } else if (
     row.section === 'college' ||
+    row.section === 'secondary' ||
     dept.includes('college') ||
+    dept.includes('secondary') ||
     email.includes('alabia') ||
     name.includes('alabi') ||
     grade.includes('year') ||
     grade.includes('jss') ||
-    grade.includes('sss')
+    grade.includes('sss') ||
+    /^([7-9]|1[0-2])[dgeor]\b/i.test(grade) ||
+    /^year\s*(7|8|9|10|11|12)\b/i.test(grade)
   ) {
     derivedSection = 'college';
   }
@@ -755,6 +797,22 @@ export async function insertUserToSupabase(
   }
 }
 
+export const DEFAULT_USER_AVATARS: Record<string, string> = {
+  'user-admin-1': 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
+  'user-admin-2': 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=200',
+  'alabia@premierinternationalschool.org': 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
+  'adelekev@premierinternationalschool.org': 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=200',
+};
+
+/**
+ * Returns default avatar for a user when database avatar is empty
+ */
+export function getDefaultAvatarForUser(userId?: string, email?: string): string {
+  if (userId && DEFAULT_USER_AVATARS[userId]) return DEFAULT_USER_AVATARS[userId];
+  if (email && DEFAULT_USER_AVATARS[email.toLowerCase().trim()]) return DEFAULT_USER_AVATARS[email.toLowerCase().trim()];
+  return '';
+}
+
 /**
  * Update an existing library user in Supabase
  */
@@ -768,7 +826,9 @@ export async function updateUserInSupabase(
   }
 
   try {
-    const payload: Record<string, any> = {};
+    const payload: Record<string, any> = {
+      updated_at: new Date().toISOString(),
+    };
     if (updates.name !== undefined) payload.name = updates.name;
     if (updates.role !== undefined) payload.role = updates.role;
     if (updates.email !== undefined) payload.email = updates.email.toLowerCase().trim();
@@ -777,18 +837,70 @@ export async function updateUserInSupabase(
     if (updates.gradeOrYear !== undefined) payload.grade_or_year = updates.gradeOrYear;
     if (updates.department !== undefined) payload.department = updates.department;
     if (updates.libraryCardId !== undefined) payload.library_card_id = updates.libraryCardId;
-    if (updates.avatar !== undefined) payload.avatar = updates.avatar;
+    if (updates.avatar !== undefined) {
+      const trimmed = (updates.avatar || '').trim();
+      const isCustom = trimmed !== '' && !DEFAULT_USER_AVATARS[trimmed] && !Object.values(DEFAULT_USER_AVATARS).includes(trimmed);
+      payload.avatar = isCustom ? trimmed : null;
+    }
     if (updates.assignedTeacherId !== undefined) payload.assigned_teacher_id = updates.assignedTeacherId;
     if (updates.assignedTeacherName !== undefined) payload.assigned_teacher_name = updates.assignedTeacherName;
     if (updates.section !== undefined) payload.section = updates.section;
 
-    const { error } = await client
+    // 1. Attempt update by ID
+    const { data: updatedRows, error: updateError } = await client
       .from('library_users')
       .update(payload)
-      .eq('id', userId);
+      .eq('id', userId)
+      .select('id, email, avatar');
 
-    if (error) {
-      return { success: false, error: error.message };
+    if (updateError) {
+      console.warn('Direct update by id failed, attempting fallback:', updateError.message);
+    }
+
+    // If ID update affected a row, succeed immediately
+    if (updatedRows && updatedRows.length > 0) {
+      return { success: true, error: null };
+    }
+
+    // 2. If ID update did not touch any row, try matching by email
+    const emailToMatch = updates.email ? updates.email.toLowerCase().trim() : null;
+    if (emailToMatch) {
+      const { data: emailRows, error: emailError } = await client
+        .from('library_users')
+        .update(payload)
+        .eq('email', emailToMatch)
+        .select('id, email, avatar');
+
+      if (!emailError && emailRows && emailRows.length > 0) {
+        return { success: true, error: null };
+      }
+    }
+
+    // 3. If record doesn't exist yet, insert/upsert user record into database
+    const insertPayload: Record<string, any> = {
+      id: userId,
+      name: updates.name || 'Library User',
+      role: updates.role || 'learner',
+      email: (updates.email || `${userId}@premierinternationalschool.org`).toLowerCase().trim(),
+      password: updates.password || '',
+      admission_number: updates.admissionNumber || null,
+      grade_or_year: updates.gradeOrYear || null,
+      department: updates.department || null,
+      library_card_id: updates.libraryCardId || `LIB-${userId.slice(-4).toUpperCase()}`,
+      avatar: updates.avatar || null,
+      assigned_teacher_id: updates.assignedTeacherId || null,
+      assigned_teacher_name: updates.assignedTeacherName || null,
+      section: updates.section || 'college',
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error: upsertError } = await client
+      .from('library_users')
+      .upsert([insertPayload], { onConflict: 'email' });
+
+    if (upsertError) {
+      console.warn('Upsert to library_users failed:', upsertError.message);
+      return { success: false, error: upsertError.message };
     }
 
     return { success: true, error: null };

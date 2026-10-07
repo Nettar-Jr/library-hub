@@ -16,15 +16,11 @@ import { useFocusTrap } from '../hooks/useFocusTrap';
 import { 
   User, 
   UserPlus, 
-  Printer, 
-  CheckSquare, 
-  Square, 
   Plus, 
   Mail, 
   Smartphone, 
   GraduationCap, 
   BookOpen, 
-  Laptop, 
   Search, 
   ScanLine, 
   RefreshCw, 
@@ -42,12 +38,12 @@ import {
   FileSpreadsheet,
   Pencil,
   X,
-  Save
+  Save,
+  Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CameraBarcodeScanner } from './CameraBarcodeScanner';
 import { lookupBookByISBN } from '../utils/isbnLookup';
-import { PhysicalPrintTools } from './PhysicalPrintTools';
 import { CsvBatchImport } from './CsvBatchImport';
 
 export const DeskUtilities: React.FC = () => {
@@ -67,23 +63,26 @@ export const DeskUtilities: React.FC = () => {
     updateBookUsageType,
     addBook,
     activeSection,
-    updateLearnerByAdmin
+    updateLearnerByAdmin,
+    deleteUser,
+    isAdmin,
+    currentUser
   } = useApp();
 
-  const [activeSubTab, setActiveSubTab] = useState<'users' | 'scanner' | 'print' | 'import' | 'emails'>('users');
+  const [activeSubTab, setActiveSubTab] = useState<'users' | 'scanner' | 'import' | 'emails'>('users');
   const [importInitialTab, setImportInitialTab] = useState<'roster' | 'catalog'>('roster');
-  const [printSelectedUserId, setPrintSelectedUserId] = useState<string | undefined>(undefined);
-  const [printInitialTab, setPrintInitialTab] = useState<'spine' | 'slips'>('spine');
   
   // Create User Form State
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [userName, setUserName] = useState('');
   const [userRole, setUserRole] = useState<'student' | 'teacher'>('student');
-  const [gradeOrYear, setGradeOrYear] = useState('9E');
+  const [gradeOrYear, setGradeOrYear] = useState(activeSection === 'primary' ? '1D' : '9E');
   const [department, setDepartment] = useState('English Department');
   const [userEmail, setUserEmail] = useState('');
   const [formError, setFormError] = useState('');
   const [successToast, setSuccessToast] = useState('');
+  const [userToDelete, setUserToDelete] = useState<LibraryUser | null>(null);
+  const [isDeletingUser, setIsDeletingUser] = useState(false);
 
   // Edit User State (Admin / Librarian)
   const [editingUser, setEditingUser] = useState<LibraryUser | null>(null);
@@ -120,13 +119,8 @@ export const DeskUtilities: React.FC = () => {
     }
   };
 
-  // Card Selection for Printing
-  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
-  const [printBadgeList, setPrintBadgeList] = useState<LibraryUser[]>([]);
-
   // Modal Focus Traps
   const createModalRef = useFocusTrap(showCreateModal, () => setShowCreateModal(false));
-  const printModalRef = useFocusTrap(printBadgeList.length > 0, () => setPrintBadgeList([]));
 
   // Simulated Scanner State
   const [scannedUserId, setScannedUserId] = useState<string>('');
@@ -361,36 +355,6 @@ export const DeskUtilities: React.FC = () => {
     }, 4000);
   };
 
-  // Toggle selection for bulk print
-  const toggleSelectUser = (id: string) => {
-    if (selectedUserIds.includes(id)) {
-      setSelectedUserIds(prev => prev.filter(item => item !== id));
-    } else {
-      setSelectedUserIds(prev => [...prev, id]);
-    }
-  };
-
-  const selectAllUsers = () => {
-    if (selectedUserIds.length === filteredUsers.length) {
-      setSelectedUserIds([]);
-    } else {
-      setSelectedUserIds(filteredUsers.map(u => u.id));
-    }
-  };
-
-  const handlePrintSelected = () => {
-    const list = users.filter(u => selectedUserIds.includes(u.id));
-    if (list.length === 0) {
-      triggerToast('Please select at least one user to print.');
-      return;
-    }
-    setPrintBadgeList(list);
-  };
-
-  const handlePrintIndividual = (user: LibraryUser) => {
-    setPrintBadgeList([user]);
-  };
-
   // Filtered users for table
   const filteredUsers = users.filter(u => 
     u.name.toLowerCase().includes(userSearch.toLowerCase()) ||
@@ -484,151 +448,14 @@ export const DeskUtilities: React.FC = () => {
     );
   };
 
-  const handlePrintSystemDialog = () => {
-    window.print();
-  };
-
   return (
-    <div className="space-y-8 print:bg-white print:p-0">
-      
-      {/* Printable Badges Area Overlay - Only visible when printing list exists */}
-      <AnimatePresence>
-        {printBadgeList.length > 0 && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            role="dialog"
-            aria-modal="true"
-            aria-label="Library Card Print Preview"
-            className="fixed inset-0 bg-slate-900/80 z-50 overflow-y-auto flex items-center justify-center p-4 print:absolute print:inset-0 print:bg-white print:p-0"
-          >
-            <div 
-              ref={printModalRef}
-              className="bg-slate-900 border border-slate-700/60 rounded-3xl max-w-4xl w-full p-6 sm:p-8 space-y-6 print:bg-white print:border-none print:shadow-none print:p-0"
-            >
-              
-              {/* Header inside Modal */}
-              <div className="flex justify-between items-center border-b border-slate-800 pb-4 print:hidden">
-                <div className="flex items-center gap-2 text-cyan-400">
-                  <Printer className="w-5 h-5 animate-pulse" />
-                  <h3 className="font-display font-extrabold text-lg text-slate-100">
-                    Ready to Print: {printBadgeList.length} Library Card Badges
-                  </h3>
-                </div>
-                <button 
-                  onClick={() => setPrintBadgeList([])}
-                  className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold px-4 py-2 rounded-xl text-xs cursor-pointer"
-                >
-                  Close Preview
-                </button>
-              </div>
-
-              {/* Badges Grid for system printing */}
-              <div id="printable-badges-grid" className="grid grid-cols-1 sm:grid-cols-2 gap-6 p-4 bg-slate-950/60 rounded-2xl border border-slate-800/50 print:grid print:grid-cols-2 print:gap-4 print:p-0 print:bg-transparent print:border-none">
-                {printBadgeList.map((user) => (
-                  <div 
-                    key={user.id} 
-                    className="relative bg-gradient-to-br from-indigo-950 via-slate-900 to-indigo-900 border-2 border-indigo-500/30 rounded-2xl p-5 text-white flex flex-col justify-between h-56 shadow-lg overflow-hidden font-sans print:border-slate-400 print:text-black print:bg-white print:shadow-none"
-                    style={{ pageBreakInside: 'avoid' }}
-                  >
-                    {/* Watermark Logo */}
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 border border-indigo-400/5 rounded-full pointer-events-none print:hidden"></div>
-                    
-                    <div className="flex justify-between items-start border-b border-indigo-500/20 pb-2.5 print:border-slate-300">
-                      <div>
-                        <span className="text-[8px] uppercase tracking-widest font-bold text-indigo-300 font-mono print:text-slate-500">
-                          Library Access Pass
-                        </span>
-                        <h4 className="font-display font-black text-xs text-white leading-none tracking-wide print:text-indigo-950">
-                          PREMIER INTERNATIONAL
-                        </h4>
-                      </div>
-                      <div className="p-1 bg-amber-400 text-slate-950 rounded-md print:bg-amber-100 print:text-amber-900">
-                        <BookOpen className="w-3.5 h-3.5" />
-                      </div>
-                    </div>
-
-                    <div className="flex gap-3 my-3">
-                      {/* Avatar Mock */}
-                      <div className="w-12 h-12 rounded-xl bg-slate-800/80 border border-indigo-400/20 flex items-center justify-center flex-shrink-0 text-indigo-300 print:bg-slate-100 print:border-slate-300 print:text-slate-600">
-                        {user.role === 'student' ? (
-                          <GraduationCap className="w-6 h-6 text-cyan-400 print:text-indigo-950" />
-                        ) : (
-                          <User className="w-6 h-6 text-emerald-400 print:text-emerald-800" />
-                        )}
-                      </div>
-
-                      {/* Info Block */}
-                      <div className="min-w-0 flex-1">
-                        <h5 className="font-display font-extrabold text-sm text-slate-100 truncate line-clamp-1 print:text-slate-950">
-                          {user.name}
-                        </h5>
-                        <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
-                          <span className={`text-[8px] px-1.5 py-0.5 rounded font-black uppercase ${
-                            user.role === 'student' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 print:bg-slate-100 print:text-slate-900' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 print:bg-slate-100 print:text-slate-900'
-                          }`}>
-                            {user.role}
-                          </span>
-                          <span className="text-[9px] text-slate-400 font-medium print:text-slate-700">
-                            {user.role === 'student' ? user.gradeOrYear : user.department}
-                          </span>
-                        </div>
-                        <p className="text-[8px] text-slate-400 font-mono mt-1 print:text-slate-500 truncate">
-                          {user.email}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Barcode area */}
-                    <div className="bg-white rounded p-1 border border-indigo-500/10">
-                      {renderBarcodeSVG(user.libraryCardId)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Action buttons inside Modal */}
-              <div className="flex flex-col sm:flex-row justify-between items-center gap-3 border-t border-slate-800 pt-5 print:hidden">
-                <div className="flex items-center gap-2 text-slate-400 text-xs">
-                  <Info className="w-4 h-4 text-cyan-400" />
-                  <span>Pro-Tip: Set background graphics to ON in the print setup for the best badge visual!</span>
-                </div>
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => setPrintBadgeList([])}
-                    className="border border-slate-700 hover:bg-slate-800 text-slate-300 px-5 py-2.5 rounded-xl font-bold text-xs cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handlePrintSystemDialog}
-                    className="flex items-center gap-2 bg-gradient-to-r from-cyan-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-slate-950 hover:text-white font-sans font-bold px-6 py-2.5 rounded-xl text-xs sm:text-sm cursor-pointer shadow-lg transition"
-                  >
-                    <Printer className="w-4 h-4" />
-                    Launch System Print Panel
-                  </button>
-                </div>
-              </div>
-
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
+    <div className="space-y-8">
       {/* Title block */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-200 pb-5 print:hidden">
         <div>
-          <span className="text-xs font-bold text-cyan-600 tracking-widest uppercase font-mono">
-            STAFF EXCLUSIVE SERVICES
-          </span>
           <h2 className="font-display font-black text-2xl sm:text-3xl tracking-tight text-slate-900">
             Desk Utilities & Card System
           </h2>
-        </div>
-        <div className="flex items-center gap-2 font-mono text-[11px] text-slate-500 bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-lg">
-          <Laptop className="w-3.5 h-3.5 text-cyan-500" />
-          <span>PORT 3000 • ONLINE</span>
         </div>
       </div>
 
@@ -658,23 +485,6 @@ export const DeskUtilities: React.FC = () => {
         </button>
         <button
           onClick={() => {
-            setActiveSubTab('print');
-            setPrintInitialTab('spine');
-          }}
-          className={`flex items-center gap-2 px-5 py-3 font-sans text-xs sm:text-sm font-bold tracking-wide border-b-2 cursor-pointer transition-all ${
-            activeSubTab === 'print'
-              ? 'border-cyan-500 text-cyan-700 bg-cyan-50/20'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <Printer className="w-4 h-4 text-indigo-600" />
-          <span>Physical Print Tools</span>
-          <span className="text-[10px] bg-indigo-100 text-indigo-800 font-mono font-bold px-1.5 py-0.5 rounded-full">
-            Spine & Slips
-          </span>
-        </button>
-        <button
-          onClick={() => {
             setActiveSubTab('import');
             setImportInitialTab('roster');
           }}
@@ -686,9 +496,6 @@ export const DeskUtilities: React.FC = () => {
         >
           <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
           <span>CSV Batch Import</span>
-          <span className="text-[10px] bg-emerald-100 text-emerald-800 font-mono font-bold px-1.5 py-0.5 rounded-full">
-            Roster & Catalog
-          </span>
         </button>
         <button
           onClick={() => setActiveSubTab('emails')}
@@ -721,15 +528,6 @@ export const DeskUtilities: React.FC = () => {
             </div>
 
             <div className="flex flex-wrap items-center gap-3 w-full md:w-auto justify-end">
-              <button
-                onClick={handlePrintSelected}
-                disabled={selectedUserIds.length === 0}
-                className="flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-100 disabled:text-slate-400 text-white font-bold py-2.5 px-4 rounded-xl text-xs cursor-pointer transition-all"
-              >
-                <Printer className="w-3.5 h-3.5" />
-                Print Badges ({selectedUserIds.length} Selected)
-              </button>
-
               <button
                 onClick={() => {
                   setImportInitialTab('roster');
@@ -766,37 +564,18 @@ export const DeskUtilities: React.FC = () => {
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase tracking-wider font-mono text-[10px]">
-                    <th className="py-4 px-5 w-12 text-center">
-                      <button onClick={selectAllUsers} className="text-slate-600 focus:outline-none">
-                        {selectedUserIds.length === filteredUsers.length && filteredUsers.length > 0 ? (
-                          <CheckSquare className="w-4 h-4 text-cyan-600" />
-                        ) : (
-                          <Square className="w-4 h-4 text-slate-300" />
-                        )}
-                      </button>
-                    </th>
                     <th className="py-4 px-4 font-bold">Full Name</th>
                     <th className="py-4 px-4 font-bold">Role Status</th>
                     <th className="py-4 px-4 font-bold">Class / Department</th>
                     <th className="py-4 px-4 font-bold">Card Identifier</th>
                     <th className="py-4 px-4 font-bold">Email</th>
-                    <th className="py-4 px-4 text-right pr-6 font-bold">Individual Pass</th>
+                    <th className="py-4 px-4 text-right pr-6 font-bold">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-sans">
                   {filteredUsers.map((user) => {
-                    const isSelected = selectedUserIds.includes(user.id);
                     return (
                       <tr key={user.id} className="hover:bg-slate-50/60 transition-all">
-                        <td className="py-3 px-5 text-center">
-                          <button onClick={() => toggleSelectUser(user.id)} className="text-slate-600 focus:outline-none">
-                            {isSelected ? (
-                              <CheckSquare className="w-4.5 h-4.5 text-cyan-600" />
-                            ) : (
-                              <Square className="w-4.5 h-4.5 text-slate-300 hover:text-slate-400" />
-                            )}
-                          </button>
-                        </td>
                         <td className="py-3 px-4 font-extrabold text-slate-900">{user.name}</td>
                         <td className="py-3 px-4">
                           <span className={`inline-block text-[9px] font-black uppercase px-2 py-0.5 rounded ${
@@ -817,19 +596,23 @@ export const DeskUtilities: React.FC = () => {
                         <td className="py-3 px-4 text-right pr-6 flex items-center justify-end gap-2">
                           <button
                             onClick={() => startEditUser(user)}
-                            className="flex items-center gap-1 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 font-bold px-2.5 py-1.5 rounded-lg text-[10px] cursor-pointer border border-slate-200"
+                            className="flex items-center gap-1 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 font-bold px-2.5 py-1.5 rounded-lg text-[10px] cursor-pointer border border-slate-200 transition"
                             title="Edit User Record (Name, Class, Admission No.)"
                           >
                             <Pencil className="w-3 h-3 text-blue-600" />
                             Edit
                           </button>
-                          <button
-                            onClick={() => handlePrintIndividual(user)}
-                            className="flex items-center gap-1 bg-cyan-50 hover:bg-cyan-100 text-cyan-700 font-bold px-3 py-1.5 rounded-lg text-[10px] cursor-pointer"
-                          >
-                            <Printer className="w-3 h-3" />
-                            Badge Card
-                          </button>
+
+                          {isAdmin && user.id !== currentUser?.id && (
+                            <button
+                              onClick={() => setUserToDelete(user)}
+                              className="flex items-center gap-1 bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-700 font-bold px-2.5 py-1.5 rounded-lg text-[10px] cursor-pointer border border-slate-200 transition"
+                              title={`Remove ${user.role === 'student' ? 'Student' : 'Staff'} Record`}
+                            >
+                              <Trash2 className="w-3 h-3 text-rose-600" />
+                              Remove
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );
@@ -845,6 +628,64 @@ export const DeskUtilities: React.FC = () => {
               </table>
             </div>
           </div>
+
+          {/* Remove User Confirmation Modal */}
+          <AnimatePresence>
+            {userToDelete && (
+              <div 
+                role="dialog"
+                aria-modal="true"
+                className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4"
+              >
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-200 space-y-4"
+                >
+                  <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center">
+                    <Trash2 className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="font-display font-black text-lg text-slate-900">
+                      Remove {userToDelete.role === 'student' ? 'Student' : 'Staff'} Account
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                      Are you sure you want to permanently remove <strong className="text-slate-800">{userToDelete.name}</strong> ({userToDelete.role === 'student' ? `Class ${userToDelete.gradeOrYear || 'Student'}` : userToDelete.department || 'Staff'})? Their library card <span className="font-mono font-bold text-slate-700">{userToDelete.libraryCardId}</span> and privileges will be revoked.
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-end gap-2.5 pt-2">
+                    <button
+                      type="button"
+                      disabled={isDeletingUser}
+                      onClick={() => setUserToDelete(null)}
+                      className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isDeletingUser}
+                      onClick={async () => {
+                        setIsDeletingUser(true);
+                        const res = await deleteUser(userToDelete.id);
+                        setIsDeletingUser(false);
+                        if (res.success) {
+                          setSuccessToast(res.message);
+                          setTimeout(() => setSuccessToast(''), 4000);
+                        }
+                        setUserToDelete(null);
+                      }}
+                      className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-xs disabled:opacity-50 flex items-center gap-1.5"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>{isDeletingUser ? 'Removing...' : 'Yes, Remove Account'}</span>
+                    </button>
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>
 
           {/* Modal to register new Student or Teacher */}
           <AnimatePresence>
@@ -912,34 +753,39 @@ export const DeskUtilities: React.FC = () => {
                       {userRole === 'student' ? (
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                            Academic Class / Year (1–12: D, G, E, O, R)
+                            Academic Class / Year
                           </label>
                           <select 
                             value={gradeOrYear}
                             onChange={(e) => setGradeOrYear(e.target.value)}
                             className="w-full p-2.5 border border-slate-200 rounded-xl text-xs bg-white outline-none focus:border-cyan-500 cursor-pointer font-medium"
                           >
-                            <optgroup label="Secondary Senior (Years 10–12: Diamond, Gold, Emerald, Onyx, Ruby • Max 3 Books)">
-                              {SENIOR_SECONDARY_CLASSES.map((c) => (
-                                <option key={c.code} value={c.code}>
-                                  {c.code} — {c.fullLabel}
-                                </option>
-                              ))}
-                            </optgroup>
-                            <optgroup label="Secondary Junior (Years 7–9: Diamond, Gold, Emerald, Onyx, Ruby • Max 2 Books)">
-                              {JUNIOR_SECONDARY_CLASSES.map((c) => (
-                                <option key={c.code} value={c.code}>
-                                  {c.code} — {c.fullLabel}
-                                </option>
-                              ))}
-                            </optgroup>
-                            <optgroup label="Primary Section (Years 1–6: Diamond, Gold, Emerald, Onyx, Ruby • Manual Limit)">
-                              {PRIMARY_ACADEMIC_CLASSES.map((c) => (
-                                <option key={c.code} value={c.code}>
-                                  {c.code} — {c.fullLabel}
-                                </option>
-                              ))}
-                            </optgroup>
+                            {activeSection === 'primary' ? (
+                              <optgroup label="Primary Section (Years 1–6: Diamond, Gold, Emerald, Onyx, Ruby • Manual Limit)">
+                                {PRIMARY_ACADEMIC_CLASSES.map((c) => (
+                                  <option key={c.code} value={c.code}>
+                                    {c.code} — {c.fullLabel}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            ) : (
+                              <>
+                                <optgroup label="Secondary Senior (Years 10–12: Diamond, Gold, Emerald, Onyx, Ruby • Max 3 Books)">
+                                  {SENIOR_SECONDARY_CLASSES.map((c) => (
+                                    <option key={c.code} value={c.code}>
+                                      {c.code} — {c.fullLabel}
+                                    </option>
+                                  ))}
+                                </optgroup>
+                                <optgroup label="Secondary Junior (Years 7–9: Diamond, Gold, Emerald, Onyx, Ruby • Max 2 Books)">
+                                  {JUNIOR_SECONDARY_CLASSES.map((c) => (
+                                    <option key={c.code} value={c.code}>
+                                      {c.code} — {c.fullLabel}
+                                    </option>
+                                  ))}
+                                </optgroup>
+                              </>
+                            )}
                           </select>
                         </div>
                       ) : (
@@ -1053,21 +899,26 @@ export const DeskUtilities: React.FC = () => {
                           onChange={(e) => setEditUserGrade(e.target.value)}
                           className="w-full p-2.5 border border-slate-200 rounded-xl text-xs bg-white outline-none focus:border-cyan-500 cursor-pointer font-semibold text-slate-900"
                         >
-                          <optgroup label="Secondary Senior (Years 10–12: D, G, E, O, R • Max 3 Books)">
-                            {SENIOR_SECONDARY_CLASSES.map((c) => (
-                              <option key={c.code} value={c.code}>{c.code} — {c.fullLabel}</option>
-                            ))}
-                          </optgroup>
-                          <optgroup label="Secondary Junior (Years 7–9: D, G, E, O, R • Max 2 Books)">
-                            {JUNIOR_SECONDARY_CLASSES.map((c) => (
-                              <option key={c.code} value={c.code}>{c.code} — {c.fullLabel}</option>
-                            ))}
-                          </optgroup>
-                          <optgroup label="Primary Section (Years 1–6: D, G, E, O, R • Manual Limit)">
-                            {PRIMARY_ACADEMIC_CLASSES.map((c) => (
-                              <option key={c.code} value={c.code}>{c.code} — {c.fullLabel}</option>
-                            ))}
-                          </optgroup>
+                          {activeSection === 'primary' ? (
+                            <optgroup label="Primary Section (Years 1–6: D, G, E, O, R • Manual Limit)">
+                              {PRIMARY_ACADEMIC_CLASSES.map((c) => (
+                                <option key={c.code} value={c.code}>{c.code} — {c.fullLabel}</option>
+                              ))}
+                            </optgroup>
+                          ) : (
+                            <>
+                              <optgroup label="Secondary Senior (Years 10–12: D, G, E, O, R • Max 3 Books)">
+                                {SENIOR_SECONDARY_CLASSES.map((c) => (
+                                  <option key={c.code} value={c.code}>{c.code} — {c.fullLabel}</option>
+                                ))}
+                              </optgroup>
+                              <optgroup label="Secondary Junior (Years 7–9: D, G, E, O, R • Max 2 Books)">
+                                {JUNIOR_SECONDARY_CLASSES.map((c) => (
+                                  <option key={c.code} value={c.code}>{c.code} — {c.fullLabel}</option>
+                                ))}
+                              </optgroup>
+                            </>
+                          )}
                         </select>
                       </div>
                     )}
@@ -1462,20 +1313,6 @@ export const DeskUtilities: React.FC = () => {
                       <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono">
                         Current Borrows Registered to This Badge
                       </h4>
-                      {scannedUserCirculations.length > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setPrintSelectedUserId(scannedUser.id);
-                            setPrintInitialTab('slips');
-                            setActiveSubTab('print');
-                          }}
-                          className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/80 rounded-lg text-[10px] font-bold transition cursor-pointer"
-                        >
-                          <Receipt className="w-3 h-3 text-emerald-600" />
-                          <span>Print Checkout Slip</span>
-                        </button>
-                      )}
                     </div>
 
                     <div className="space-y-2">
@@ -1752,16 +1589,6 @@ export const DeskUtilities: React.FC = () => {
             )}
           </div>
 
-        </div>
-      )}
-
-      {/* SUBTAB CONTENT: PHYSICAL PRINT TOOLS (SPINE LABELS & CHECKOUT SLIPS) */}
-      {activeSubTab === 'print' && (
-        <div>
-          <PhysicalPrintTools
-            initialTab={printInitialTab}
-            preselectedUserId={printSelectedUserId}
-          />
         </div>
       )}
 

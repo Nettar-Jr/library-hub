@@ -27,7 +27,11 @@ import {
   Settings2,
   FileDown,
   TableProperties,
-  Database
+  Database,
+  ChevronDown,
+  ChevronUp,
+  HelpCircle,
+  Info
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -113,6 +117,9 @@ export const CsvBatchImport: React.FC<CsvBatchImportProps> = ({
     skipped: number;
     total: number;
   } | null>(null);
+
+  // Field guide display toggle
+  const [showFieldGuide, setShowFieldGuide] = useState<boolean>(false);
 
   // -------------------------------------------------------------
   // File Upload Handlers
@@ -637,6 +644,235 @@ export const CsvBatchImport: React.FC<CsvBatchImportProps> = ({
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>
+          </div>
+
+          {/* Detailed Field Specifications & Backend Expectation Accordion */}
+          <div className="bg-slate-50 border border-slate-200 rounded-3xl p-5 space-y-3">
+            <button
+              type="button"
+              onClick={() => setShowFieldGuide(!showFieldGuide)}
+              className="w-full flex items-center justify-between text-left text-slate-800 cursor-pointer"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-cyan-100 text-cyan-800 flex items-center justify-center">
+                  <HelpCircle className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="font-display font-bold text-sm text-slate-900">
+                    Detailed CSV Field Specifications & Expected Order
+                  </h4>
+                  <p className="text-[11px] text-slate-500">
+                    What the backend expects for {activeTab === 'roster' ? 'Users & Scholars' : 'Books & Catalog Titles'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-cyan-700 bg-cyan-50 border border-cyan-200 px-3 py-1.5 rounded-xl">
+                <span>{showFieldGuide ? 'Hide Specifications' : 'View Specifications'}</span>
+                {showFieldGuide ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              </div>
+            </button>
+
+            {showFieldGuide && (
+              <div className="pt-3 border-t border-slate-200 space-y-4 text-xs">
+                {activeTab === 'catalog' ? (
+                  <div className="space-y-3">
+                    <div className="bg-blue-50 border border-blue-200 p-3 rounded-2xl text-blue-900 text-xs">
+                      <strong>Recommended Book Column Arrangement (Columns 1–11):</strong>
+                      <p className="text-[11px] text-blue-700 mt-0.5">
+                        Title, Author, ISBN, Category, Copies, Dewey Code, Reading Level, Age Range, Audio Available, Usage Type, Description
+                      </p>
+                    </div>
+
+                    <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                            <th className="py-2.5 px-3">Order</th>
+                            <th className="py-2.5 px-3">Field Name</th>
+                            <th className="py-2.5 px-3">Status</th>
+                            <th className="py-2.5 px-3">Expected Type</th>
+                            <th className="py-2.5 px-3">Example</th>
+                            <th className="py-2.5 px-3">Backend Handling / Fallback</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 text-slate-600">
+                          <tr>
+                            <td className="py-2 px-3 font-mono font-bold text-slate-800">1</td>
+                            <td className="py-2 px-3 font-bold text-slate-900">Title</td>
+                            <td className="py-2 px-3"><span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 font-bold text-[10px]">Required</span></td>
+                            <td className="py-2 px-3 font-mono">string</td>
+                            <td className="py-2 px-3 font-medium text-slate-800">Things Fall Apart</td>
+                            <td className="py-2 px-3 text-slate-500">Row marked invalid if missing.</td>
+                          </tr>
+                          <tr>
+                            <td className="py-2 px-3 font-mono font-bold text-slate-800">2</td>
+                            <td className="py-2 px-3 font-bold text-slate-900">Author</td>
+                            <td className="py-2 px-3"><span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold text-[10px]">Recommended</span></td>
+                            <td className="py-2 px-3 font-mono">string</td>
+                            <td className="py-2 px-3 font-medium text-slate-800">Chinua Achebe</td>
+                            <td className="py-2 px-3 text-slate-500">Defaults to "Unknown Author" if omitted.</td>
+                          </tr>
+                          <tr>
+                            <td className="py-2 px-3 font-mono font-bold text-slate-800">3</td>
+                            <td className="py-2 px-3 font-bold text-slate-900">ISBN</td>
+                            <td className="py-2 px-3"><span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold text-[10px]">Recommended</span></td>
+                            <td className="py-2 px-3 font-mono">10 or 13 digits</td>
+                            <td className="py-2 px-3 font-medium text-slate-800">9780385474542</td>
+                            <td className="py-2 px-3 text-slate-500">Auto-generates clean library accession code if blank. Merges copies if duplicate.</td>
+                          </tr>
+                          <tr>
+                            <td className="py-2 px-3 font-mono font-bold text-slate-800">4</td>
+                            <td className="py-2 px-3 font-bold text-slate-900">Category</td>
+                            <td className="py-2 px-3"><span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold text-[10px]">Optional</span></td>
+                            <td className="py-2 px-3 font-mono">string</td>
+                            <td className="py-2 px-3 font-medium text-slate-800">African Literature</td>
+                            <td className="py-2 px-3 text-slate-500">Defaults to "Curriculum Classics". Automatically maps to catalog filters.</td>
+                          </tr>
+                          <tr>
+                            <td className="py-2 px-3 font-mono font-bold text-slate-800">5</td>
+                            <td className="py-2 px-3 font-bold text-slate-900">Copies</td>
+                            <td className="py-2 px-3"><span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold text-[10px]">Optional</span></td>
+                            <td className="py-2 px-3 font-mono">integer (&gt;= 1)</td>
+                            <td className="py-2 px-3 font-medium text-slate-800">5</td>
+                            <td className="py-2 px-3 text-slate-500">Defaults to 1 copy. Sets initial physical inventory.</td>
+                          </tr>
+                          <tr>
+                            <td className="py-2 px-3 font-mono font-bold text-slate-800">6</td>
+                            <td className="py-2 px-3 font-bold text-slate-900">Dewey Code</td>
+                            <td className="py-2 px-3"><span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold text-[10px]">Optional</span></td>
+                            <td className="py-2 px-3 font-mono">decimal</td>
+                            <td className="py-2 px-3 font-medium text-slate-800">896.3</td>
+                            <td className="py-2 px-3 text-slate-500">Automatically inferred from genre/category if left blank.</td>
+                          </tr>
+                          <tr>
+                            <td className="py-2 px-3 font-mono font-bold text-slate-800">7</td>
+                            <td className="py-2 px-3 font-bold text-slate-900">Reading Level</td>
+                            <td className="py-2 px-3"><span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold text-[10px]">Optional</span></td>
+                            <td className="py-2 px-3 font-mono">string</td>
+                            <td className="py-2 px-3 font-medium text-slate-800">Lexile 890L</td>
+                            <td className="py-2 px-3 text-slate-500">Defaults to "General". Used in learner search filters.</td>
+                          </tr>
+                          <tr>
+                            <td className="py-2 px-3 font-mono font-bold text-slate-800">8</td>
+                            <td className="py-2 px-3 font-bold text-slate-900">Age Range</td>
+                            <td className="py-2 px-3"><span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold text-[10px]">Optional</span></td>
+                            <td className="py-2 px-3 font-mono">string</td>
+                            <td className="py-2 px-3 font-medium text-slate-800">Ages 12-18</td>
+                            <td className="py-2 px-3 text-slate-500">Defaults to "All Ages".</td>
+                          </tr>
+                          <tr>
+                            <td className="py-2 px-3 font-mono font-bold text-slate-800">9</td>
+                            <td className="py-2 px-3 font-bold text-slate-900">Audio Available</td>
+                            <td className="py-2 px-3"><span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold text-[10px]">Optional</span></td>
+                            <td className="py-2 px-3 font-mono">Yes / No / boolean</td>
+                            <td className="py-2 px-3 font-medium text-slate-800">Yes</td>
+                            <td className="py-2 px-3 text-slate-500">Enables the audio narration preview player for the title.</td>
+                          </tr>
+                          <tr>
+                            <td className="py-2 px-3 font-mono font-bold text-slate-800">10</td>
+                            <td className="py-2 px-3 font-bold text-slate-900">Usage Type</td>
+                            <td className="py-2 px-3"><span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold text-[10px]">Optional</span></td>
+                            <td className="py-2 px-3 font-mono">circulation | reserve</td>
+                            <td className="py-2 px-3 font-medium text-slate-800">circulation</td>
+                            <td className="py-2 px-3 text-slate-500">"circulation" for standard 14-day borrowing; "reserve" for reference desk only.</td>
+                          </tr>
+                          <tr>
+                            <td className="py-2 px-3 font-mono font-bold text-slate-800">11</td>
+                            <td className="py-2 px-3 font-bold text-slate-900">Description</td>
+                            <td className="py-2 px-3"><span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold text-[10px]">Optional</span></td>
+                            <td className="py-2 px-3 font-mono">text / summary</td>
+                            <td className="py-2 px-3 font-medium text-slate-800">Classic post-colonial narrative...</td>
+                            <td className="py-2 px-3 text-slate-500">Auto-generated summary provided if omitted.</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-2xl text-emerald-900 text-xs">
+                      <strong>Recommended User / Roster Column Arrangement (Columns 1–7):</strong>
+                      <p className="text-[11px] text-emerald-700 mt-0.5">
+                        Full Name, Email, Role, Grade/Year, Department, Library Card ID, Assigned Teacher
+                      </p>
+                    </div>
+
+                    <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                            <th className="py-2.5 px-3">Order</th>
+                            <th className="py-2.5 px-3">Field Name</th>
+                            <th className="py-2.5 px-3">Status</th>
+                            <th className="py-2.5 px-3">Expected Type</th>
+                            <th className="py-2.5 px-3">Example</th>
+                            <th className="py-2.5 px-3">Backend Handling / Fallback</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 text-slate-600">
+                          <tr>
+                            <td className="py-2 px-3 font-mono font-bold text-slate-800">1</td>
+                            <td className="py-2 px-3 font-bold text-slate-900">Full Name</td>
+                            <td className="py-2 px-3"><span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 font-bold text-[10px]">Required</span></td>
+                            <td className="py-2 px-3 font-mono">string</td>
+                            <td className="py-2 px-3 font-medium text-slate-800">Chidi Okafor</td>
+                            <td className="py-2 px-3 text-slate-500">Can also be split across "First Name" and "Last Name" columns.</td>
+                          </tr>
+                          <tr>
+                            <td className="py-2 px-3 font-mono font-bold text-slate-800">2</td>
+                            <td className="py-2 px-3 font-bold text-slate-900">Email</td>
+                            <td className="py-2 px-3"><span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold text-[10px]">Recommended</span></td>
+                            <td className="py-2 px-3 font-mono">valid email</td>
+                            <td className="py-2 px-3 font-medium text-slate-800">chidi.okafor@school.edu</td>
+                            <td className="py-2 px-3 text-slate-500">Unique identifier. If blank, auto-generates a formatted placeholder email.</td>
+                          </tr>
+                          <tr>
+                            <td className="py-2 px-3 font-mono font-bold text-slate-800">3</td>
+                            <td className="py-2 px-3 font-bold text-slate-900">Role</td>
+                            <td className="py-2 px-3"><span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold text-[10px]">Optional</span></td>
+                            <td className="py-2 px-3 font-mono">Student | Teacher | Admin</td>
+                            <td className="py-2 px-3 font-medium text-slate-800">Student</td>
+                            <td className="py-2 px-3 text-slate-500">Defaults to "Student" / "learner". Accepts Staff, Faculty, Teacher, Learner.</td>
+                          </tr>
+                          <tr>
+                            <td className="py-2 px-3 font-mono font-bold text-slate-800">4</td>
+                            <td className="py-2 px-3 font-bold text-slate-900">Grade / Year</td>
+                            <td className="py-2 px-3"><span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold text-[10px]">For Students</span></td>
+                            <td className="py-2 px-3 font-mono">string class code</td>
+                            <td className="py-2 px-3 font-medium text-slate-800">Year 9 (or 9E)</td>
+                            <td className="py-2 px-3 text-slate-500">Parsed into school roster class cohorts (e.g. 7E, 8E, 9E, 10E, 11E, 12E).</td>
+                          </tr>
+                          <tr>
+                            <td className="py-2 px-3 font-mono font-bold text-slate-800">5</td>
+                            <td className="py-2 px-3 font-bold text-slate-900">Department</td>
+                            <td className="py-2 px-3"><span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold text-[10px]">For Staff</span></td>
+                            <td className="py-2 px-3 font-mono">string</td>
+                            <td className="py-2 px-3 font-medium text-slate-800">Science Department</td>
+                            <td className="py-2 px-3 text-slate-500">Defaults to "General Faculty" if role is Teacher/Staff and left blank.</td>
+                          </tr>
+                          <tr>
+                            <td className="py-2 px-3 font-mono font-bold text-slate-800">6</td>
+                            <td className="py-2 px-3 font-bold text-slate-900">Library Card ID</td>
+                            <td className="py-2 px-3"><span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold text-[10px]">Optional</span></td>
+                            <td className="py-2 px-3 font-mono">string barcode</td>
+                            <td className="py-2 px-3 font-medium text-slate-800">LIB-STUD-1001</td>
+                            <td className="py-2 px-3 text-slate-500">Auto-generates sequential school barcode if omitted (LIB-STUD-xxxx / LIB-TEACH-xxxx).</td>
+                          </tr>
+                          <tr>
+                            <td className="py-2 px-3 font-mono font-bold text-slate-800">7</td>
+                            <td className="py-2 px-3 font-bold text-slate-900">Assigned Teacher</td>
+                            <td className="py-2 px-3"><span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold text-[10px]">Optional</span></td>
+                            <td className="py-2 px-3 font-mono">string teacher name</td>
+                            <td className="py-2 px-3 font-medium text-slate-800">Mrs. Emily Cole</td>
+                            <td className="py-2 px-3 text-slate-500">Automatically links student to the staff member's academic class cohort.</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

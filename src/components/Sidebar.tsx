@@ -87,6 +87,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { label: 'Book Catalog', path: '/catalog', icon: BookOpen },
     { label: 'Submit Review', path: '/submit', icon: PenTool },
     { label: 'Creative Gallery', path: '/gallery', icon: Sparkles },
+    { label: 'Analytics & Reports', path: '/analytics', icon: BarChart3 },
   ];
 
   const staffNavItems: NavItem[] = [
@@ -205,51 +206,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* 2. Gap between logo and navigation icons preserved after removing profile card */}
       <div className="h-[3.75rem] shrink-0" aria-hidden="true" />
 
-      {/* 3. Section Switcher for Admins & Staff */}
-      {(isAdmin || isStaff) && !isFolded && (
-        <div className="p-3 border-b border-slate-800/60">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5 px-1 flex items-center gap-1">
-            <Layers className="w-3 h-3 text-slate-400" />
-            <span>Campus Scope</span>
-          </div>
-          <div className="grid grid-cols-3 gap-1 p-0.5 bg-slate-950/70 rounded-xl border border-slate-800 text-[10px]">
-            <button
-              type="button"
-              onClick={() => setActiveSection('all')}
-              className={`py-1 rounded-lg font-bold transition text-center cursor-pointer ${
-                activeSection === 'all' 
-                  ? 'bg-amber-400 text-slate-950 shadow-xs' 
-                  : 'text-slate-400 hover:text-white'
-              }`}
-              title="All Holdings"
-            >
-              All
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveSection('primary')}
-              className={`py-1 rounded-lg font-bold transition text-center cursor-pointer ${
-                activeSection === 'primary' 
-                  ? 'bg-teal-500 text-slate-950 shadow-xs' 
-                  : 'text-slate-400 hover:text-white'
-              }`}
-              title="Primary Campus"
-            >
-              Primary
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveSection('college')}
-              className={`py-1 rounded-lg font-bold transition text-center cursor-pointer ${
-                activeSection === 'college' 
-                  ? 'bg-blue-500 text-white shadow-xs' 
-                  : 'text-slate-400 hover:text-white'
-              }`}
-              title="Secondary Campus"
-            >
-              Secondary
-            </button>
-          </div>
+      {/* 3. Assigned Campus Scope (Locked - no filter buttons) */}
+      {!isFolded && (
+        <div className="px-4 py-2.5 border-b border-slate-800/60 flex items-center gap-2 text-xs font-semibold text-slate-300">
+          <Building2 className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+          <span className="truncate">
+            {activeSection === 'primary' ? 'Primary School Library' : 'Secondary College Library'}
+          </span>
         </div>
       )}
 

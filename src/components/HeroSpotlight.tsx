@@ -115,7 +115,7 @@ export const HeroSpotlight: React.FC = () => {
     summary: displayDescription,
     coverImage: displayCover || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=700',
     coverUrl: displayCover || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=700',
-    readsCount: 85,
+    readsCount: 0,
     deweyClass: '800',
     deweyCode: '800',
     callNumber: '800 SPOT',
@@ -315,39 +315,26 @@ export const HeroSpotlight: React.FC = () => {
               </div>
 
               <form onSubmit={handleSave} className="p-6 space-y-5 max-h-[82vh] overflow-y-auto text-xs">
-                {/* 1. Target Library Section Selector */}
+                {/* 1. Target Library Section Scoped to Admin */}
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Target Library Section
+                    Assigned Library Section
                   </label>
-                  <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-xl border border-slate-200">
-                    <button
-                      type="button"
-                      onClick={() => handleSectionSwitch('college')}
-                      className={`py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                        modalSection === 'college'
-                          ? 'bg-slate-900 text-white shadow-xs'
-                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-                      }`}
-                    >
-                      <Building2 className="w-3.5 h-3.5 text-amber-400" />
-                      <span>Secondary Section</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleSectionSwitch('primary')}
-                      className={`py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                        modalSection === 'primary'
-                          ? 'bg-slate-900 text-white shadow-xs'
-                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-                      }`}
-                    >
-                      <Backpack className="w-3.5 h-3.5 text-teal-400" />
-                      <span>Primary Section</span>
-                    </button>
+                  <div className="flex items-center gap-2 p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+                    {modalSection === 'primary' ? (
+                      <>
+                        <Backpack className="w-4 h-4 text-teal-600 shrink-0" />
+                        <span className="font-bold text-slate-900">Primary Section (Years 1–6)</span>
+                      </>
+                    ) : (
+                      <>
+                        <Building2 className="w-4 h-4 text-amber-600 shrink-0" />
+                        <span className="font-bold text-slate-900">Secondary Section (Years 7–12)</span>
+                      </>
+                    )}
                   </div>
                   <p className="text-[11px] text-slate-500 mt-1">
-                    Configuring the Book of the Week for {modalSection === 'primary' ? 'Primary Pupils (Years 1–6)' : 'Secondary Students (College Years 7–12)'}.
+                    Configuring the Book of the Week for your assigned campus ({modalSection === 'primary' ? 'Primary Pupils' : 'Secondary College Students'}).
                   </p>
                 </div>
 

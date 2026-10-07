@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo } from 'react';
-import { useApp, getUserBorrowLimitInfo } from '../context/AppContext';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useApp, getUserBorrowLimitInfo, getGradeLevelForUser } from '../context/AppContext';
 import { 
   ALL_ACADEMIC_CLASSES, 
   PRIMARY_ACADEMIC_CLASSES, 
@@ -34,20 +34,32 @@ import {
   RefreshCw,
   Mail,
   GraduationCap,
-  Printer,
-  Receipt,
   Tag,
   Building2,
-  Sparkles
+  Sparkles,
+  Info,
+  Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { triggerBorrowCelebration } from '../utils/confetti';
-import { PhysicalPrintTools } from './PhysicalPrintTools';
 
 const ITEMS_PER_PAGE = 8;
 
 export const CirculationTracker: React.FC = () => {
-  const { circulation, books, returnBook, sendOverdueAlert, checkoutBook, users, activeSection, setActiveSection } = useApp();
+  const { 
+    circulation, 
+    books, 
+    allBooks, 
+    returnBook, 
+    removeCirculationRecord,
+    sendOverdueAlert, 
+    checkoutBook, 
+    users, 
+    allUsers, 
+    activeSection, 
+    setActiveSection,
+    isAdmin 
+  } = useApp();
   
   // Local States
   const [filter, setFilter] = useState<'all' | 'borrowed' | 'overdue' | 'returned'>('all');
@@ -58,21 +70,26 @@ export const CirculationTracker: React.FC = () => {
   const [showCheckoutForm, setShowCheckoutForm] = useState(false);
   const [viewStyle, setViewStyle] = useState<'cards' | 'table'>('cards');
   
+  // Target database for the loan form: initialized to active section ('primary' or 'college'/'secondary')
+  const [targetLoanSection, setTargetLoanSection] = useState<'college' | 'primary'>(() => 
+    activeSection === 'primary' ? 'primary' : 'college'
+  );
+
   // Checkout Form states
   const [selectedBookId, setSelectedBookId] = useState('');
+  const [selectedLearnerId, setSelectedLearnerId] = useState('');
   const [studentName, setStudentName] = useState('');
-  const [grade, setGrade] = useState('9E');
+  const [grade, setGrade] = useState(activeSection === 'primary' ? '1D' : '9E');
   const [loanDuration, setLoanDuration] = useState(14);
+  const [recordToDelete, setRecordToDelete] = useState<CirculationRecord | null>(null);
+  const [isDeletingRecord, setIsDeletingRecord] = useState(false);
 
-  // Print Modal state
-  const [printModalConfig, setPrintModalConfig] = useState<{
-    isOpen: boolean;
-    initialTab: 'spine' | 'slips';
-    preselectedUserId?: string;
-  }>({
-    isOpen: false,
-    initialTab: 'slips',
-  });
+  // Sync loan form defaults when activeSection changes in context
+  useEffect(() => {
+    const defaultSec = activeSection === 'primary' ? 'primary' : 'college';
+    setTargetLoanSection(defaultSec);
+    setGrade(defaultSec === 'primary' ? '1D' : '9E');
+  }, [activeSection]);
 
   // Status message
   const [msg, setMsg] = useState<{ 
@@ -81,23 +98,58 @@ export const CirculationTracker: React.FC = () => {
     actionUserId?: string;
   } | null>(null);
 
-  // Derive live borrowing limit info and active loan status for checkout form
-  const matchedStudentUser = useMemo(() => {
-    if (!studentName.trim()) return null;
-    const clean = studentName.trim().toLowerCase();
-    return users.find(u => 
-      u.name.toLowerCase() === clean ||
-      u.name.toLowerCase().includes(clean) ||
-      clean.includes(u.name.toLowerCase())
-    ) || null;
-  }, [studentName, users]);
+  // 1. Respective Database: Books strictly from catalog database for the chosen section
+  const dbBooks = useMemo(() => {
+    const pool = (allBooks && allBooks.length > 0) ? allBooks : books;
+    return pool
+      .filter((b) => (b.section || 'college') === targetLoanSection)
+      .sort((a, b) => a.title.localeCompare(b.title));
+  }, [allBooks, books, targetLoanSection]);
 
+  // 2. Respective Database: Registered Learners strictly from database for the chosen section
+  const dbLearners = useMemo(() => {
+    const pool = (allUsers && allUsers.length > 0) ? allUsers : users;
+    return pool
+      .filter((u) => {
+        if (u.role !== 'learner' && u.role !== 'student') return false;
+        const level = getGradeLevelForUser(u, targetLoanSection);
+        if (targetLoanSection === 'primary') {
+          return u.section === 'primary' || level === 'primary';
+        } else {
+          return u.section === 'college' || level === 'secondary';
+        }
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [allUsers, users, targetLoanSection]);
+
+  // Selected book object details from database
+  const selectedBookObj = useMemo(() => {
+    if (!selectedBookId) return null;
+    return dbBooks.find(b => b.id === selectedBookId) || null;
+  }, [selectedBookId, dbBooks]);
+
+  // Selected learner object details from database
+  const selectedLearnerObj = useMemo(() => {
+    if (selectedLearnerId) {
+      return dbLearners.find(u => u.id === selectedLearnerId) || null;
+    }
+    if (studentName.trim()) {
+      const clean = studentName.trim().toLowerCase();
+      return dbLearners.find(u => 
+        u.name.toLowerCase() === clean ||
+        u.name.toLowerCase().includes(clean)
+      ) || null;
+    }
+    return null;
+  }, [selectedLearnerId, studentName, dbLearners]);
+
+  // Live borrowing limit info based on target database section
   const liveBorrowLimitInfo = useMemo(() => {
-    const target = matchedStudentUser 
-      ? { ...matchedStudentUser, gradeOrYear: grade }
+    const target = selectedLearnerObj 
+      ? { ...selectedLearnerObj, gradeOrYear: grade }
       : `${studentName} (${grade})`;
-    return getUserBorrowLimitInfo(target, activeSection);
-  }, [matchedStudentUser, grade, studentName, activeSection]);
+    return getUserBorrowLimitInfo(target, targetLoanSection);
+  }, [selectedLearnerObj, grade, studentName, targetLoanSection]);
 
   const activeStudentLoans = useMemo(() => {
     if (!studentName.trim()) return [];
@@ -105,10 +157,10 @@ export const CirculationTracker: React.FC = () => {
     return circulation.filter(c => 
       c.status !== 'returned' && (
         c.learnerName.toLowerCase().includes(clean) ||
-        (matchedStudentUser && c.learnerName.toLowerCase().includes(matchedStudentUser.name.toLowerCase()))
+        (selectedLearnerObj && c.learnerName.toLowerCase().includes(selectedLearnerObj.name.toLowerCase()))
       )
     );
-  }, [studentName, matchedStudentUser, circulation]);
+  }, [studentName, selectedLearnerObj, circulation]);
 
   const isCheckoutLimitReached = liveBorrowLimitInfo.maxAllowed !== null && activeStudentLoans.length >= liveBorrowLimitInfo.maxAllowed;
 
@@ -129,7 +181,7 @@ export const CirculationTracker: React.FC = () => {
     
     if (res.success) {
       triggerBorrowCelebration();
-      const matchedUser = users.find(u => 
+      const matchedUser = selectedLearnerObj || (allUsers || users).find(u => 
         u.name.toLowerCase() === studentName.trim().toLowerCase() ||
         fullName.toLowerCase().includes(u.name.toLowerCase())
       );
@@ -139,6 +191,7 @@ export const CirculationTracker: React.FC = () => {
         actionUserId: matchedUser?.id
       });
       setSelectedBookId('');
+      setSelectedLearnerId('');
       setStudentName('');
       setTimeout(() => setMsg(null), 8000);
       setShowCheckoutForm(false);
@@ -261,17 +314,6 @@ export const CirculationTracker: React.FC = () => {
 
           <button
             type="button"
-            onClick={() => setPrintModalConfig({ isOpen: true, initialTab: 'slips' })}
-            className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2 px-3.5 rounded-full text-xs transition cursor-pointer border border-slate-200"
-            title="Open physical print tools for spine labels and checkout slips"
-          >
-            <Printer className="w-3.5 h-3.5 text-indigo-600" />
-            <span className="hidden sm:inline">Print Slips & Labels</span>
-            <span className="sm:hidden">Print</span>
-          </button>
-
-          <button
-            type="button"
             onClick={() => setShowCheckoutForm(!showCheckoutForm)}
             className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-full text-xs shadow-md shadow-blue-500/20 transition-all cursor-pointer"
           >
@@ -326,7 +368,7 @@ export const CirculationTracker: React.FC = () => {
         </div>
       </div>
 
-      {/* Policy Reminder Banner */}
+      {/* Policy Reminder Banner - Strictly section scoped */}
       <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center flex-shrink-0 font-bold">
@@ -335,7 +377,11 @@ export const CirculationTracker: React.FC = () => {
           <div>
             <span className="font-extrabold text-slate-900 block sm:inline">Borrowing Limit Policy: </span>
             <span className="text-slate-600">
-              Secondary <span className="font-bold text-slate-800">Year 7–9: max 2 books</span> • Secondary <span className="font-bold text-slate-800">Year 10–12: max 3 books</span> • Primary Section has <span className="font-bold text-emerald-700">no automated limit</span> (managed manually by primary librarian).
+              {activeSection === 'primary' ? (
+                <>Primary Section has <span className="font-bold text-emerald-700">no automated limit</span> (managed manually by primary librarian Mrs. Adeleke).</>
+              ) : (
+                <>Secondary Junior <span className="font-bold text-slate-800">Year 7–9: max 2 books</span> • Secondary Senior <span className="font-bold text-slate-800">Year 10–12: max 3 books</span>.</>
+              )}
             </span>
           </div>
         </div>
@@ -351,21 +397,62 @@ export const CirculationTracker: React.FC = () => {
             onSubmit={handleCheckoutSubmit}
             className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-lg space-y-5 overflow-hidden"
           >
-            <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
+            {/* Header & Target Database Selector */}
+            <div className="border-b border-slate-100 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h2 className="font-display font-black text-base text-slate-900 flex items-center gap-2">
                   <UserPlus className="w-4 h-4 text-blue-600" /> Assign a New Physical Book Loan
                 </h2>
-                <p className="text-xs text-slate-500">Select a catalog title and specify the patron information.</p>
+                <p className="text-xs text-slate-500">
+                  Select catalog title and enrolled learner from the official school database.
+                </p>
               </div>
-              <span className="text-[11px] font-bold px-3 py-1 bg-slate-100 text-slate-700 rounded-full font-mono">
-                {liveBorrowLimitInfo.label}
-              </span>
+
+              {/* Database Section Switcher */}
+              <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-2xl self-start sm:self-auto border border-slate-200/80">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTargetLoanSection('college');
+                    setSelectedBookId('');
+                    setSelectedLearnerId('');
+                    setStudentName('');
+                    setGrade('9E');
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                    targetLoanSection === 'college'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Building2 className="w-3.5 h-3.5" />
+                  <span>Secondary Database</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTargetLoanSection('primary');
+                    setSelectedBookId('');
+                    setSelectedLearnerId('');
+                    setStudentName('');
+                    setGrade('1D');
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                    targetLoanSection === 'primary'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Primary Database</span>
+                </button>
+              </div>
             </div>
             
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <label htmlFor="checkout-book-select" className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              {/* Field 1: Select Catalog Book Drop-Down (From Database) */}
+              <div className="space-y-1.5">
+                <label htmlFor="checkout-book-select" className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">
                   Select Catalog Book
                 </label>
                 <select
@@ -376,49 +463,101 @@ export const CirculationTracker: React.FC = () => {
                   className="w-full text-xs border border-slate-300 bg-slate-50 rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-600 font-semibold text-slate-800 cursor-pointer"
                 >
                   <option value="">-- Choose Book --</option>
-                  {books.map((b) => (
+                  {dbBooks.map((b) => (
                     <option key={b.id} value={b.id} disabled={b.availableCopies <= 0}>
-                      {b.title} ({b.availableCopies}/{b.totalCopies} left)
+                      {b.title} by {b.author} • ({b.availableCopies}/{b.totalCopies} left) [{b.category}] {b.availableCopies <= 0 ? ' [OUT OF COPIES]' : ''}
                     </option>
                   ))}
                 </select>
+
+                {/* Selected Book Preview Card */}
+                {selectedBookObj && (
+                  <div className="p-2.5 bg-blue-50/70 border border-blue-100 rounded-xl flex items-center gap-3">
+                    {selectedBookObj.coverImage ? (
+                      <img
+                        src={selectedBookObj.coverImage}
+                        alt={selectedBookObj.title}
+                        className="w-9 h-12 object-cover rounded-md shadow-xs border border-slate-200 shrink-0"
+                      />
+                    ) : (
+                      <div className="w-9 h-12 bg-blue-200 text-blue-800 rounded-md flex items-center justify-center font-bold text-xs shrink-0">
+                        <BookOpen className="w-5 h-5" />
+                      </div>
+                    )}
+                    <div className="text-[11px] min-w-0 flex-1">
+                      <div className="font-extrabold text-slate-900 truncate">{selectedBookObj.title}</div>
+                      <div className="text-slate-600 font-medium truncate">By {selectedBookObj.author} • {selectedBookObj.category}</div>
+                      <div className="text-[10px] text-slate-500 font-mono mt-0.5">
+                        ISBN: {selectedBookObj.isbn} • <span className={selectedBookObj.availableCopies > 0 ? "text-emerald-700 font-bold" : "text-rose-600 font-bold"}>
+                          {selectedBookObj.availableCopies}/{selectedBookObj.totalCopies} available
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              <div>
-                <label htmlFor="checkout-student-name" className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+              {/* Field 2: Learner Full Name Drop-Down (From Database) */}
+              <div className="space-y-1.5">
+                <label htmlFor="checkout-student-select" className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">
                   Learner Full Name
                 </label>
-                <input
-                  id="checkout-student-name"
-                  type="text"
-                  list="enrolled-students-list"
+                <select
+                  id="checkout-student-select"
                   required
-                  value={studentName}
+                  value={selectedLearnerId}
                   onChange={(e) => {
-                    const val = e.target.value;
-                    setStudentName(val);
-                    const matched = users.find(u => u.name.toLowerCase() === val.trim().toLowerCase());
-                    if (matched && matched.gradeOrYear) {
-                      setGrade(matched.gradeOrYear);
+                    const lid = e.target.value;
+                    setSelectedLearnerId(lid);
+                    const userMatch = dbLearners.find(u => u.id === lid);
+                    if (userMatch) {
+                      setStudentName(userMatch.name);
+                      if (userMatch.gradeOrYear) {
+                        setGrade(userMatch.gradeOrYear);
+                      }
+                    } else {
+                      setStudentName('');
                     }
                   }}
-                  placeholder="e.g. Chidi Okafor or Amina Danjuma"
-                  className="w-full text-xs border border-slate-300 bg-slate-50 rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-600 font-semibold text-slate-800"
-                />
-                <datalist id="enrolled-students-list">
-                  {users
-                    .filter(u => u.role === 'learner' || u.role === 'student')
-                    .map(u => (
-                      <option key={u.id} value={u.name}>
-                        {u.gradeOrYear ? `${u.name} (${u.gradeOrYear})` : u.name}
-                      </option>
-                    ))}
-                </datalist>
+                  className="w-full text-xs border border-slate-300 bg-slate-50 rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-600 font-semibold text-slate-800 cursor-pointer"
+                >
+                  <option value="">-- Select Learner --</option>
+                  {dbLearners.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name} — Class {u.gradeOrYear || 'N/A'} ({u.admissionNumber || u.libraryCardId || 'Enrolled'})
+                    </option>
+                  ))}
+                </select>
+
+                {/* Selected Learner Preview Card */}
+                {selectedLearnerObj && (
+                  <div className="p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center text-xs shrink-0 overflow-hidden border border-blue-200">
+                      {selectedLearnerObj.avatar ? (
+                        <img src={selectedLearnerObj.avatar} alt={selectedLearnerObj.name} className="w-full h-full object-cover" />
+                      ) : (
+                        selectedLearnerObj.name.charAt(0)
+                      )}
+                    </div>
+                    <div className="text-[11px] min-w-0 flex-1">
+                      <div className="font-extrabold text-slate-900 flex items-center gap-1.5">
+                        <span className="truncate">{selectedLearnerObj.name}</span>
+                        <span className="text-[10px] font-mono px-1.5 py-0.2 bg-blue-50 text-blue-700 rounded font-bold border border-blue-100 shrink-0">
+                          {selectedLearnerObj.gradeOrYear}
+                        </span>
+                      </div>
+                      <div className="text-slate-500 text-[10px] font-mono truncate">
+                        Adm: {selectedLearnerObj.admissionNumber || 'N/A'} • Card: {selectedLearnerObj.libraryCardId}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
+              {/* Field 3: Grade / Year & Duration */}
               <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label htmlFor="checkout-grade" className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                <div className="space-y-1.5">
+                  <label htmlFor="checkout-grade" className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">
                     Grade / Year
                   </label>
                   <select
@@ -427,32 +566,37 @@ export const CirculationTracker: React.FC = () => {
                     onChange={(e) => setGrade(e.target.value)}
                     className="w-full text-xs border border-slate-300 bg-slate-50 rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-600 font-semibold text-slate-800 cursor-pointer"
                   >
-                    <optgroup label="Secondary Senior (Years 10–12: D, G, E, O, R • Max 3 books)">
-                      {SENIOR_SECONDARY_CLASSES.map((c) => (
-                        <option key={c.code} value={c.code}>
-                          {c.code} — {c.fullLabel} (Max 3 books)
-                        </option>
-                      ))}
-                    </optgroup>
-                    <optgroup label="Secondary Junior (Years 7–9: D, G, E, O, R • Max 2 books)">
-                      {JUNIOR_SECONDARY_CLASSES.map((c) => (
-                        <option key={c.code} value={c.code}>
-                          {c.code} — {c.fullLabel} (Max 2 books)
-                        </option>
-                      ))}
-                    </optgroup>
-                    <optgroup label="Primary Section (Years 1–6: D, G, E, O, R • Manual limit)">
-                      {PRIMARY_ACADEMIC_CLASSES.map((c) => (
-                        <option key={c.code} value={c.code}>
-                          {c.code} — {c.fullLabel} (Manual limit)
-                        </option>
-                      ))}
-                    </optgroup>
+                    {targetLoanSection === 'primary' ? (
+                      <optgroup label="Primary Section (Years 1–6: D, G, E, O, R • Manual limit)">
+                        {PRIMARY_ACADEMIC_CLASSES.map((c) => (
+                          <option key={c.code} value={c.code}>
+                            {c.code} — {c.fullLabel}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ) : (
+                      <>
+                        <optgroup label="Secondary Senior (Years 10–12: D, G, E, O, R • Max 3 books)">
+                          {SENIOR_SECONDARY_CLASSES.map((c) => (
+                            <option key={c.code} value={c.code}>
+                              {c.code} — {c.fullLabel} (Max 3 books)
+                            </option>
+                          ))}
+                        </optgroup>
+                        <optgroup label="Secondary Junior (Years 7–9: D, G, E, O, R • Max 2 books)">
+                          {JUNIOR_SECONDARY_CLASSES.map((c) => (
+                            <option key={c.code} value={c.code}>
+                              {c.code} — {c.fullLabel} (Max 2 books)
+                            </option>
+                          ))}
+                        </optgroup>
+                      </>
+                    )}
                   </select>
                 </div>
 
-                <div>
-                  <label htmlFor="checkout-duration" className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                <div className="space-y-1.5">
+                  <label htmlFor="checkout-duration" className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">
                     Duration
                   </label>
                   <select
@@ -462,7 +606,8 @@ export const CirculationTracker: React.FC = () => {
                     className="w-full text-xs border border-slate-300 bg-slate-50 rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-600 font-semibold text-slate-800 cursor-pointer"
                   >
                     <option value={7}>7 Days</option>
-                    <option value={14}>14 Days</option>
+                    <option value={14}>14 Days (Default)</option>
+                    <option value={21}>21 Days</option>
                     <option value={30}>30 Days</option>
                   </select>
                 </div>
@@ -516,10 +661,15 @@ export const CirculationTracker: React.FC = () => {
               </button>
               <button
                 type="submit"
-                disabled={isCheckoutLimitReached}
-                className="bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white font-bold py-2.5 px-6 rounded-full text-xs cursor-pointer shadow-md shadow-blue-500/20 transition-all"
+                disabled={!selectedBookId || !studentName.trim() || isCheckoutLimitReached}
+                className="bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white font-bold py-2.5 px-6 rounded-full text-xs cursor-pointer shadow-md shadow-blue-500/20 transition-all flex items-center gap-1.5"
               >
-                {isCheckoutLimitReached ? `Limit Reached (${activeStudentLoans.length}/${liveBorrowLimitInfo.maxAllowed})` : 'Assign Loan'}
+                <Check className="w-4 h-4" />
+                <span>
+                  {isCheckoutLimitReached
+                    ? `Limit Reached (${activeStudentLoans.length}/${liveBorrowLimitInfo.maxAllowed})`
+                    : 'Assign Book Loan'}
+                </span>
               </button>
             </div>
           </motion.form>
@@ -540,20 +690,6 @@ export const CirculationTracker: React.FC = () => {
             }`}
           >
             <span>{msg.text}</span>
-            {msg.actionUserId && (
-              <button
-                type="button"
-                onClick={() => setPrintModalConfig({
-                  isOpen: true,
-                  initialTab: 'slips',
-                  preselectedUserId: msg.actionUserId
-                })}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer flex-shrink-0"
-              >
-                <Receipt className="w-3.5 h-3.5" />
-                <span>Print Checkout Slip</span>
-              </button>
-            )}
           </motion.div>
         )}
       </AnimatePresence>
@@ -697,25 +833,6 @@ export const CirculationTracker: React.FC = () => {
                         <span>Check In</span>
                       </button>
 
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const matchedUser = users.find(u => 
-                            u.name.toLowerCase() === record.learnerName.toLowerCase() ||
-                            record.learnerName.toLowerCase().includes(u.name.toLowerCase())
-                          );
-                          setPrintModalConfig({
-                            isOpen: true,
-                            initialTab: 'slips',
-                            preselectedUserId: matchedUser?.id
-                          });
-                        }}
-                        className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-full text-xs font-bold transition flex items-center justify-center cursor-pointer"
-                        title="Print checkout slip"
-                      >
-                        <Receipt className="w-3.5 h-3.5 text-indigo-600" />
-                      </button>
-
                       {isOverdue && (
                         <button
                           type="button"
@@ -731,25 +848,18 @@ export const CirculationTracker: React.FC = () => {
                   ) : (
                     <div className="w-full flex items-center justify-between py-1 px-2 text-xs text-slate-400 font-bold bg-slate-50 rounded-full">
                       <span>✓ Completed on {record.returnDate || 'record'}</span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const matchedUser = users.find(u => 
-                            u.name.toLowerCase() === record.learnerName.toLowerCase() ||
-                            record.learnerName.toLowerCase().includes(u.name.toLowerCase())
-                          );
-                          setPrintModalConfig({
-                            isOpen: true,
-                            initialTab: 'slips',
-                            preselectedUserId: matchedUser?.id
-                          });
-                        }}
-                        className="p-1 hover:bg-slate-200 text-slate-600 rounded-full cursor-pointer"
-                        title="Print receipt / record"
-                      >
-                        <Receipt className="w-3 h-3 text-indigo-600" />
-                      </button>
                     </div>
+                  )}
+
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => setRecordToDelete(record)}
+                      className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-full transition cursor-pointer border border-transparent hover:border-rose-200"
+                      title="Remove loan from circulation records"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   )}
                 </div>
               </motion.div>
@@ -816,25 +926,6 @@ export const CirculationTracker: React.FC = () => {
                     </td>
                     <td className="p-4 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const matchedUser = users.find(u => 
-                              u.name.toLowerCase() === record.learnerName.toLowerCase() ||
-                              record.learnerName.toLowerCase().includes(u.name.toLowerCase())
-                            );
-                            setPrintModalConfig({
-                              isOpen: true,
-                              initialTab: 'slips',
-                              preselectedUserId: matchedUser?.id
-                            });
-                          }}
-                          className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-full text-xs font-semibold flex items-center gap-1 cursor-pointer transition"
-                          title="Print checkout slip"
-                        >
-                          <Receipt className="w-3 h-3 text-indigo-600" />
-                          <span>Slip</span>
-                        </button>
                         {record.status !== 'returned' && (
                           <button
                             type="button"
@@ -842,6 +933,16 @@ export const CirculationTracker: React.FC = () => {
                             className="px-3 py-1 bg-emerald-600 text-white rounded-full text-xs font-bold hover:bg-emerald-700 cursor-pointer transition"
                           >
                             Check In
+                          </button>
+                        )}
+                        {isAdmin && (
+                          <button
+                            type="button"
+                            onClick={() => setRecordToDelete(record)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-full transition cursor-pointer border border-transparent hover:border-rose-200"
+                            title="Remove loan from circulation records"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         )}
                       </div>
@@ -883,16 +984,65 @@ export const CirculationTracker: React.FC = () => {
         </div>
       </div>
 
-      {/* Physical Print Tools Modal */}
-      {printModalConfig.isOpen && (
-        <PhysicalPrintTools
-          isModal={true}
-          initialTab={printModalConfig.initialTab}
-          preselectedUserId={printModalConfig.preselectedUserId}
-          onClose={() => setPrintModalConfig(prev => ({ ...prev, isOpen: false }))}
-        />
-      )}
-
+      {/* Remove Circulation Record Confirmation Modal */}
+      <AnimatePresence>
+        {recordToDelete && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-200 space-y-4"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-display font-black text-lg text-slate-900">
+                  Remove Loan from Circulation
+                </h3>
+                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                  Are you sure you want to remove the circulation record for <strong className="text-slate-800">"{recordToDelete.bookTitle}"</strong> issued to <strong className="text-slate-800">{recordToDelete.learnerName}</strong>?
+                  {recordToDelete.status !== 'returned' && (
+                    <span className="block mt-1 text-emerald-700 font-semibold">
+                      ✓ The loaned copy will be restored to available shelf inventory.
+                    </span>
+                  )}
+                </p>
+              </div>
+              <div className="flex items-center justify-end gap-2.5 pt-2">
+                <button
+                  type="button"
+                  disabled={isDeletingRecord}
+                  onClick={() => setRecordToDelete(null)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isDeletingRecord}
+                  onClick={async () => {
+                    setIsDeletingRecord(true);
+                    const res = await removeCirculationRecord(recordToDelete.id);
+                    setIsDeletingRecord(false);
+                    setMsg({
+                      type: res.success ? 'success' : 'error',
+                      text: res.message
+                    });
+                    setTimeout(() => setMsg(null), 4000);
+                    setRecordToDelete(null);
+                  }}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-xs disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>{isDeletingRecord ? 'Removing...' : 'Yes, Remove from Circulation'}</span>
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

@@ -77,6 +77,28 @@ export interface BookReview {
   createdAt: string;
 }
 
+export type BookInventoryType = 'physical' | 'ebook';
+export type InventoryFilter = 'all' | 'physical' | 'ebook';
+
+export interface InventoryMetrics {
+  totalOverallCount: number;
+  totalPhysicalCount: number;
+  totalEbookCount: number;
+  physicalCopiesTotal: number;
+  physicalCopiesAvailable: number;
+  physicalCopiesOnLoan: number;
+  ebookActiveReaders: number;
+  ebookCompletedReads: number;
+  ebookHalfwayReads: number;
+}
+
+export interface EBookPage {
+  pageNumber: number;
+  chapterTitle?: string;
+  content: string;
+  imageUrl?: string;
+}
+
 export interface Book {
   id: string;
   title: string;
@@ -106,6 +128,44 @@ export interface Book {
   isNew?: boolean;
   isTeacherPick?: boolean;
   section?: 'college' | 'primary'; // Branch affiliation
+  // Digital eBook extension
+  inventoryType?: BookInventoryType; // 'physical' (default) or 'ebook'
+  ebookFormat?: 'pages' | 'pdf' | 'text' | 'epub';
+  ebookPages?: EBookPage[];
+  ebookFileUrl?: string;
+  ebookFileSize?: string;
+  ebookFileName?: string;
+}
+
+export type ReadingMilestone = 'not-started' | 'just-started' | 'more-than-half' | 'completed';
+
+export interface PageDwellRecord {
+  pageNumber: number;
+  durationSeconds: number; // dwell time on this page
+  timestamp: string;
+}
+
+export interface ReadingProgressRecord {
+  id: string; // `${userId}_${bookId}`
+  userId: string;
+  learnerName: string;
+  bookId: string;
+  bookTitle: string;
+  author: string;
+  coverUrl?: string;
+  totalPages: number;
+  currentPage: number; // page reader stopped on
+  highestPageRead: number;
+  pagesFlippedCount: number;
+  totalDurationSeconds: number; // total reading duration in seconds
+  pageDwells: PageDwellRecord[]; // tracking duration per page
+  status: ReadingMilestone;
+  percentCompleted: number; // 0 - 100
+  startedAt: string;
+  lastReadAt: string; // timestamp when they left the book
+  completedAt?: string;
+  notificationsEnabled: boolean; // reader can toggle notifications on/off per book
+  lastNotifiedAt?: string; // timestamp when last reminder nudge was shown
 }
 
 export interface ReaderAchievement {

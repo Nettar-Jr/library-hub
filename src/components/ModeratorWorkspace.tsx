@@ -9,7 +9,6 @@ import { StudentSubmission } from '../types';
 import { 
   Check, 
   X, 
-  ShieldAlert, 
   FileText, 
   Calendar, 
   User, 
@@ -312,15 +311,9 @@ export const ModeratorWorkspace: React.FC = () => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="font-display text-xl sm:text-2xl font-black tracking-tight text-slate-900 flex items-center gap-2">
-              <ShieldAlert className="w-6 h-6 text-amber-500" />
+            <h2 className="font-display text-xl sm:text-2xl font-black tracking-tight text-slate-900">
               {isAdmin ? 'Librarian Institutional Moderation' : 'Faculty Subject Moderation'}
             </h2>
-            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
-              isAdmin ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-900'
-            }`}>
-              {isAdmin ? 'Librarian Admin' : 'Teacher View'}
-            </span>
           </div>
           <p className="text-xs sm:text-sm text-slate-600 mt-1">
             {isAdmin 

@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { Book, CirculationRecord, StudentSubmission, Announcement, UserRole, AppRole, LibraryUser, User, NavView, BookHold, BookReview, HeroSpotlightData, CatalogViewMode, LibrarySection } from '../types';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import { Book, CirculationRecord, StudentSubmission, Announcement, UserRole, AppRole, LibraryUser, User, NavView, BookHold, BookReview, HeroSpotlightData, CatalogViewMode, LibrarySection, InventoryFilter, InventoryMetrics, ReadingProgressRecord } from '../types';
 import { initialBooks, initialCirculation, initialSubmissions, initialAnnouncements, initialHeroSpotlight, initialCollegeSpotlight, initialPrimarySpotlight, DEMO_SAMPLE_IDS } from '../data';
 import { 
   isSupabaseConfigured, 
@@ -12,6 +12,7 @@ import {
   insertBookToSupabase, 
   updateBookInSupabase,
   deleteBookFromSupabase,
+  deleteCirculationRecordFromSupabase,
   fetchSubmissionsFromSupabase,
   insertSubmissionToSupabase,
   updateSubmissionInSupabase,
@@ -24,6 +25,7 @@ import {
   fetchUsersFromSupabase,
   insertUserToSupabase,
   updateUserInSupabase,
+  deleteUserFromSupabase,
   fetchBookOfWeekFromDatabase,
   saveBookOfWeekToDatabase
 } from '../services/supabase';
@@ -175,6 +177,7 @@ interface AppContextType {
   ) => Promise<{ addedCount: number; updatedCount: number; skippedCount: number }>;
   checkoutBook: (bookId: string, learnerName: string, days?: number) => { success: boolean; message: string };
   returnBook: (recordId: string) => void;
+  removeCirculationRecord: (recordId: string) => Promise<{ success: boolean; message: string }>;
   sendOverdueAlert: (recordId: string) => void;
   addSubmission: (title: string, category: StudentSubmission['category'], content: string, imageUrl?: string) => void;
   updateSubmission: (id: string, title: string, category: StudentSubmission['category'], content: string, imageUrl?: string) => void;
@@ -190,12 +193,62 @@ interface AppContextType {
   // User Profile Management
   updateUserProfile: (updates: Partial<LibraryUser>) => Promise<{ success: boolean; message: string }>;
   updateLearnerByAdmin: (learnerId: string, updates: Partial<LibraryUser>) => Promise<{ success: boolean; message: string }>;
+  deleteUser: (userId: string) => Promise<{ success: boolean; message: string }>;
   // Offline & Service Worker Sync
   isOnline: boolean;
   pendingOfflineChangesCount: number;
   isSyncingOfflineChanges: boolean;
   syncPendingOfflineChanges: () => Promise<{ success: boolean; syncedCount: number; errors: string[] }>;
+
+  // Digital Reading Progress & eBook Reader
+  readingProgressRecords: ReadingProgressRecord[];
+  getReadingProgress: (bookId: string, userId?: string) => ReadingProgressRecord | undefined;
+  getUserReadingProgressList: (userId?: string) => ReadingProgressRecord[];
+  saveReadingProgress: (record: ReadingProgressRecord) => void;
+  toggleBookNotification: (bookId: string, enabled: boolean, userId?: string) => void;
+  dismissBookReminder: (bookId: string, userId?: string) => void;
+  activeEBookModal: { isOpen: boolean; book: Book | null; initialPage?: number };
+  openEBookReader: (book: Book, startPage?: number) => void;
+  closeEBookReader: () => void;
+
+  // Separate Physical vs E-Book Inventory
+  physicalBooks: Book[];
+  ebookBooks: Book[];
+  inventoryFilter: InventoryFilter;
+  setInventoryFilter: (filter: InventoryFilter) => void;
+  inventoryMetrics: InventoryMetrics;
 }
+
+export const DEFAULT_ADMIN_FALLBACK_AVATARS: Record<string, string> = {
+  'user-admin-1': 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
+  'user-admin-2': 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=200',
+  'alabia@premierinternationalschool.org': 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
+  'adelekev@premierinternationalschool.org': 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=200',
+};
+
+export function isDefaultAvatarUrl(url?: string | null): boolean {
+  if (!url) return false;
+  const trimmed = url.trim();
+  if (!trimmed) return false;
+  return Object.values(DEFAULT_ADMIN_FALLBACK_AVATARS).includes(trimmed);
+}
+
+// Safe helper to restore custom avatar persisted in database or localStorage for accounts
+const getStoredAdminAvatar = (adminId: string, fallback: string): string => {
+  try {
+    const custom = localStorage.getItem(`p_avatar_${adminId}`) || localStorage.getItem(`p_admin_avatar_${adminId}`);
+    if (custom && custom.trim() !== '' && !isDefaultAvatarUrl(custom)) return custom.trim();
+    const usersRaw = localStorage.getItem('p_users_v3');
+    if (usersRaw) {
+      const list = JSON.parse(usersRaw);
+      const found = list.find((u: any) => u.id === adminId || u.email?.toLowerCase() === adminId.toLowerCase());
+      if (found?.avatar && found.avatar.trim() !== '' && !isDefaultAvatarUrl(found.avatar)) {
+        return found.avatar.trim();
+      }
+    }
+  } catch {}
+  return fallback;
+};
 
 export const defaultAdminUser: LibraryUser = {
   id: 'user-admin-1',
@@ -206,7 +259,7 @@ export const defaultAdminUser: LibraryUser = {
   email: 'alabia@premierinternationalschool.org',
   password: 'Admin321',
   section: 'college',
-  avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
+  avatar: getStoredAdminAvatar('user-admin-1', DEFAULT_ADMIN_FALLBACK_AVATARS['user-admin-1']),
   createdAt: '2025-09-01',
 };
 
@@ -219,11 +272,118 @@ export const primaryAdminUser: LibraryUser = {
   email: 'adelekev@premierinternationalschool.org',
   password: 'Adelekev',
   section: 'primary',
-  avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=200',
+  avatar: getStoredAdminAvatar('user-admin-2', DEFAULT_ADMIN_FALLBACK_AVATARS['user-admin-2']),
   createdAt: '2025-09-01',
 };
 
 const initialUsers: LibraryUser[] = [
+  // Primary Enrolled Learners Database (Years 1-6)
+  {
+    id: 'user-student-2',
+    name: 'Zainab Bello',
+    role: 'learner',
+    gradeOrYear: '5G',
+    admissionNumber: 'PIS/PRI/24/1102',
+    password: 'PIS/PRI/24/1102',
+    libraryCardId: 'LIB-PUPIL-1102',
+    email: 'zainabb@premierinternationalschool.org',
+    section: 'primary',
+    avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=200',
+    createdAt: '2026-01-12',
+  },
+  {
+    id: 'user-pri-1',
+    name: 'Emeka Nwosu',
+    role: 'learner',
+    gradeOrYear: '3D',
+    admissionNumber: 'PIS/PRI/25/1210',
+    password: 'PIS/PRI/25/1210',
+    libraryCardId: 'LIB-PUPIL-1210',
+    email: 'emekan@premierinternationalschool.org',
+    section: 'primary',
+    avatar: 'https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&q=80&w=200',
+    createdAt: '2026-01-15',
+  },
+  {
+    id: 'user-pri-2',
+    name: 'Fatima Al-Hassan',
+    role: 'learner',
+    gradeOrYear: '2E',
+    admissionNumber: 'PIS/PRI/25/1344',
+    password: 'PIS/PRI/25/1344',
+    libraryCardId: 'LIB-PUPIL-1344',
+    email: 'fatimah@premierinternationalschool.org',
+    section: 'primary',
+    avatar: 'https://images.unsplash.com/photo-1509062522246-3755977927d7?auto=format&fit=crop&q=80&w=200',
+    createdAt: '2026-01-18',
+  },
+  {
+    id: 'user-pri-3',
+    name: 'Kenechukwu Eze',
+    role: 'learner',
+    gradeOrYear: '4O',
+    admissionNumber: 'PIS/PRI/24/1190',
+    password: 'PIS/PRI/24/1190',
+    libraryCardId: 'LIB-PUPIL-1190',
+    email: 'keneeze@premierinternationalschool.org',
+    section: 'primary',
+    avatar: 'https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?auto=format&fit=crop&q=80&w=200',
+    createdAt: '2026-01-20',
+  },
+  {
+    id: 'user-pri-4',
+    name: 'Sarah Johnson',
+    role: 'learner',
+    gradeOrYear: '1D',
+    admissionNumber: 'PIS/PRI/26/1450',
+    password: 'PIS/PRI/26/1450',
+    libraryCardId: 'LIB-PUPIL-1450',
+    email: 'sarahj@premierinternationalschool.org',
+    section: 'primary',
+    avatar: 'https://images.unsplash.com/photo-1544717302-de2939b7ef71?auto=format&fit=crop&q=80&w=200',
+    createdAt: '2026-01-22',
+  },
+  {
+    id: 'user-pri-5',
+    name: 'Tariq Ibrahim',
+    role: 'learner',
+    gradeOrYear: '5E',
+    admissionNumber: 'PIS/PRI/24/1133',
+    password: 'PIS/PRI/24/1133',
+    libraryCardId: 'LIB-PUPIL-1133',
+    email: 'tariqi@premierinternationalschool.org',
+    section: 'primary',
+    avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=200',
+    createdAt: '2026-01-25',
+  },
+  {
+    id: 'user-pri-6',
+    name: 'Michelle Adebayo',
+    role: 'learner',
+    gradeOrYear: '6R',
+    admissionNumber: 'PIS/PRI/23/1025',
+    password: 'PIS/PRI/23/1025',
+    libraryCardId: 'LIB-PUPIL-1025',
+    email: 'michellea@premierinternationalschool.org',
+    section: 'primary',
+    avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=200',
+    createdAt: '2026-01-28',
+  },
+  {
+    id: 'user-pri-7',
+    name: 'Damilola Adeleke',
+    role: 'learner',
+    gradeOrYear: '3G',
+    admissionNumber: 'PIS/PRI/25/1280',
+    password: 'PIS/PRI/25/1280',
+    libraryCardId: 'LIB-PUPIL-1280',
+    email: 'damilolaa@premierinternationalschool.org',
+    section: 'primary',
+    avatar: 'https://images.unsplash.com/photo-1509062522246-3755977927d7?auto=format&fit=crop&q=80&w=200',
+    createdAt: '2026-02-01',
+  },
+
+  // Secondary / College Enrolled Learners Database (Years 7-12)
   {
     id: 'user-student-1',
     name: 'Chidi Okafor',
@@ -240,19 +400,6 @@ const initialUsers: LibraryUser[] = [
     createdAt: '2026-01-10',
   },
   {
-    id: 'user-student-2',
-    name: 'Zainab Bello',
-    role: 'learner',
-    gradeOrYear: '5G',
-    admissionNumber: 'PIS/PRI/24/1102',
-    password: 'PIS/PRI/24/1102',
-    libraryCardId: 'LIB-PUPIL-1102',
-    email: 'zainabb@premierinternationalschool.org',
-    section: 'primary',
-    avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=200',
-    createdAt: '2026-01-12',
-  },
-  {
     id: 'user-student-3',
     name: 'Amina Danjuma',
     role: 'learner',
@@ -267,6 +414,158 @@ const initialUsers: LibraryUser[] = [
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
     createdAt: '2026-01-15',
   },
+  {
+    id: 'user-sec-1',
+    name: 'Tunde Williams',
+    role: 'learner',
+    gradeOrYear: '10G',
+    admissionNumber: 'PIS/SS/23/2104',
+    password: 'PIS/SS/23/2104',
+    libraryCardId: 'LIB-STUD-2104',
+    email: 'tundew@premierinternationalschool.org',
+    assignedTeacherId: 'user-staff-1',
+    assignedTeacherName: 'David Mensah',
+    section: 'college',
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200',
+    createdAt: '2026-01-16',
+  },
+  {
+    id: 'user-sec-2',
+    name: 'Somtochukwu Obi',
+    role: 'learner',
+    gradeOrYear: '8D',
+    admissionNumber: 'PIS/SS/24/2550',
+    password: 'PIS/SS/24/2550',
+    libraryCardId: 'LIB-STUD-2550',
+    email: 'somtoo@premierinternationalschool.org',
+    assignedTeacherId: 'user-staff-1',
+    assignedTeacherName: 'David Mensah',
+    section: 'college',
+    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=200',
+    createdAt: '2026-01-18',
+  },
+  {
+    id: 'user-sec-3',
+    name: 'Halima Mohammed',
+    role: 'learner',
+    gradeOrYear: '12R',
+    admissionNumber: 'PIS/SS/21/1760',
+    password: 'PIS/SS/21/1760',
+    libraryCardId: 'LIB-STUD-1760',
+    email: 'halimam@premierinternationalschool.org',
+    assignedTeacherId: 'user-staff-1',
+    assignedTeacherName: 'David Mensah',
+    section: 'college',
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
+    createdAt: '2026-01-20',
+  },
+  {
+    id: 'user-sec-4',
+    name: 'Favour Okon',
+    role: 'learner',
+    gradeOrYear: '7E',
+    admissionNumber: 'PIS/SS/25/2712',
+    password: 'PIS/SS/25/2712',
+    libraryCardId: 'LIB-STUD-2712',
+    email: 'favouro@premierinternationalschool.org',
+    assignedTeacherId: 'user-staff-1',
+    assignedTeacherName: 'David Mensah',
+    section: 'college',
+    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200',
+    createdAt: '2026-01-22',
+  },
+  {
+    id: 'user-sec-5',
+    name: 'David Adeyemi',
+    role: 'learner',
+    gradeOrYear: '10O',
+    admissionNumber: 'PIS/SS/23/2188',
+    password: 'PIS/SS/23/2188',
+    libraryCardId: 'LIB-STUD-2188',
+    email: 'davida@premierinternationalschool.org',
+    assignedTeacherId: 'user-staff-1',
+    assignedTeacherName: 'David Mensah',
+    section: 'college',
+    avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&q=80&w=200',
+    createdAt: '2026-01-24',
+  },
+  {
+    id: 'user-sec-6',
+    name: 'Blessing Bassey',
+    role: 'learner',
+    gradeOrYear: '9G',
+    admissionNumber: 'PIS/SS/23/2390',
+    password: 'PIS/SS/23/2390',
+    libraryCardId: 'LIB-STUD-2390',
+    email: 'blessingb@premierinternationalschool.org',
+    assignedTeacherId: 'user-staff-1',
+    assignedTeacherName: 'David Mensah',
+    section: 'college',
+    avatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&q=80&w=200',
+    createdAt: '2026-01-26',
+  },
+  {
+    id: 'user-sec-7',
+    name: 'Farouk Abubakar',
+    role: 'learner',
+    gradeOrYear: '11E',
+    admissionNumber: 'PIS/SS/22/2015',
+    password: 'PIS/SS/22/2015',
+    libraryCardId: 'LIB-STUD-2015',
+    email: 'farouka@premierinternationalschool.org',
+    assignedTeacherId: 'user-staff-1',
+    assignedTeacherName: 'David Mensah',
+    section: 'college',
+    avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&q=80&w=200',
+    createdAt: '2026-01-28',
+  },
+  {
+    id: 'user-sec-8',
+    name: 'Ifeoma Umeh',
+    role: 'learner',
+    gradeOrYear: '8O',
+    admissionNumber: 'PIS/SS/24/2588',
+    password: 'PIS/SS/24/2588',
+    libraryCardId: 'LIB-STUD-2588',
+    email: 'ifeomau@premierinternationalschool.org',
+    assignedTeacherId: 'user-staff-1',
+    assignedTeacherName: 'David Mensah',
+    section: 'college',
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
+    createdAt: '2026-01-30',
+  },
+  {
+    id: 'user-sec-9',
+    name: 'Emmanuel Kalu',
+    role: 'learner',
+    gradeOrYear: '12D',
+    admissionNumber: 'PIS/SS/21/1701',
+    password: 'PIS/SS/21/1701',
+    libraryCardId: 'LIB-STUD-1701',
+    email: 'emmanuelk@premierinternationalschool.org',
+    assignedTeacherId: 'user-staff-1',
+    assignedTeacherName: 'David Mensah',
+    section: 'college',
+    avatar: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&q=80&w=200',
+    createdAt: '2026-02-02',
+  },
+  {
+    id: 'user-sec-10',
+    name: 'Praise Eze',
+    role: 'learner',
+    gradeOrYear: '7D',
+    admissionNumber: 'PIS/SS/25/2740',
+    password: 'PIS/SS/25/2740',
+    libraryCardId: 'LIB-STUD-2740',
+    email: 'praisee@premierinternationalschool.org',
+    assignedTeacherId: 'user-staff-1',
+    assignedTeacherName: 'David Mensah',
+    section: 'college',
+    avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=200',
+    createdAt: '2026-02-04',
+  },
+
+  // Faculty and Librarians
   {
     id: 'user-staff-1',
     name: 'David Mensah',
@@ -535,16 +834,52 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [currentUser, setCurrentUserState] = useState<LibraryUser | null>(() => {
+    let resolved: LibraryUser | null = null;
     const saved = getSessionItem('p_current_user');
     if (saved) {
       try {
         const u = JSON.parse(saved);
-        if (u) return u;
+        if (u) resolved = u;
       } catch {
         // ignore
       }
     }
-    return null;
+    // Also check localStorage fallback for persistent user session
+    if (!resolved) {
+      try {
+        const persistent = localStorage.getItem('p_current_user_v2');
+        if (persistent) {
+          const u = JSON.parse(persistent);
+          if (u) resolved = u;
+        }
+      } catch {}
+    }
+
+    // If admin is active in session/localStorage but resolved was null, recover default admin
+    if (!resolved && (getSessionItem('p_lib_logged_in') === 'true' || localStorage.getItem('p_lib_logged_in') === 'true')) {
+      resolved = { ...defaultAdminUser };
+    }
+
+    if (resolved) {
+      const storedAvatar = localStorage.getItem(`p_avatar_${resolved.id}`) || 
+                           localStorage.getItem(`p_admin_avatar_${resolved.id}`) ||
+                           (resolved.email ? localStorage.getItem(`p_avatar_${resolved.email.toLowerCase()}`) : null);
+
+      if (storedAvatar && storedAvatar.trim() !== '' && !isDefaultAvatarUrl(storedAvatar)) {
+        // Use custom uploaded avatar
+        resolved.avatar = storedAvatar.trim();
+      } else if (resolved.avatar && resolved.avatar.trim() !== '' && !isDefaultAvatarUrl(resolved.avatar)) {
+        // Preserved custom avatar on user object
+        resolved.avatar = resolved.avatar.trim();
+      } else {
+        // Only when empty, use default fallback
+        resolved.avatar = DEFAULT_ADMIN_FALLBACK_AVATARS[resolved.id] || 
+                          (resolved.email ? DEFAULT_ADMIN_FALLBACK_AVATARS[resolved.email.toLowerCase()] : '') || 
+                          '';
+      }
+    }
+
+    return resolved;
   });
 
   // Modal control for the Librarian Roster Tool
@@ -577,29 +912,89 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Selected Book for Drawer/Modal
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
 
+// Safe helpers to track deleted records permanently so they are never resurrected
+const getDeletedBookIds = (): Set<string> => {
+  try {
+    const raw = localStorage.getItem('p_deleted_book_ids');
+    if (!raw) return new Set();
+    const arr = JSON.parse(raw);
+    return new Set(Array.isArray(arr) ? arr : []);
+  } catch {
+    return new Set();
+  }
+};
+
+const getDeletedUserIds = (): Set<string> => {
+  try {
+    const raw = localStorage.getItem('p_deleted_user_ids');
+    if (!raw) return new Set();
+    const arr = JSON.parse(raw);
+    return new Set(Array.isArray(arr) ? arr : []);
+  } catch {
+    return new Set();
+  }
+};
+
   const [books, setBooks] = useState<Book[]>(() => {
     const samplesCleared = localStorage.getItem('p_samples_cleared') === 'true';
+    const deletedBookIds = getDeletedBookIds();
     const saved = localStorage.getItem('p_books_v3');
-    const catalogBase = samplesCleared ? initialBooks.filter(b => !DEMO_SAMPLE_IDS.has(b.id)) : initialBooks;
+
+    if (isSupabaseConfigured) {
+      if (saved) {
+        try {
+          const parsed: Book[] = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            // Strip out any hardcoded sample IDs so only database books remain
+            return parsed.filter(b => !DEMO_SAMPLE_IDS.has(b.id) && !b.id.startsWith('book-') && !deletedBookIds.has(b.id));
+          }
+        } catch {
+          // ignore
+        }
+      }
+      return [];
+    }
+
+    const catalogBase = (samplesCleared ? initialBooks.filter(b => !DEMO_SAMPLE_IDS.has(b.id)) : initialBooks).filter(
+      b => !deletedBookIds.has(b.id) && !deletedBookIds.has((b.isbn || '').replace(/[-\s]/g, ''))
+    );
 
     if (saved) {
       try {
         const parsed: Book[] = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          const baseList = samplesCleared ? parsed.filter(b => !DEMO_SAMPLE_IDS.has(b.id)) : parsed;
+          const baseList = (samplesCleared ? parsed.filter(b => !DEMO_SAMPLE_IDS.has(b.id)) : parsed).filter(
+            b => !deletedBookIds.has(b.id) && !deletedBookIds.has((b.isbn || '').replace(/[-\s]/g, ''))
+          );
           const existingIds = new Set(baseList.map(b => b.id));
           const existingIsbns = new Set(baseList.map(b => (b.isbn || '').replace(/[-\s]/g, '')));
           const missing = catalogBase.filter(ib => {
             const cleanIsbn = (ib.isbn || '').replace(/[-\s]/g, '');
-            return !existingIds.has(ib.id) && !existingIsbns.has(cleanIsbn);
+            return !existingIds.has(ib.id) && !existingIsbns.has(cleanIsbn) && !deletedBookIds.has(ib.id) && !deletedBookIds.has(cleanIsbn);
           });
           const merged = missing.length > 0 ? [...missing, ...baseList] : baseList;
+          // Synchronize readsCount and availableCopies strictly with circulation records in database
+          const circSaved = localStorage.getItem('p_circulation');
+          let circList: CirculationRecord[] = [];
+          if (circSaved) {
+            try { circList = JSON.parse(circSaved); } catch { circList = []; }
+          }
+          const validCirc = Array.isArray(circList) ? circList : [];
+          const sanitized = merged.map(b => {
+            const loansForBook = validCirc.filter(c => c.bookId === b.id);
+            const activeLoans = loansForBook.filter(c => c.status === 'borrowed').length;
+            return {
+              ...b,
+              readsCount: loansForBook.length,
+              availableCopies: Math.max(0, b.totalCopies - activeLoans)
+            };
+          });
           try {
-            localStorage.setItem('p_books_v3', JSON.stringify(merged));
+            localStorage.setItem('p_books_v3', JSON.stringify(sanitized));
           } catch {
             // ignore
           }
-          return merged;
+          return sanitized;
         }
       } catch {
         return catalogBase;
@@ -648,37 +1043,65 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [users, setUsers] = useState<LibraryUser[]>(() => {
+    const deletedUserIds = getDeletedUserIds();
+    const cleanInitialUsers = initialUsers.filter(u => !deletedUserIds.has(u.id) && !deletedUserIds.has(u.email.toLowerCase()));
     const saved = localStorage.getItem('p_users_v3') || localStorage.getItem('p_users');
-    let loadedUsers: LibraryUser[] = initialUsers;
+    let loadedUsers: LibraryUser[] = cleanInitialUsers;
+    let modified = false;
     if (saved) {
       try {
         const parsed: LibraryUser[] = JSON.parse(saved);
         if (parsed && Array.isArray(parsed) && parsed.length > 0) {
-          loadedUsers = parsed;
+          const filteredSaved = parsed.filter(u => !deletedUserIds.has(u.id) && !deletedUserIds.has(u.email.toLowerCase()));
+          const existingIds = new Set(filteredSaved.map(u => u.id));
+          const missing = cleanInitialUsers.filter(iu => !existingIds.has(iu.id));
+          loadedUsers = missing.length > 0 ? [...filteredSaved, ...missing] : filteredSaved;
+          if (missing.length > 0 || filteredSaved.length !== parsed.length) {
+            modified = true;
+          }
         }
       } catch {
         // fallback
       }
     }
 
-    // Ensure the permanent library administrators are present in the list
-    let modified = false;
-    const hasVeronica = loadedUsers.some(u => 
-      u.email.toLowerCase() === 'adelekev@premierinternationalschool.org' || 
-      u.id === 'user-admin-2'
-    );
-    if (!hasVeronica) {
-      loadedUsers.push(primaryAdminUser);
-      modified = true;
+    // Ensure the permanent library administrators are present in the list (unless deleted) and reflect custom avatars
+    if (!deletedUserIds.has('user-admin-2') && !deletedUserIds.has('adelekev@premierinternationalschool.org')) {
+      const hasVeronica = loadedUsers.some(u => 
+        u.email.toLowerCase() === 'adelekev@premierinternationalschool.org' || 
+        u.id === 'user-admin-2'
+      );
+      if (!hasVeronica) {
+        loadedUsers.push(primaryAdminUser);
+        modified = true;
+      } else {
+        // Sync latest custom avatar if exists
+        const storedAvatar = localStorage.getItem('p_avatar_user-admin-2') ||
+                             localStorage.getItem('p_admin_avatar_user-admin-2') ||
+                             localStorage.getItem('p_avatar_adelekev@premierinternationalschool.org');
+        if (storedAvatar && !isDefaultAvatarUrl(storedAvatar)) {
+          loadedUsers = loadedUsers.map(u => (u.id === 'user-admin-2' || u.email.toLowerCase() === 'adelekev@premierinternationalschool.org') ? { ...u, avatar: storedAvatar } : u);
+        }
+      }
     }
 
-    const hasAlabi = loadedUsers.some(u => 
-      u.email.toLowerCase() === 'alabia@premierinternationalschool.org' || 
-      u.id === 'user-admin-1'
-    );
-    if (!hasAlabi) {
-      loadedUsers.push(defaultAdminUser);
-      modified = true;
+    if (!deletedUserIds.has('user-admin-1') && !deletedUserIds.has('alabia@premierinternationalschool.org')) {
+      const hasAlabi = loadedUsers.some(u => 
+        u.email.toLowerCase() === 'alabia@premierinternationalschool.org' || 
+        u.id === 'user-admin-1'
+      );
+      if (!hasAlabi) {
+        loadedUsers.push(defaultAdminUser);
+        modified = true;
+      } else {
+        // Sync latest custom avatar if exists
+        const storedAvatar = localStorage.getItem('p_avatar_user-admin-1') ||
+                             localStorage.getItem('p_admin_avatar_user-admin-1') ||
+                             localStorage.getItem('p_avatar_alabia@premierinternationalschool.org');
+        if (storedAvatar && !isDefaultAvatarUrl(storedAvatar)) {
+          loadedUsers = loadedUsers.map(u => (u.id === 'user-admin-1' || u.email.toLowerCase() === 'alabia@premierinternationalschool.org') ? { ...u, avatar: storedAvatar } : u);
+        }
+      }
     }
 
     if (modified) {
@@ -707,24 +1130,55 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   // Active Library Section for multi-branch scoping (college vs primary)
-  const [activeSection, setActiveSectionState] = useState<LibrarySection>(() => {
-    const saved = getSessionItem('p_active_section');
-    if (saved === 'college' || saved === 'primary' || saved === 'all') return saved;
-    const userStr = getSessionItem('p_current_user');
-    if (userStr) {
-      try {
-        const u = JSON.parse(userStr);
-        if (u.section === 'primary' || u.section === 'college') return u.section;
-      } catch {
-        // ignore
-      }
+  // Dedicated Campus Section Scoping: Everybody strictly sees ONLY what is theirs.
+  // Mrs. Adeleke sees primary only; Mr. Alabi sees secondary/college only; learners see their enrolled campus.
+  const boundSection: 'primary' | 'college' = React.useMemo(() => {
+    const user = currentUser || loggedInLearner;
+    if (!user) return 'college';
+
+    const uEmail = (user.email || '').toLowerCase();
+    const uName = (user.name || '').toLowerCase();
+    const uDept = (user.department || '').toLowerCase();
+
+    if (
+      user.section === 'primary' || 
+      uEmail.includes('adeleke') || 
+      uName.includes('adeleke') || 
+      uDept.includes('primary')
+    ) {
+      return 'primary';
     }
+
+    if (
+      user.section === 'college' || 
+      uEmail.includes('alabi') || 
+      uName.includes('alabi') || 
+      uDept.includes('college') ||
+      uDept.includes('secondary')
+    ) {
+      return 'college';
+    }
+
+    if (user.role === 'student' || user.role === 'learner') {
+      const derivedGrade = getGradeLevelForUser(user, 'college');
+      return derivedGrade === 'primary' ? 'primary' : 'college';
+    }
+
     return 'college';
-  });
+  }, [currentUser, loggedInLearner]);
+
+  const [activeSection, setActiveSectionState] = useState<LibrarySection>(() => boundSection);
+
+  useEffect(() => {
+    setActiveSectionState(boundSection);
+    setSessionItem('p_active_section', boundSection);
+  }, [boundSection]);
 
   const setActiveSection = (section: LibrarySection) => {
-    setActiveSectionState(section);
-    setSessionItem('p_active_section', section);
+    // When section changes are requested, lock to user's authorized scope
+    const lockedSection = boundSection;
+    setActiveSectionState(lockedSection);
+    setSessionItem('p_active_section', lockedSection);
   };
 
   // Hero Spotlight States (Separate for College/Secondary and Primary Sections)
@@ -1021,8 +1475,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.warn('Could not sync books from Supabase:', error);
         setCloudSyncStatus('error');
       } else if (data && data.length > 0) {
-        setBooks(data);
-        localStorage.setItem('p_books_v3', JSON.stringify(data));
+        // Strip out any legacy hardcoded demo sample IDs from state so only database books exist
+        const cleanData = data.filter(b => !DEMO_SAMPLE_IDS.has(b.id) && !b.id.startsWith('book-'));
+        setBooks(cleanData);
+        localStorage.setItem('p_books_v3', JSON.stringify(cleanData));
         setCloudSyncStatus('synced');
       } else if (data && data.length === 0) {
         // Connected to Supabase, but 0 books exist in cloud database yet
@@ -1082,13 +1538,62 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const { data, error } = await fetchUsersFromSupabase();
       if (!error && data && data.length > 0) {
-        setUsers(data);
-        localStorage.setItem('p_users_v3', JSON.stringify(data));
+        const enrichedUsers = data.map(dbUser => {
+          const storedLocal = localStorage.getItem(`p_avatar_${dbUser.id}`) || 
+                              localStorage.getItem(`p_admin_avatar_${dbUser.id}`) ||
+                              (dbUser.email ? localStorage.getItem(`p_avatar_${dbUser.email.toLowerCase()}`) : null);
+
+          const dbHasCustom = dbUser.avatar && dbUser.avatar.trim() !== '' && !isDefaultAvatarUrl(dbUser.avatar);
+          const localHasCustom = storedLocal && storedLocal.trim() !== '' && !isDefaultAvatarUrl(storedLocal);
+
+          let finalAvatar = '';
+          if (dbHasCustom) {
+            // Profile picture is set in our database! Use it directly
+            finalAvatar = dbUser.avatar.trim();
+            try {
+              localStorage.setItem(`p_avatar_${dbUser.id}`, finalAvatar);
+              localStorage.setItem(`p_admin_avatar_${dbUser.id}`, finalAvatar);
+              if (dbUser.email) localStorage.setItem(`p_avatar_${dbUser.email.toLowerCase()}`, finalAvatar);
+            } catch {}
+          } else if (localHasCustom) {
+            // Locally uploaded avatar exists, use it and sync to database
+            finalAvatar = storedLocal.trim();
+            updateUserInSupabase(dbUser.id, { avatar: finalAvatar });
+          } else {
+            // ONLY when completely empty, use the default avatar
+            finalAvatar = DEFAULT_ADMIN_FALLBACK_AVATARS[dbUser.id] || 
+                          (dbUser.email ? DEFAULT_ADMIN_FALLBACK_AVATARS[dbUser.email.toLowerCase()] : '') || 
+                          '';
+          }
+
+          return { ...dbUser, avatar: finalAvatar };
+        });
+
+        setUsers(enrichedUsers);
+        try {
+          localStorage.setItem('p_users_v3', JSON.stringify(enrichedUsers));
+        } catch {}
+
         // Keep active currentUser state in sync with database record
         setCurrentUserState((prev) => {
           if (!prev) return null;
-          const match = data.find(u => u.id === prev.id || u.email.toLowerCase() === prev.email.toLowerCase());
-          return match ? { ...prev, ...match } : prev;
+          const match = enrichedUsers.find(u => u.id === prev.id || u.email.toLowerCase() === prev.email.toLowerCase());
+          if (!match) return prev;
+          
+          let activeAvatar = match.avatar;
+          if (isDefaultAvatarUrl(match.avatar) && prev.avatar && !isDefaultAvatarUrl(prev.avatar)) {
+            activeAvatar = prev.avatar;
+          }
+          if (!activeAvatar || activeAvatar.trim() === '') {
+            activeAvatar = DEFAULT_ADMIN_FALLBACK_AVATARS[prev.id] || (prev.email ? DEFAULT_ADMIN_FALLBACK_AVATARS[prev.email.toLowerCase()] : '') || '';
+          }
+
+          const updated = { ...prev, ...match, avatar: activeAvatar };
+          try {
+            sessionStorage.setItem('p_current_user', JSON.stringify(updated));
+            localStorage.setItem('p_current_user_v2', JSON.stringify(updated));
+          } catch {}
+          return updated;
         });
       }
     } catch (err) {
@@ -1222,14 +1727,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Ensure catalog database books are always synced into state and localStorage
   useEffect(() => {
+    if (isSupabaseConfigured) return; // In database mode: do not inject hardcoded mock books
     const samplesCleared = localStorage.getItem('p_samples_cleared') === 'true';
-    const catalogBase = samplesCleared ? initialBooks.filter(b => !DEMO_SAMPLE_IDS.has(b.id)) : initialBooks;
+    const deletedBookIds = getDeletedBookIds();
+    const catalogBase = (samplesCleared ? initialBooks.filter(b => !DEMO_SAMPLE_IDS.has(b.id)) : initialBooks).filter(
+      b => !deletedBookIds.has(b.id) && !deletedBookIds.has((b.isbn || '').replace(/[-\s]/g, ''))
+    );
     setBooks((prev) => {
       const existingIds = new Set(prev.map(b => b.id));
       const existingIsbns = new Set(prev.map(b => (b.isbn || '').replace(/[-\s]/g, '')));
       const missing = catalogBase.filter(ib => {
         const cleanIsbn = (ib.isbn || '').replace(/[-\s]/g, '');
-        return !existingIds.has(ib.id) && !existingIsbns.has(cleanIsbn);
+        return !existingIds.has(ib.id) && !existingIsbns.has(cleanIsbn) && !deletedBookIds.has(ib.id) && !deletedBookIds.has(cleanIsbn);
       });
       if (missing.length > 0) {
         const updated = [...missing, ...prev];
@@ -1265,6 +1774,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   useEffect(() => {
     localStorage.setItem('p_books', JSON.stringify(books));
+    try {
+      localStorage.setItem('p_books_v3', JSON.stringify(books));
+      // Store physical inventory and ebook inventory in separate spaces in the database/storage
+      const physical = books.filter(b => b.inventoryType !== 'ebook');
+      const ebooks = books.filter(b => b.inventoryType === 'ebook');
+      localStorage.setItem('p_physical_inventory_v1', JSON.stringify(physical));
+      localStorage.setItem('p_ebook_inventory_v1', JSON.stringify(ebooks));
+    } catch {}
   }, [books]);
 
   useEffect(() => {
@@ -1280,7 +1797,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [announcements]);
 
   useEffect(() => {
-    localStorage.setItem('p_users_v3', JSON.stringify(users));
+    try {
+      localStorage.setItem('p_users_v3', JSON.stringify(users));
+    } catch {}
   }, [users]);
 
   useEffect(() => {
@@ -1298,10 +1817,224 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     if (currentUser) {
       setSessionItem('p_current_user', JSON.stringify(currentUser));
+      try {
+        localStorage.setItem('p_current_user_v2', JSON.stringify(currentUser));
+      } catch {}
     } else {
       removeSessionItem('p_current_user');
+      try {
+        localStorage.removeItem('p_current_user_v2');
+      } catch {}
     }
   }, [currentUser]);
+
+  // Digital Reading Progress Records (stored in separate space 'p_reading_progress_v1')
+  const [readingProgressRecords, setReadingProgressRecords] = useState<ReadingProgressRecord[]>(() => {
+    const saved = localStorage.getItem('p_reading_progress_v1');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch {}
+    }
+    const initialRecords: ReadingProgressRecord[] = [
+      {
+        id: 'user-student-1_book-1',
+        userId: 'user-student-1',
+        learnerName: 'Zainab Ahmed',
+        bookId: 'book-1',
+        bookTitle: 'Things Fall Apart',
+        author: 'Chinua Achebe',
+        coverUrl: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=700',
+        totalPages: 6,
+        currentPage: 3,
+        highestPageRead: 3,
+        pagesFlippedCount: 4,
+        totalDurationSeconds: 210,
+        pageDwells: [
+          { pageNumber: 1, durationSeconds: 65, timestamp: new Date(Date.now() - 3600000).toISOString() },
+          { pageNumber: 2, durationSeconds: 75, timestamp: new Date(Date.now() - 2400000).toISOString() },
+          { pageNumber: 3, durationSeconds: 70, timestamp: new Date(Date.now() - 1500000).toISOString() },
+        ],
+        status: 'more-than-half',
+        percentCompleted: 50,
+        startedAt: new Date(Date.now() - 86400000).toISOString(),
+        lastReadAt: new Date(Date.now() - 1500000).toISOString(),
+        notificationsEnabled: true
+      },
+      {
+        id: 'user-student-1_book-3',
+        userId: 'user-student-1',
+        learnerName: 'Zainab Ahmed',
+        bookId: 'book-3',
+        bookTitle: 'Percy Jackson: The Lightning Thief',
+        author: 'Rick Riordan',
+        coverUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&q=80&w=700',
+        totalPages: 4,
+        currentPage: 4,
+        highestPageRead: 4,
+        pagesFlippedCount: 5,
+        totalDurationSeconds: 380,
+        pageDwells: [
+          { pageNumber: 1, durationSeconds: 90, timestamp: new Date(Date.now() - 172800000).toISOString() },
+          { pageNumber: 2, durationSeconds: 95, timestamp: new Date(Date.now() - 160000000).toISOString() },
+          { pageNumber: 3, durationSeconds: 100, timestamp: new Date(Date.now() - 150000000).toISOString() },
+          { pageNumber: 4, durationSeconds: 95, timestamp: new Date(Date.now() - 140000000).toISOString() },
+        ],
+        status: 'completed',
+        percentCompleted: 100,
+        startedAt: new Date(Date.now() - 172800000).toISOString(),
+        lastReadAt: new Date(Date.now() - 140000000).toISOString(),
+        completedAt: new Date(Date.now() - 140000000).toISOString(),
+        notificationsEnabled: true
+      }
+    ];
+    try {
+      localStorage.setItem('p_reading_progress_v1', JSON.stringify(initialRecords));
+    } catch {}
+    return initialRecords;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('p_reading_progress_v1', JSON.stringify(readingProgressRecords));
+    } catch {}
+  }, [readingProgressRecords]);
+
+  // Reading progress helpers
+  const getReadingProgress = useCallback((bookId: string, userId?: string): ReadingProgressRecord | undefined => {
+    const targetUserId = userId || currentUser?.id || loggedInLearner?.id || 'guest-reader';
+    const targetLearnerName = currentUser?.nickname || currentUser?.name || loggedInLearner?.name || currentLearnerName;
+    return readingProgressRecords.find(
+      (r) => r.bookId === bookId && (
+        r.userId === targetUserId || 
+        r.learnerName.toLowerCase() === targetLearnerName.toLowerCase() ||
+        (targetUserId !== 'guest-reader' && r.userId === targetUserId)
+      )
+    );
+  }, [readingProgressRecords, currentUser, loggedInLearner, currentLearnerName]);
+
+  const getUserReadingProgressList = useCallback((userId?: string): ReadingProgressRecord[] => {
+    const targetUserId = userId || currentUser?.id || loggedInLearner?.id || 'guest-reader';
+    const targetLearnerName = currentUser?.nickname || currentUser?.name || loggedInLearner?.name || currentLearnerName;
+    return readingProgressRecords.filter(
+      (r) => r.userId === targetUserId || r.learnerName.toLowerCase() === targetLearnerName.toLowerCase()
+    );
+  }, [readingProgressRecords, currentUser, loggedInLearner, currentLearnerName]);
+
+  const saveReadingProgress = useCallback((record: ReadingProgressRecord) => {
+    setReadingProgressRecords((prev) => {
+      const idx = prev.findIndex((r) => r.id === record.id || (r.bookId === record.bookId && r.userId === record.userId));
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = { ...next[idx], ...record };
+        return next;
+      }
+      return [record, ...prev];
+    });
+  }, []);
+
+  const toggleBookNotification = useCallback((bookId: string, enabled: boolean, userId?: string) => {
+    const targetUserId = userId || currentUser?.id || loggedInLearner?.id || 'guest-reader';
+    const targetLearnerName = currentUser?.nickname || currentUser?.name || loggedInLearner?.name || currentLearnerName;
+    setReadingProgressRecords((prev) => {
+      return prev.map((r) => {
+        if (r.bookId === bookId && (r.userId === targetUserId || r.learnerName.toLowerCase() === targetLearnerName.toLowerCase())) {
+          return { ...r, notificationsEnabled: enabled };
+        }
+        return r;
+      });
+    });
+  }, [currentUser, loggedInLearner, currentLearnerName]);
+
+  const dismissBookReminder = useCallback((bookId: string, userId?: string) => {
+    const targetUserId = userId || currentUser?.id || loggedInLearner?.id || 'guest-reader';
+    const targetLearnerName = currentUser?.nickname || currentUser?.name || loggedInLearner?.name || currentLearnerName;
+    setReadingProgressRecords((prev) => {
+      return prev.map((r) => {
+        if (r.bookId === bookId && (r.userId === targetUserId || r.learnerName.toLowerCase() === targetLearnerName.toLowerCase())) {
+          return { ...r, lastNotifiedAt: new Date().toISOString() };
+        }
+        return r;
+      });
+    });
+  }, [currentUser, loggedInLearner, currentLearnerName]);
+
+  // Global eBook Reader Modal State
+  const [activeEBookModal, setActiveEBookModal] = useState<{
+    isOpen: boolean;
+    book: Book | null;
+    initialPage?: number;
+  }>({
+    isOpen: false,
+    book: null,
+    initialPage: 1,
+  });
+
+  const openEBookReader = useCallback((book: Book, startPage?: number) => {
+    const targetUserId = currentUser?.id || loggedInLearner?.id || 'guest-reader';
+    const targetLearnerName = currentUser?.nickname || currentUser?.name || loggedInLearner?.name || currentLearnerName;
+    const progress = readingProgressRecords.find(
+      (r) => r.bookId === book.id && (r.userId === targetUserId || r.learnerName.toLowerCase() === targetLearnerName.toLowerCase())
+    );
+    const resumePage = startPage || progress?.currentPage || 1;
+    setActiveEBookModal({
+      isOpen: true,
+      book,
+      initialPage: resumePage,
+    });
+  }, [readingProgressRecords, currentUser, loggedInLearner, currentLearnerName]);
+
+  const closeEBookReader = useCallback(() => {
+    setActiveEBookModal((prev) => ({ ...prev, isOpen: false }));
+  }, []);
+
+  // Separate Physical vs E-Book Inventory Spaces & Metrics
+  const [inventoryFilter, setInventoryFilter] = useState<InventoryFilter>('all');
+
+  const physicalBooks = useMemo(() => {
+    return books.filter((b) => b.inventoryType !== 'ebook');
+  }, [books]);
+
+  const ebookBooks = useMemo(() => {
+    return books.filter((b) => b.inventoryType === 'ebook');
+  }, [books]);
+
+  const inventoryMetrics = useMemo((): InventoryMetrics => {
+    const totalOverall = books.length;
+    const totalPhysical = physicalBooks.length;
+    const totalEbook = ebookBooks.length;
+    
+    let physicalCopiesTotal = 0;
+    let physicalCopiesAvailable = 0;
+    for (const b of physicalBooks) {
+      physicalCopiesTotal += (Number(b.totalCopies) || 0);
+      physicalCopiesAvailable += (Number(b.availableCopies) || 0);
+    }
+    const physicalCopiesOnLoan = Math.max(0, physicalCopiesTotal - physicalCopiesAvailable);
+
+    const activeReadersSet = new Set<string>();
+    let ebookCompletedReads = 0;
+    let ebookHalfwayReads = 0;
+
+    for (const r of readingProgressRecords) {
+      if (r.userId) activeReadersSet.add(r.userId);
+      if (r.status === 'completed') ebookCompletedReads++;
+      else if (r.status === 'more-than-half') ebookHalfwayReads++;
+    }
+
+    return {
+      totalOverallCount: totalOverall,
+      totalPhysicalCount: totalPhysical,
+      totalEbookCount: totalEbook,
+      physicalCopiesTotal,
+      physicalCopiesAvailable,
+      physicalCopiesOnLoan,
+      ebookActiveReaders: activeReadersSet.size,
+      ebookCompletedReads,
+      ebookHalfwayReads,
+    };
+  }, [books, physicalBooks, ebookBooks, readingProgressRecords]);
 
   // Set User Role synchronized
   const setUserRole = (role: AppRole) => {
@@ -1309,7 +2042,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (role === 'ADMIN') {
       setIsLibrarianLoggedInState(true);
       setCurrentRole('admin');
-      setCurrentUserState(defaultAdminUser);
+      const adminInUsers = users.find(u => u.id === 'user-admin-1' || u.email.toLowerCase() === 'alabia@premierinternationalschool.org' || u.role === 'admin') || defaultAdminUser;
+      setCurrentUserState(adminInUsers);
       setActiveSection('all'); // Staff is global: sees both primary and secondary inventory
     } else if (role === 'STAFF') {
       setIsLibrarianLoggedInState(true);
@@ -1383,6 +2117,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return;
       }
     }
+    if (role === 'ADMIN') {
+      const adminInUsers = users.find(u => u.id === 'user-admin-1' || u.email.toLowerCase() === 'alabia@premierinternationalschool.org' || u.role === 'admin') || defaultAdminUser;
+      setCurrentUser(adminInUsers);
+      return;
+    }
     setUserRole(role);
   };
 
@@ -1398,7 +2137,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setActiveSection(overrideUser.section);
         }
       } else if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'librarian')) {
-        setCurrentUserState(defaultAdminUser);
+        const adminInUsers = users.find(u => u.id === 'user-admin-1' || u.email.toLowerCase() === 'alabia@premierinternationalschool.org' || u.role === 'admin') || defaultAdminUser;
+        setCurrentUserState(adminInUsers);
       }
     } else {
       setUserRoleState('LEARNER');
@@ -1567,6 +2307,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setSessionItem('p_learner_logged_in', JSON.stringify(updatedUser));
     }
     setSessionItem('p_current_user', JSON.stringify(updatedUser));
+    try {
+      localStorage.setItem('p_current_user_v2', JSON.stringify(updatedUser));
+    } catch {}
+
+    // Persist custom avatar specifically to avoid quota or reset issues
+    if (updatedUser.avatar !== undefined) {
+      const avatarVal = (updatedUser.avatar || '').trim();
+      const isCustom = avatarVal !== '' && !isDefaultAvatarUrl(avatarVal);
+      try {
+        if (isCustom) {
+          localStorage.setItem(`p_avatar_${updatedUser.id}`, avatarVal);
+          localStorage.setItem(`p_admin_avatar_${updatedUser.id}`, avatarVal);
+          if (updatedUser.email) localStorage.setItem(`p_avatar_${updatedUser.email.toLowerCase()}`, avatarVal);
+        } else {
+          localStorage.removeItem(`p_avatar_${updatedUser.id}`);
+          localStorage.removeItem(`p_admin_avatar_${updatedUser.id}`);
+          if (updatedUser.email) localStorage.removeItem(`p_avatar_${updatedUser.email.toLowerCase()}`);
+        }
+      } catch {}
+      if (updatedUser.id === defaultAdminUser.id || updatedUser.email.toLowerCase() === defaultAdminUser.email.toLowerCase()) {
+        defaultAdminUser.avatar = isCustom ? avatarVal : DEFAULT_ADMIN_FALLBACK_AVATARS['user-admin-1'];
+      }
+      if (updatedUser.id === primaryAdminUser.id || updatedUser.email.toLowerCase() === primaryAdminUser.email.toLowerCase()) {
+        primaryAdminUser.avatar = isCustom ? avatarVal : DEFAULT_ADMIN_FALLBACK_AVATARS['user-admin-2'];
+      }
+    }
 
     // Update formatted learner name if applicable
     if (updatedUser.role === 'learner' || updatedUser.role === 'student') {
@@ -1637,10 +2403,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (currentUser?.id === learnerId) {
       setCurrentUserState(updatedUser);
       setSessionItem('p_current_user', JSON.stringify(updatedUser));
+      try {
+        localStorage.setItem('p_current_user_v2', JSON.stringify(updatedUser));
+      } catch {}
     }
     if (loggedInLearner?.id === learnerId) {
       setLoggedInLearnerState(updatedUser);
       setSessionItem('p_learner_logged_in', JSON.stringify(updatedUser));
+    }
+
+    if (updatedUser.avatar !== undefined) {
+      const avatarVal = (updatedUser.avatar || '').trim();
+      try {
+        if (avatarVal) {
+          localStorage.setItem(`p_avatar_${learnerId}`, avatarVal);
+          localStorage.setItem(`p_admin_avatar_${learnerId}`, avatarVal);
+          if (updatedUser.email) localStorage.setItem(`p_avatar_${updatedUser.email.toLowerCase()}`, avatarVal);
+        } else {
+          localStorage.removeItem(`p_avatar_${learnerId}`);
+          localStorage.removeItem(`p_admin_avatar_${learnerId}`);
+          if (updatedUser.email) localStorage.removeItem(`p_avatar_${updatedUser.email.toLowerCase()}`);
+        }
+      } catch {}
+      if (learnerId === defaultAdminUser.id) {
+        defaultAdminUser.avatar = avatarVal || DEFAULT_ADMIN_FALLBACK_AVATARS['user-admin-1'];
+      }
+      if (learnerId === primaryAdminUser.id) {
+        primaryAdminUser.avatar = avatarVal || DEFAULT_ADMIN_FALLBACK_AVATARS['user-admin-2'];
+      }
     }
 
     if (isSupabaseConfigured) {
@@ -1661,6 +2451,57 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     return { success: true, message: `Successfully updated ${updatedUser.name}'s record.` };
+  };
+
+  // Administrator delete / remove student or staff account
+  const deleteUser = async (userId: string): Promise<{ success: boolean; message: string }> => {
+    if (!isAdmin) {
+      return { success: false, message: 'Administrative access required to remove user records.' };
+    }
+
+    if (currentUser?.id === userId) {
+      return { success: false, message: 'You cannot remove your own active administrator account while signed in.' };
+    }
+
+    const targetUser = users.find(u => u.id === userId);
+    if (!targetUser) {
+      return { success: false, message: 'User record not found.' };
+    }
+
+    const userName = targetUser.name;
+    const userRoleLabel = targetUser.role === 'staff' || targetUser.role === 'teacher' ? 'Staff member' : 'Student scholar';
+
+    // Persist deleted user ID and email so it is permanently deleted and never restored
+    try {
+      const currentDeleted = Array.from(getDeletedUserIds());
+      const updatedDeleted = Array.from(new Set([...currentDeleted, userId, targetUser.email.toLowerCase()].filter(Boolean)));
+      localStorage.setItem('p_deleted_user_ids', JSON.stringify(updatedDeleted));
+    } catch {}
+
+    // 1. Remove from local state and storage
+    setUsers(prev => {
+      const next = prev.filter(u => u.id !== userId);
+      try {
+        localStorage.setItem('p_users_v3', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    // 2. Clean up any stored avatar
+    try {
+      localStorage.removeItem(`p_admin_avatar_${userId}`);
+    } catch {}
+
+    // 3. Sync to Supabase
+    if (isSupabaseConfigured) {
+      try {
+        await deleteUserFromSupabase(userId);
+      } catch (err) {
+        console.warn('Could not delete user from Supabase:', err);
+      }
+    }
+
+    return { success: true, message: `Successfully deleted ${userRoleLabel} "${userName}" from the database.` };
   };
 
   // Assign Learner to Staff / Teacher
@@ -1776,6 +2617,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: tempId,
       readsCount: 0,
       section: resolvedSection,
+      inventoryType: newBookData.inventoryType || 'physical',
+      ebookFormat: newBookData.ebookFormat || (newBookData.inventoryType === 'ebook' ? 'pages' : undefined),
+      ebookPages: newBookData.ebookPages,
+      ebookFileName: newBookData.ebookFileName,
+      ebookFileSize: newBookData.ebookFileSize,
+      ebookFileUrl: newBookData.ebookFileUrl,
     };
     // Optimistic local state update
     setBooks((prev) => [newBook, ...prev]);
@@ -1917,16 +2764,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, message: 'Permission denied. Only librarians can delete titles from the catalog.' };
     }
 
+    const targetBook = books.find((b) => b.id === bookId);
+    const bookTitle = targetBook?.title || 'Book';
+    const cleanIsbn = (targetBook?.isbn || '').replace(/[-\s]/g, '');
+
+    // Persist deleted book ID and ISBN so it is permanently deleted and never restored
+    try {
+      const currentDeleted = Array.from(getDeletedBookIds());
+      const updatedDeleted = Array.from(new Set([...currentDeleted, bookId, cleanIsbn].filter(Boolean)));
+      localStorage.setItem('p_deleted_book_ids', JSON.stringify(updatedDeleted));
+    } catch {}
+
     setBooks((prev) => {
       const updated = prev.filter((b) => b.id !== bookId);
-      localStorage.setItem('p_books_v3', JSON.stringify(updated));
+      try {
+        localStorage.setItem('p_books_v3', JSON.stringify(updated));
+        localStorage.setItem('p_books', JSON.stringify(updated));
+      } catch {}
       return updated;
     });
     setCirculation((prev) => {
       const updatedCirc = prev.filter((c) => c.bookId !== bookId);
-      localStorage.setItem('p_circulation', JSON.stringify(updatedCirc));
+      try {
+        localStorage.setItem('p_circulation', JSON.stringify(updatedCirc));
+      } catch {}
       return updatedCirc;
     });
+    setHolds((prev) => {
+      const updatedHolds = prev.filter((h) => h.bookId !== bookId);
+      try {
+        localStorage.setItem('p_holds', JSON.stringify(updatedHolds));
+      } catch {}
+      return updatedHolds;
+    });
+    if (selectedBook && selectedBook.id === bookId) {
+      setSelectedBook(null);
+    }
     if (!navigator.onLine || !isSupabaseConfigured) {
       enqueueOfflineMutation('DELETE_BOOK', { id: bookId }, `Delete Title (${bookId})`);
     } else {
@@ -1937,7 +2810,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         enqueueOfflineMutation('DELETE_BOOK', { id: bookId }, `Delete Title (${bookId})`);
       }
     }
-    return { success: true, message: 'Title removed from catalog.' };
+    return { success: true, message: `"${bookTitle}" has been permanently deleted from the database.` };
   };
 
   const clearSampleBooks = () => {
@@ -2098,6 +2971,53 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           : b
       )
     );
+  };
+
+  // Administrator remove a book record from circulation
+  const removeCirculationRecord = async (recordId: string): Promise<{ success: boolean; message: string }> => {
+    if (!isAdmin && !isStaff) {
+      return { success: false, message: 'Permission denied. Only librarians can remove circulation records.' };
+    }
+
+    const record = circulation.find((r) => r.id === recordId);
+    if (!record) {
+      return { success: false, message: 'Circulation record not found.' };
+    }
+
+    // If the book loan was still active or overdue, restore the physical copy to available stock
+    if (record.status !== 'returned') {
+      setBooks((prev) => {
+        const next = prev.map((b) =>
+          b.id === record.bookId
+            ? { ...b, availableCopies: Math.min(b.totalCopies, b.availableCopies + 1) }
+            : b
+        );
+        try {
+          localStorage.setItem('p_books_v3', JSON.stringify(next));
+        } catch {}
+        return next;
+      });
+    }
+
+    // Remove from circulation state & storage
+    setCirculation((prev) => {
+      const next = prev.filter((r) => r.id !== recordId);
+      try {
+        localStorage.setItem('p_circulation', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    // Sync to Supabase
+    if (isSupabaseConfigured) {
+      try {
+        await deleteCirculationRecordFromSupabase(recordId);
+      } catch (err) {
+        console.warn('Could not delete circulation record from Supabase:', err);
+      }
+    }
+
+    return { success: true, message: `Successfully removed circulation record for "${record.bookTitle}".` };
   };
 
   const sendOverdueAlert = (recordId: string) => {
@@ -2629,54 +3549,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true, message: `Replacement notice email dispatched to ${studentEmail}!` };
   };
 
-  // Multi-Branch Scoped Views
-  // 1. Staff is global. Only staff should be able to see primary and secondary inventory.
-  // 2. Learners/students only see their assigned school section (Primary or College).
+  // Multi-Branch Scoped Views: Everybody strictly sees ONLY what is theirs.
+  // Mrs. Adeleke sees primary only; Mr. Alabi sees secondary/college only; learners see their enrolled campus.
   const scopedBooks = React.useMemo(() => {
-    // If student/learner is logged in: STRICTLY lock to their own section, never both
-    if (isLearner && (currentUser || loggedInLearner)) {
-      const learnerSec = (currentUser?.section || loggedInLearner?.section || 'college') === 'primary' ? 'primary' : 'college';
-      return books.filter((b) => (b.section || 'college') === learnerSec);
-    }
-
-    // If guest (not logged in as staff):
-    // Guests cannot see full multi-branch inventory; default to college section
-    if (!isAdmin && !isStaff) {
-      if (activeSection === 'all') {
-        return books.filter((b) => (b.section || 'college') === 'college');
-      }
-      return books.filter((b) => (b.section || 'college') === activeSection);
-    }
-
-    // Only staff can see primary and secondary inventory!
-    // When activeSection is 'all', staff sees both primary and secondary inventory.
-    if (activeSection === 'all') return books;
-    return books.filter((b) => (b.section || 'college') === activeSection);
-  }, [books, activeSection, isLearner, currentUser, loggedInLearner, isAdmin, isStaff]);
+    return books.filter((b) => (b.section || 'college') === boundSection);
+  }, [books, boundSection]);
 
   const scopedCirculation = React.useMemo(() => {
-    if (isLearner && (currentUser || loggedInLearner)) {
-      const learnerSec = (currentUser?.section || loggedInLearner?.section || 'college') === 'primary' ? 'primary' : 'college';
-      return circulation.filter((c) => (c.section || 'college') === learnerSec);
-    }
-    if (activeSection === 'all') return circulation;
-    return circulation.filter((c) => (c.section || 'college') === activeSection);
-  }, [circulation, activeSection, isLearner, currentUser, loggedInLearner]);
+    return circulation.filter((c) => (c.section || 'college') === boundSection);
+  }, [circulation, boundSection]);
 
   const scopedUsers = React.useMemo(() => {
-    // Staff are global: always included in user directory
-    if (activeSection === 'all') return users;
     return users.filter((u) => {
-      // Staff have global cross-sectional access
-      if (u.role === 'staff' || u.role === 'teacher' || u.role === 'admin' || u.role === 'librarian' || u.section === 'all') return true;
-      return (u.section || 'college') === activeSection;
+      if (u.id === currentUser?.id) return true;
+      const uEmail = (u.email || '').toLowerCase();
+      const uName = (u.name || '').toLowerCase();
+      const uDept = (u.department || '').toLowerCase();
+
+      // Administrator/librarian branch affinity
+      if (uEmail.includes('adeleke') || uName.includes('adeleke') || uDept.includes('primary')) {
+        return boundSection === 'primary';
+      }
+      if (uEmail.includes('alabi') || uName.includes('alabi') || uDept.includes('college') || uDept.includes('secondary')) {
+        return boundSection === 'college';
+      }
+
+      // Learner and staff section affinity
+      const userSec = u.section || (getGradeLevelForUser(u, boundSection) === 'primary' ? 'primary' : 'college');
+      return userSec === boundSection;
     });
-  }, [users, activeSection]);
+  }, [users, boundSection, currentUser?.id]);
 
   return (
     <AppContext.Provider
       value={{
-        activeSection,
+        activeSection: boundSection,
         setActiveSection,
         allBooks: books,
         allCirculation: circulation,
@@ -2754,6 +3661,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addBooksBatch,
         checkoutBook,
         returnBook,
+        removeCirculationRecord,
         sendOverdueAlert,
         addSubmission,
         updateSubmission,
@@ -2768,10 +3676,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         restockBook,
         updateUserProfile,
         updateLearnerByAdmin,
+        deleteUser,
         isOnline,
         pendingOfflineChangesCount,
         isSyncingOfflineChanges,
         syncPendingOfflineChanges,
+        readingProgressRecords,
+        getReadingProgress,
+        getUserReadingProgressList,
+        saveReadingProgress,
+        toggleBookNotification,
+        dismissBookReminder,
+        activeEBookModal,
+        openEBookReader,
+        closeEBookReader,
+        physicalBooks,
+        ebookBooks,
+        inventoryFilter,
+        setInventoryFilter,
+        inventoryMetrics,
       }}
     >
       {children}
