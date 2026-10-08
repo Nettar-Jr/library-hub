@@ -11,7 +11,8 @@ import {
   JUNIOR_SECONDARY_CLASSES, 
   SENIOR_SECONDARY_CLASSES,
   ALL_YEARS,
-  parseAcademicClass
+  parseAcademicClass,
+  getYearFromGrade
 } from '../utils/academicClasses';
 import { 
   Users, 
@@ -195,26 +196,53 @@ export const ClassRosterManagementModal: React.FC = () => {
 
   const handleCreateNewUserSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newUserName.trim() || !newUserEmail.trim()) {
-      setFeedbackMessage({ text: 'Name and email are required.', type: 'error' });
+    if (!newUserName.trim()) {
+      setFeedbackMessage({ text: 'Full name is required.', type: 'error' });
+      return;
+    }
+
+    const isLearner = newUserRole === 'learner';
+    const year = getYearFromGrade(newUserGrade);
+    const isPrimary = isLearner && (year === null || year <= 6);
+    const isSecondary = isLearner && year !== null && year >= 7;
+
+    if (isSecondary && (!newUserEmail.trim() || !newUserEmail.includes('@'))) {
+      setFeedbackMessage({ text: 'School email is compulsory for secondary section learners (Years 7–12).', type: 'error' });
+      return;
+    }
+
+    if (!isLearner && (!newUserEmail.trim() || !newUserEmail.includes('@'))) {
+      setFeedbackMessage({ text: 'School email is required for staff members.', type: 'error' });
+      return;
+    }
+
+    if (!isLearner && !newUserDepartment.trim()) {
+      setFeedbackMessage({ text: 'Faculty department is required for staff members.', type: 'error' });
+      return;
+    }
+
+    if (!isLearner && !newUserPassword.trim()) {
+      setFeedbackMessage({ text: 'Password is required for staff login.', type: 'error' });
       return;
     }
 
     const teacher = teachers.find((t) => t.id === newUserTeacherId);
+    const effectiveEmail = newUserEmail.trim() || 
+      `${newUserName.toLowerCase().replace(/[^a-z0-9]/g, '')}${Math.floor(100 + Math.random() * 900)}@primary.learner`;
 
     const created = createUser({
       name: newUserName.trim(),
-      email: newUserEmail.trim(),
+      email: effectiveEmail,
       role: newUserRole,
-      section: newUserSection,
-      gradeOrYear: newUserRole === 'learner' ? newUserGrade : undefined,
-      department: newUserRole === 'staff' ? newUserDepartment : undefined,
-      admissionNumber: newUserRole === 'learner' ? newUserAdmissionNumber.trim() || undefined : undefined,
-      password: newUserRole === 'learner' 
-        ? (newUserAdmissionNumber.trim() || undefined) 
-        : (newUserPassword.trim() || undefined),
-      assignedTeacherId: newUserRole === 'learner' ? newUserTeacherId || undefined : undefined,
-      assignedTeacherName: newUserRole === 'learner' ? teacher?.name : undefined,
+      section: isLearner ? (isPrimary ? 'primary' : 'college') : 'all',
+      gradeOrYear: isLearner ? newUserGrade : undefined,
+      department: !isLearner ? newUserDepartment.trim() : undefined,
+      admissionNumber: isLearner ? newUserAdmissionNumber.trim() || undefined : undefined,
+      password: !isLearner 
+        ? (newUserPassword.trim() || 'staff123')
+        : (newUserAdmissionNumber.trim() || undefined),
+      assignedTeacherId: isLearner ? newUserTeacherId || undefined : undefined,
+      assignedTeacherName: isLearner ? teacher?.name : undefined,
     });
 
     setFeedbackMessage({ 
@@ -450,20 +478,6 @@ export const ClassRosterManagementModal: React.FC = () => {
 
                   <div>
                     <label className="block text-[10px] font-bold uppercase tracking-wider text-indigo-300 mb-1">
-                      School Email *
-                    </label>
-                    <input
-                      type="email"
-                      required
-                      value={newUserEmail}
-                      onChange={(e) => setNewUserEmail(e.target.value)}
-                      placeholder="fatima.sani@school.edu"
-                      className="w-full text-xs font-semibold bg-indigo-900 border border-indigo-700 text-white rounded-xl px-3 py-2 focus:ring-2 focus:ring-amber-400 outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-indigo-300 mb-1">
                       Role Category
                     </label>
                     <select
@@ -474,6 +488,26 @@ export const ClassRosterManagementModal: React.FC = () => {
                       <option value="learner">Learner (Student / Pupil)</option>
                       <option value="staff">Staff (Teacher / Faculty)</option>
                     </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-indigo-300 mb-1">
+                      {newUserRole === 'learner' 
+                        ? ((getYearFromGrade(newUserGrade) ?? 1) <= 6 ? 'Email (Optional for Primary)' : 'Email * (Compulsory for Sec)')
+                        : 'Staff Email *'}
+                    </label>
+                    <input
+                      type="email"
+                      required={newUserRole === 'staff' || ((getYearFromGrade(newUserGrade) ?? 1) >= 7)}
+                      value={newUserEmail}
+                      onChange={(e) => setNewUserEmail(e.target.value)}
+                      placeholder={
+                        newUserRole === 'learner' && (getYearFromGrade(newUserGrade) ?? 1) <= 6
+                          ? 'Optional for primary'
+                          : 'fatima.sani@school.edu'
+                      }
+                      className="w-full text-xs font-semibold bg-indigo-900 border border-indigo-700 text-white rounded-xl px-3 py-2 focus:ring-2 focus:ring-amber-400 outline-none"
+                    />
                   </div>
 
                   {newUserRole === 'learner' ? (

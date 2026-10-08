@@ -14,6 +14,42 @@
     <meta name="apple-mobile-web-app-title" content="PremierLib" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <script>
+      // Gracefully prevent third-party browser extension errors (e.g., MetaMask, wallet inpage scripts) from crashing or triggering false error banners
+      window.addEventListener('error', function(event) {
+        var filename = event.filename || '';
+        var message = event.message || '';
+        if (
+          filename.indexOf('chrome-extension://') !== -1 ||
+          filename.indexOf('moz-extension://') !== -1 ||
+          filename.indexOf('safari-extension://') !== -1 ||
+          message.indexOf('MetaMask') !== -1 ||
+          message.indexOf('metamask') !== -1 ||
+          message.indexOf('ethereum') !== -1 ||
+          message.indexOf('Failed to connect to MetaMask') !== -1
+        ) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          return true;
+        }
+      }, true);
+
+      window.addEventListener('unhandledrejection', function(event) {
+        var reason = event.reason;
+        var message = (reason && (reason.message || reason.stack || String(reason))) || '';
+        if (
+          message.indexOf('MetaMask') !== -1 ||
+          message.indexOf('metamask') !== -1 ||
+          message.indexOf('ethereum') !== -1 ||
+          message.indexOf('chrome-extension://') !== -1 ||
+          message.indexOf('moz-extension://') !== -1 ||
+          message.indexOf('Failed to connect to MetaMask') !== -1
+        ) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        }
+      }, true);
+    </script>
   </head>
   <body>
     <div id="root"></div>

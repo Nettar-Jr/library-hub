@@ -9,7 +9,8 @@ import {
   ALL_ACADEMIC_CLASSES, 
   PRIMARY_ACADEMIC_CLASSES, 
   JUNIOR_SECONDARY_CLASSES, 
-  SENIOR_SECONDARY_CLASSES 
+  SENIOR_SECONDARY_CLASSES,
+  getYearFromGrade
 } from '../utils/academicClasses';
 import { LibraryUser } from '../types';
 import { useFocusTrap } from '../hooks/useFocusTrap';
@@ -79,6 +80,7 @@ export const DeskUtilities: React.FC = () => {
   const [gradeOrYear, setGradeOrYear] = useState(activeSection === 'primary' ? '1D' : '9E');
   const [department, setDepartment] = useState('English Department');
   const [userEmail, setUserEmail] = useState('');
+  const [staffPassword, setStaffPassword] = useState('staff123');
   const [formError, setFormError] = useState('');
   const [successToast, setSuccessToast] = useState('');
   const [userToDelete, setUserToDelete] = useState<LibraryUser | null>(null);
@@ -322,20 +324,52 @@ export const DeskUtilities: React.FC = () => {
   const handleCreateUser = (e: React.FormEvent) => {
     e.preventDefault();
     if (!userName.trim()) {
-      setFormError('Name is required.');
+      setFormError('Full name is required.');
       return;
     }
-    if (!userEmail.trim() || !userEmail.includes('@')) {
+
+    const selectedYear = getYearFromGrade(gradeOrYear);
+    const isPrimaryStudent = userRole === 'student' && (selectedYear === null || selectedYear <= 6);
+    const isSecondaryStudent = userRole === 'student' && selectedYear !== null && selectedYear >= 7;
+
+    if (isSecondaryStudent && (!userEmail.trim() || !userEmail.includes('@'))) {
+      setFormError('School email is compulsory for secondary section learners (Years 7–12).');
+      return;
+    }
+
+    if (userEmail.trim() && !userEmail.includes('@')) {
       setFormError('Please enter a valid school email address.');
       return;
     }
 
+    if (userRole === 'teacher') {
+      if (!userEmail.trim() || !userEmail.includes('@')) {
+        setFormError('School email is required for staff members.');
+        return;
+      }
+      if (!department.trim()) {
+        setFormError('Department is required for staff members.');
+        return;
+      }
+      if (!staffPassword.trim()) {
+        setFormError('Password is required for staff login.');
+        return;
+      }
+    }
+
+    const effectiveEmail = userEmail.trim() || 
+      `${userName.toLowerCase().replace(/[^a-z0-9]/g, '')}${Math.floor(100 + Math.random() * 900)}@primary.learner`;
+
     const userData = {
-      name: userName,
+      name: userName.trim(),
       role: userRole,
-      email: userEmail,
+      email: effectiveEmail,
       gradeOrYear: userRole === 'student' ? gradeOrYear : undefined,
-      department: userRole === 'teacher' ? department : undefined,
+      department: userRole === 'teacher' ? department.trim() : undefined,
+      password: userRole === 'teacher' ? staffPassword.trim() : undefined,
+      section: userRole === 'student' 
+        ? (isPrimaryStudent ? ('primary' as const) : ('college' as const))
+        : ('all' as const),
     };
 
     const newUser = createUser(userData);
@@ -343,9 +377,10 @@ export const DeskUtilities: React.FC = () => {
     // Clear & Toast
     setUserName('');
     setUserEmail('');
+    setStaffPassword('staff123');
     setFormError('');
     setShowCreateModal(false);
-    triggerToast(`Successfully created ${newUser.role} account for ${newUser.name}!`);
+    triggerToast(`Successfully registered ${newUser.role === 'student' ? 'Student' : 'Staff'} account for ${newUser.name}!`);
   };
 
   const triggerToast = (msg: string) => {
@@ -753,44 +788,39 @@ export const DeskUtilities: React.FC = () => {
                       {userRole === 'student' ? (
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                            Academic Class / Year
+                            Academic Class / Year *
                           </label>
                           <select 
                             value={gradeOrYear}
                             onChange={(e) => setGradeOrYear(e.target.value)}
                             className="w-full p-2.5 border border-slate-200 rounded-xl text-xs bg-white outline-none focus:border-cyan-500 cursor-pointer font-medium"
                           >
-                            {activeSection === 'primary' ? (
-                              <optgroup label="Primary Section (Years 1–6: Diamond, Gold, Emerald, Onyx, Ruby • Manual Limit)">
-                                {PRIMARY_ACADEMIC_CLASSES.map((c) => (
-                                  <option key={c.code} value={c.code}>
-                                    {c.code} — {c.fullLabel}
-                                  </option>
-                                ))}
-                              </optgroup>
-                            ) : (
-                              <>
-                                <optgroup label="Secondary Senior (Years 10–12: Diamond, Gold, Emerald, Onyx, Ruby • Max 3 Books)">
-                                  {SENIOR_SECONDARY_CLASSES.map((c) => (
-                                    <option key={c.code} value={c.code}>
-                                      {c.code} — {c.fullLabel}
-                                    </option>
-                                  ))}
-                                </optgroup>
-                                <optgroup label="Secondary Junior (Years 7–9: Diamond, Gold, Emerald, Onyx, Ruby • Max 2 Books)">
-                                  {JUNIOR_SECONDARY_CLASSES.map((c) => (
-                                    <option key={c.code} value={c.code}>
-                                      {c.code} — {c.fullLabel}
-                                    </option>
-                                  ))}
-                                </optgroup>
-                              </>
-                            )}
+                            <optgroup label="Primary Section (Years 1–6: Diamond, Gold, Emerald, Onyx, Ruby)">
+                              {PRIMARY_ACADEMIC_CLASSES.map((c) => (
+                                <option key={c.code} value={c.code}>
+                                  {c.code} — {c.fullLabel}
+                                </option>
+                              ))}
+                            </optgroup>
+                            <optgroup label="Secondary Junior (Years 7–9: Diamond, Gold, Emerald, Onyx, Ruby)">
+                              {JUNIOR_SECONDARY_CLASSES.map((c) => (
+                                <option key={c.code} value={c.code}>
+                                  {c.code} — {c.fullLabel}
+                                </option>
+                              ))}
+                            </optgroup>
+                            <optgroup label="Secondary Senior (Years 10–12: Diamond, Gold, Emerald, Onyx, Ruby)">
+                              {SENIOR_SECONDARY_CLASSES.map((c) => (
+                                <option key={c.code} value={c.code}>
+                                  {c.code} — {c.fullLabel}
+                                </option>
+                              ))}
+                            </optgroup>
                           </select>
                         </div>
                       ) : (
                         <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Department</label>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Department *</label>
                           <select 
                             value={department}
                             onChange={(e) => setDepartment(e.target.value)}
@@ -801,22 +831,70 @@ export const DeskUtilities: React.FC = () => {
                             <option value="Mathematics Department">Mathematics Department</option>
                             <option value="Arts & Humanities">Arts & Humanities</option>
                             <option value="Physical Education">Physical Education</option>
+                            <option value="Library & Media Services">Library & Media Services</option>
                           </select>
                         </div>
                       )}
                     </div>
 
+                    {/* Email field with conditional requirement based on role and section */}
                     <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">School Email Address</label>
+                      <div className="flex justify-between items-center">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                          {userRole === 'student' ? (
+                            (getYearFromGrade(gradeOrYear) ?? 1) <= 6
+                              ? 'School Email (Optional for Primary)'
+                              : 'School Email * (Compulsory for Secondary)'
+                          ) : (
+                            'School Email Address *'
+                          )}
+                        </label>
+                        {userRole === 'student' && (getYearFromGrade(gradeOrYear) ?? 1) <= 6 && (
+                          <span className="text-[10px] text-cyan-600 font-medium">Optional for Primary</span>
+                        )}
+                      </div>
                       <input 
                         type="email" 
-                        required
-                        placeholder="samuel.a@school.edu" 
+                        required={userRole === 'teacher' || ((getYearFromGrade(gradeOrYear) ?? 1) >= 7)}
+                        placeholder={
+                          userRole === 'student' && (getYearFromGrade(gradeOrYear) ?? 1) <= 6
+                            ? 'Optional — primary learners log in by name'
+                            : 'e.g. learner.name@school.edu'
+                        } 
                         value={userEmail}
                         onChange={(e) => setUserEmail(e.target.value)}
                         className="w-full p-2.5 border border-slate-200 rounded-xl text-xs outline-none focus:border-cyan-500 font-mono"
                       />
+                      <p className="text-[10px] text-slate-400">
+                        {userRole === 'student' ? (
+                          (getYearFromGrade(gradeOrYear) ?? 1) <= 6
+                            ? 'Primary learners log in simply by choosing their class and clicking their name.'
+                            : 'Secondary learners (Years 7–12) log in directly with their registered school email.'
+                        ) : (
+                          'Staff members log in with their email and password.'
+                        )}
+                      </p>
                     </div>
+
+                    {/* Staff Password field */}
+                    {userRole === 'teacher' && (
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                          Staff Login Password *
+                        </label>
+                        <input 
+                          type="password" 
+                          required
+                          placeholder="Set login password for staff" 
+                          value={staffPassword}
+                          onChange={(e) => setStaffPassword(e.target.value)}
+                          className="w-full p-2.5 border border-slate-200 rounded-xl text-xs outline-none focus:border-cyan-500 font-mono"
+                        />
+                        <p className="text-[10px] text-slate-400">
+                          Staff login requires email and password.
+                        </p>
+                      </div>
+                    )}
 
                     <div className="flex gap-3 pt-4">
                       <button 

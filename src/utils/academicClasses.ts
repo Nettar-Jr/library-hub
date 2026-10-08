@@ -103,3 +103,18 @@ export function parseAcademicClass(raw: string | null | undefined): AcademicClas
 
   return null;
 }
+
+/**
+ * Extract academic year number (1 to 12) from gradeOrYear string
+ */
+export function getYearFromGrade(gradeOrYear?: string | null): number | null {
+  if (!gradeOrYear) return null;
+  const parsed = parseAcademicClass(gradeOrYear);
+  if (parsed) return parsed.year;
+  const match = gradeOrYear.match(/(\d+)/);
+  if (match) {
+    const val = parseInt(match[1], 10);
+    if (val >= 1 && val <= 12) return val;
+  }
+  return null;
+}
