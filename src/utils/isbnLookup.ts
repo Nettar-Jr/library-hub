@@ -58,7 +58,7 @@ export function isbn13to10(isbn13: string): string | null {
 /**
  * Intelligently maps book subjects and keywords to library categories
  */
-function inferCategoryFromKeywords(text: string): string {
+export function inferCategoryFromKeywords(text: string): string {
   const lower = text.toLowerCase();
   if (lower.match(/africa|nigeria|kenya|ghana|colonial|yoruba|igbo|achebe|adichie|african/)) {
     return 'African Literature';
@@ -87,7 +87,7 @@ function inferCategoryFromKeywords(text: string): string {
 /**
  * Infers standard Dewey Decimal classification code and class
  */
-function inferDewey(category: string, rawDewey?: string): { code: string; classNum: string } {
+export function inferDewey(category: string, rawDewey?: string): { code: string; classNum: string } {
   if (rawDewey && rawDewey.trim()) {
     const clean = rawDewey.trim();
     const classNum = clean.split('.')[0].padEnd(3, '0').slice(0, 3);

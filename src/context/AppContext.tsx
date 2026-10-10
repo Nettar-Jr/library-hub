@@ -277,347 +277,7 @@ export const primaryAdminUser: LibraryUser = {
 };
 
 const initialUsers: LibraryUser[] = [
-  // Primary Enrolled Learners Database (Years 1-6)
-  {
-    id: 'user-student-2',
-    name: 'Zainab Bello',
-    role: 'learner',
-    gradeOrYear: '5G',
-    admissionNumber: 'PIS/PRI/24/1102',
-    password: 'PIS/PRI/24/1102',
-    libraryCardId: 'LIB-PUPIL-1102',
-    email: 'zainabb@premierinternationalschool.org',
-    section: 'primary',
-    avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=200',
-    createdAt: '2026-01-12',
-  },
-  {
-    id: 'user-pri-1',
-    name: 'Emeka Nwosu',
-    role: 'learner',
-    gradeOrYear: '3D',
-    admissionNumber: 'PIS/PRI/25/1210',
-    password: 'PIS/PRI/25/1210',
-    libraryCardId: 'LIB-PUPIL-1210',
-    email: 'emekan@premierinternationalschool.org',
-    section: 'primary',
-    avatar: 'https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&q=80&w=200',
-    createdAt: '2026-01-15',
-  },
-  {
-    id: 'user-pri-2',
-    name: 'Fatima Al-Hassan',
-    role: 'learner',
-    gradeOrYear: '2E',
-    admissionNumber: 'PIS/PRI/25/1344',
-    password: 'PIS/PRI/25/1344',
-    libraryCardId: 'LIB-PUPIL-1344',
-    email: 'fatimah@premierinternationalschool.org',
-    section: 'primary',
-    avatar: 'https://images.unsplash.com/photo-1509062522246-3755977927d7?auto=format&fit=crop&q=80&w=200',
-    createdAt: '2026-01-18',
-  },
-  {
-    id: 'user-pri-3',
-    name: 'Kenechukwu Eze',
-    role: 'learner',
-    gradeOrYear: '4O',
-    admissionNumber: 'PIS/PRI/24/1190',
-    password: 'PIS/PRI/24/1190',
-    libraryCardId: 'LIB-PUPIL-1190',
-    email: 'keneeze@premierinternationalschool.org',
-    section: 'primary',
-    avatar: 'https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?auto=format&fit=crop&q=80&w=200',
-    createdAt: '2026-01-20',
-  },
-  {
-    id: 'user-pri-4',
-    name: 'Sarah Johnson',
-    role: 'learner',
-    gradeOrYear: '1D',
-    admissionNumber: 'PIS/PRI/26/1450',
-    password: 'PIS/PRI/26/1450',
-    libraryCardId: 'LIB-PUPIL-1450',
-    email: 'sarahj@premierinternationalschool.org',
-    section: 'primary',
-    avatar: 'https://images.unsplash.com/photo-1544717302-de2939b7ef71?auto=format&fit=crop&q=80&w=200',
-    createdAt: '2026-01-22',
-  },
-  {
-    id: 'user-pri-5',
-    name: 'Tariq Ibrahim',
-    role: 'learner',
-    gradeOrYear: '5E',
-    admissionNumber: 'PIS/PRI/24/1133',
-    password: 'PIS/PRI/24/1133',
-    libraryCardId: 'LIB-PUPIL-1133',
-    email: 'tariqi@premierinternationalschool.org',
-    section: 'primary',
-    avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=200',
-    createdAt: '2026-01-25',
-  },
-  {
-    id: 'user-pri-6',
-    name: 'Michelle Adebayo',
-    role: 'learner',
-    gradeOrYear: '6R',
-    admissionNumber: 'PIS/PRI/23/1025',
-    password: 'PIS/PRI/23/1025',
-    libraryCardId: 'LIB-PUPIL-1025',
-    email: 'michellea@premierinternationalschool.org',
-    section: 'primary',
-    avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=200',
-    createdAt: '2026-01-28',
-  },
-  {
-    id: 'user-pri-7',
-    name: 'Damilola Adeleke',
-    role: 'learner',
-    gradeOrYear: '3G',
-    admissionNumber: 'PIS/PRI/25/1280',
-    password: 'PIS/PRI/25/1280',
-    libraryCardId: 'LIB-PUPIL-1280',
-    email: 'damilolaa@premierinternationalschool.org',
-    section: 'primary',
-    avatar: 'https://images.unsplash.com/photo-1509062522246-3755977927d7?auto=format&fit=crop&q=80&w=200',
-    createdAt: '2026-02-01',
-  },
-  {
-    id: 'user-pri-8',
-    name: 'Chinedu Okeke',
-    role: 'learner',
-    gradeOrYear: '1G',
-    admissionNumber: 'PIS/PRI/26/1458',
-    password: 'PIS/PRI/26/1458',
-    libraryCardId: 'LIB-PUPIL-1458',
-    email: 'chineduo@premierinternationalschool.org',
-    section: 'primary',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
-    createdAt: '2026-02-03',
-  },
-  {
-    id: 'user-pri-9',
-    name: 'Aisha Mohammed',
-    role: 'learner',
-    gradeOrYear: '2G',
-    admissionNumber: 'PIS/PRI/25/1350',
-    password: 'PIS/PRI/25/1350',
-    libraryCardId: 'LIB-PUPIL-1350',
-    email: 'aisham@premierinternationalschool.org',
-    section: 'primary',
-    avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=200',
-    createdAt: '2026-02-04',
-  },
-  {
-    id: 'user-pri-10',
-    name: 'Oluwaseun Bakare',
-    role: 'learner',
-    gradeOrYear: '4D',
-    admissionNumber: 'PIS/PRI/24/1195',
-    password: 'PIS/PRI/24/1195',
-    libraryCardId: 'LIB-PUPIL-1195',
-    email: 'oluwaseunb@premierinternationalschool.org',
-    section: 'primary',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200',
-    createdAt: '2026-02-05',
-  },
-  {
-    id: 'user-pri-11',
-    name: 'David Chukwuma',
-    role: 'learner',
-    gradeOrYear: '6G',
-    admissionNumber: 'PIS/PRI/23/1030',
-    password: 'PIS/PRI/23/1030',
-    libraryCardId: 'LIB-PUPIL-1030',
-    email: 'davidc@premierinternationalschool.org',
-    section: 'primary',
-    avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=200',
-    createdAt: '2026-02-06',
-  },
-
-  // Secondary / College Enrolled Learners Database (Years 7-12)
-  {
-    id: 'user-student-1',
-    name: 'Chidi Okafor',
-    role: 'learner',
-    gradeOrYear: '9E',
-    admissionNumber: 'PIS/SS/23/2345',
-    password: 'PIS/SS/23/2345',
-    libraryCardId: 'LIB-STUD-2345',
-    email: 'chidio@premierinternationalschool.org',
-    assignedTeacherId: 'user-staff-1',
-    assignedTeacherName: 'David Mensah',
-    section: 'college',
-    avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=200',
-    createdAt: '2026-01-10',
-  },
-  {
-    id: 'user-student-3',
-    name: 'Amina Danjuma',
-    role: 'learner',
-    gradeOrYear: '11D',
-    admissionNumber: 'PIS/SS/22/1988',
-    password: 'PIS/SS/22/1988',
-    libraryCardId: 'LIB-STUD-1988',
-    email: 'aminad@premierinternationalschool.org',
-    assignedTeacherId: 'user-staff-1',
-    assignedTeacherName: 'David Mensah',
-    section: 'college',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
-    createdAt: '2026-01-15',
-  },
-  {
-    id: 'user-sec-1',
-    name: 'Tunde Williams',
-    role: 'learner',
-    gradeOrYear: '10G',
-    admissionNumber: 'PIS/SS/23/2104',
-    password: 'PIS/SS/23/2104',
-    libraryCardId: 'LIB-STUD-2104',
-    email: 'tundew@premierinternationalschool.org',
-    assignedTeacherId: 'user-staff-1',
-    assignedTeacherName: 'David Mensah',
-    section: 'college',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200',
-    createdAt: '2026-01-16',
-  },
-  {
-    id: 'user-sec-2',
-    name: 'Somtochukwu Obi',
-    role: 'learner',
-    gradeOrYear: '8D',
-    admissionNumber: 'PIS/SS/24/2550',
-    password: 'PIS/SS/24/2550',
-    libraryCardId: 'LIB-STUD-2550',
-    email: 'somtoo@premierinternationalschool.org',
-    assignedTeacherId: 'user-staff-1',
-    assignedTeacherName: 'David Mensah',
-    section: 'college',
-    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=200',
-    createdAt: '2026-01-18',
-  },
-  {
-    id: 'user-sec-3',
-    name: 'Halima Mohammed',
-    role: 'learner',
-    gradeOrYear: '12R',
-    admissionNumber: 'PIS/SS/21/1760',
-    password: 'PIS/SS/21/1760',
-    libraryCardId: 'LIB-STUD-1760',
-    email: 'halimam@premierinternationalschool.org',
-    assignedTeacherId: 'user-staff-1',
-    assignedTeacherName: 'David Mensah',
-    section: 'college',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
-    createdAt: '2026-01-20',
-  },
-  {
-    id: 'user-sec-4',
-    name: 'Favour Okon',
-    role: 'learner',
-    gradeOrYear: '7E',
-    admissionNumber: 'PIS/SS/25/2712',
-    password: 'PIS/SS/25/2712',
-    libraryCardId: 'LIB-STUD-2712',
-    email: 'favouro@premierinternationalschool.org',
-    assignedTeacherId: 'user-staff-1',
-    assignedTeacherName: 'David Mensah',
-    section: 'college',
-    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200',
-    createdAt: '2026-01-22',
-  },
-  {
-    id: 'user-sec-5',
-    name: 'David Adeyemi',
-    role: 'learner',
-    gradeOrYear: '10O',
-    admissionNumber: 'PIS/SS/23/2188',
-    password: 'PIS/SS/23/2188',
-    libraryCardId: 'LIB-STUD-2188',
-    email: 'davida@premierinternationalschool.org',
-    assignedTeacherId: 'user-staff-1',
-    assignedTeacherName: 'David Mensah',
-    section: 'college',
-    avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&q=80&w=200',
-    createdAt: '2026-01-24',
-  },
-  {
-    id: 'user-sec-6',
-    name: 'Blessing Bassey',
-    role: 'learner',
-    gradeOrYear: '9G',
-    admissionNumber: 'PIS/SS/23/2390',
-    password: 'PIS/SS/23/2390',
-    libraryCardId: 'LIB-STUD-2390',
-    email: 'blessingb@premierinternationalschool.org',
-    assignedTeacherId: 'user-staff-1',
-    assignedTeacherName: 'David Mensah',
-    section: 'college',
-    avatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&q=80&w=200',
-    createdAt: '2026-01-26',
-  },
-  {
-    id: 'user-sec-7',
-    name: 'Farouk Abubakar',
-    role: 'learner',
-    gradeOrYear: '11E',
-    admissionNumber: 'PIS/SS/22/2015',
-    password: 'PIS/SS/22/2015',
-    libraryCardId: 'LIB-STUD-2015',
-    email: 'farouka@premierinternationalschool.org',
-    assignedTeacherId: 'user-staff-1',
-    assignedTeacherName: 'David Mensah',
-    section: 'college',
-    avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&q=80&w=200',
-    createdAt: '2026-01-28',
-  },
-  {
-    id: 'user-sec-8',
-    name: 'Ifeoma Umeh',
-    role: 'learner',
-    gradeOrYear: '8O',
-    admissionNumber: 'PIS/SS/24/2588',
-    password: 'PIS/SS/24/2588',
-    libraryCardId: 'LIB-STUD-2588',
-    email: 'ifeomau@premierinternationalschool.org',
-    assignedTeacherId: 'user-staff-1',
-    assignedTeacherName: 'David Mensah',
-    section: 'college',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
-    createdAt: '2026-01-30',
-  },
-  {
-    id: 'user-sec-9',
-    name: 'Emmanuel Kalu',
-    role: 'learner',
-    gradeOrYear: '12D',
-    admissionNumber: 'PIS/SS/21/1701',
-    password: 'PIS/SS/21/1701',
-    libraryCardId: 'LIB-STUD-1701',
-    email: 'emmanuelk@premierinternationalschool.org',
-    assignedTeacherId: 'user-staff-1',
-    assignedTeacherName: 'David Mensah',
-    section: 'college',
-    avatar: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&q=80&w=200',
-    createdAt: '2026-02-02',
-  },
-  {
-    id: 'user-sec-10',
-    name: 'Praise Eze',
-    role: 'learner',
-    gradeOrYear: '7D',
-    admissionNumber: 'PIS/SS/25/2740',
-    password: 'PIS/SS/25/2740',
-    libraryCardId: 'LIB-STUD-2740',
-    email: 'praisee@premierinternationalschool.org',
-    assignedTeacherId: 'user-staff-1',
-    assignedTeacherName: 'David Mensah',
-    section: 'college',
-    avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=200',
-    createdAt: '2026-02-04',
-  },
-
-  // Faculty and Librarians
+  // Permanent Staff and Librarians
   {
     id: 'user-staff-1',
     name: 'David Mensah',
@@ -1104,11 +764,18 @@ const getDeletedUserIds = (): Set<string> => {
       try {
         const parsed: LibraryUser[] = JSON.parse(saved);
         if (parsed && Array.isArray(parsed) && parsed.length > 0) {
-          const filteredSaved = parsed.filter(u => !deletedUserIds.has(u.id) && !deletedUserIds.has(u.email.toLowerCase()));
+          // Filter out deleted users and any lingering hardcoded demo users
+          const filteredSaved = parsed.filter(u => 
+            !deletedUserIds.has(u.id) && 
+            !deletedUserIds.has(u.email.toLowerCase()) &&
+            !u.id.startsWith('user-pri-') &&
+            !u.id.startsWith('user-sec-') &&
+            u.id !== 'user-student-3'
+          );
           const existingIds = new Set(filteredSaved.map(u => u.id));
           const missing = cleanInitialUsers.filter(iu => !existingIds.has(iu.id));
           loadedUsers = missing.length > 0 ? [...filteredSaved, ...missing] : filteredSaved;
-          if (missing.length > 0 || filteredSaved.length !== parsed.length) {
+          if (filteredSaved.length !== parsed.length) {
             modified = true;
           }
         }
@@ -1168,13 +835,21 @@ const getDeletedUserIds = (): Set<string> => {
   });
 
   const [holds, setHolds] = useState<BookHold[]>(() => {
-    const saved = localStorage.getItem('p_holds');
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem('p_holds');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
   });
 
   const [emailLogs, setEmailLogs] = useState<EmailLog[]>(() => {
-    const saved = localStorage.getItem('p_emaillogs');
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem('p_emaillogs');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
   });
 
   const [currentLearnerName, setCurrentLearnerName] = useState<string>(() => {
@@ -1478,7 +1153,7 @@ const getDeletedUserIds = (): Set<string> => {
   };
 
   const setBookAsSpotlight = (bookId: string, customBadge = 'BOOK OF THE WEEK') => {
-    const targetBook = books.find(b => b.id === bookId) || initialBooks.find(b => b.id === bookId);
+    const targetBook = books.find(b => b.id === bookId);
     if (!targetBook) {
       return { success: false, message: 'Book not found in library holdings.' };
     }
@@ -2100,19 +1775,25 @@ const getDeletedUserIds = (): Set<string> => {
     } else if (role === 'STAFF') {
       setIsLibrarianLoggedInState(true);
       setCurrentRole('staff');
-      const teacher = users.find(u => u.role === 'staff' || u.role === 'teacher') || initialUsers[2];
+      const teacher = users.find(u => u.role === 'staff' || u.role === 'teacher') || users.find(u => u.id === 'user-staff-1') || defaultAdminUser;
       setCurrentUserState(teacher);
       setLoggedInLearnerState(teacher);
       setActiveSection('all'); // Staff is global: sees both primary and secondary inventory
     } else {
       setIsLibrarianLoggedInState(false);
       setCurrentRole('learner');
-      const student = users.find(u => u.role === 'learner' || u.role === 'student') || initialUsers[0];
-      setCurrentUserState(student);
-      setLoggedInLearnerState(student);
-      setCurrentLearnerName(`${student.name} (${student.gradeOrYear || 'Student'})`);
-      const learnerSec = student.section === 'primary' ? 'primary' : 'college';
-      setActiveSection(learnerSec);
+      const student = users.find(u => u.role === 'learner' || u.role === 'student');
+      if (student) {
+        setCurrentUserState(student);
+        setLoggedInLearnerState(student);
+        setCurrentLearnerName(`${student.name} (${student.gradeOrYear || 'Student'})`);
+        const learnerSec = student.section === 'primary' ? 'primary' : 'college';
+        setActiveSection(learnerSec);
+      } else {
+        setCurrentUserState(null);
+        setLoggedInLearnerState(null);
+        setCurrentLearnerName('');
+      }
     }
   };
 

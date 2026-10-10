@@ -6,7 +6,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp, getGradeLevelForUser } from '../context/AppContext';
 import { HeroSpotlightData, Book } from '../types';
-import { initialBooks } from '../data';
 import { Edit3, BookOpen, Headphones, X, Check, ArrowRight, Building2, Backpack, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -87,8 +86,7 @@ export const HeroSpotlight: React.FC = () => {
   const featuredBook = booksPool.find(b => b.id === activeSpotlight.featuredBookId)
     || booksPool.find(b => b.title.toLowerCase().trim() === activeSpotlight.title.toLowerCase().trim())
     || books.find(b => b.id === activeSpotlight.featuredBookId)
-    || books.find(b => b.title.toLowerCase().trim() === activeSpotlight.title.toLowerCase().trim())
-    || initialBooks.find(b => b.id === activeSpotlight.featuredBookId);
+    || books.find(b => b.title.toLowerCase().trim() === activeSpotlight.title.toLowerCase().trim());
 
   // Directly display the dynamic chosen title from the database document / activeSpotlight
   const displayTitle = activeSpotlight.title || featuredBook?.title || 'Featured Masterpiece';
@@ -143,7 +141,7 @@ export const HeroSpotlight: React.FC = () => {
   };
 
   const handleBookSelect = (bookId: string) => {
-    const selected = booksPool.find(b => b.id === bookId) || initialBooks.find(b => b.id === bookId);
+    const selected = booksPool.find(b => b.id === bookId);
     if (selected) {
       setEditForm(prev => ({
         ...prev,

@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App.tsx';
+import { ErrorBoundary } from './components/ErrorBoundary.tsx';
 import './index.css';
 
 // Safeguard against third-party browser extension errors (MetaMask, Web3 wallet injected scripts)
@@ -34,21 +35,30 @@ if (typeof window !== 'undefined') {
   }, true);
 }
 
-// Clean up duplicate or legacy hash in the URL (e.g. /catalog#/catalog -> /catalog, /#/ -> /)
-if (window.location.hash) {
-  const hashPath = window.location.hash.replace(/^#\/?/, '/');
-  if (hashPath && hashPath !== '/' && !window.location.pathname.startsWith(hashPath)) {
-    window.history.replaceState(null, '', hashPath + window.location.search);
-  } else {
-    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+// Clean up duplicate or legacy hash in the URL safely
+try {
+  if (typeof window !== 'undefined' && window.location.hash) {
+    const hashPath = window.location.hash.replace(/^#\/?/, '/');
+    if (hashPath && hashPath !== '/' && !window.location.pathname.startsWith(hashPath)) {
+      window.history.replaceState(null, '', hashPath + window.location.search);
+    } else {
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
   }
+} catch {
+  // Avoid crashing if running in sandboxed or cross-origin iframe
 }
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
-  </StrictMode>,
-);
+const rootElement = document.getElementById('root');
+if (rootElement) {
+  createRoot(rootElement).render(
+    <StrictMode>
+      <ErrorBoundary>
+        <BrowserRouter>
+          <App />
+        </BrowserRouter>
+      </ErrorBoundary>
+    </StrictMode>,
+  );
+}
 

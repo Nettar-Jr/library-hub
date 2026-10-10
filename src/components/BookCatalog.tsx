@@ -45,8 +45,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CameraBarcodeScanner } from './CameraBarcodeScanner';
-import { lookupBookByISBN, playScannerBeep } from '../utils/isbnLookup';
-import { parseRawTextToPages } from '../utils/ebookUtils';
+import { lookupBookByISBN, playScannerBeep, inferCategoryFromKeywords, inferDewey } from '../utils/isbnLookup';
 import { CsvBatchImport } from './CsvBatchImport';
 import { EditBookModal } from './EditBookModal';
 
@@ -118,6 +117,7 @@ export const BookCatalog: React.FC = () => {
   const [bookToDelete, setBookToDelete] = useState<Book | null>(null);
   const [isDeletingBook, setIsDeletingBook] = useState(false);
   const [showCatalogCameraScanner, setShowCatalogCameraScanner] = useState(false);
+  const [showCatalogBarcodeInput, setShowCatalogBarcodeInput] = useState(false);
   const [scannerType, setScannerType] = useState<'laser' | 'camera'>('laser');
   const [laserScanInput, setLaserScanInput] = useState<string>('');
   const [lastFetchedBook, setLastFetchedBook] = useState<{
@@ -151,16 +151,7 @@ export const BookCatalog: React.FC = () => {
     isPopular: false,
     isNew: true,
     inventoryType: 'physical',
-    ebookFormat: 'pages',
-    ebookPages: undefined,
-    ebookFileName: undefined,
-    ebookFileSize: undefined,
   });
-
-  // E-Book Manuscript Upload & Text Paste state for new book accession
-  const [manuscriptPasteText, setManuscriptPasteText] = useState('');
-  const [showManuscriptPaste, setShowManuscriptPaste] = useState(false);
-  const [ebookUploadStatus, setEbookUploadStatus] = useState<string | null>(null);
 
   const showToast = (type: 'success' | 'error', message: string) => {
     setActionToast({ type, message });
@@ -461,17 +452,14 @@ export const BookCatalog: React.FC = () => {
     e.preventDefault();
     if (!newBookForm.title || !newBookForm.author) return;
 
-    const isEbook = newBookForm.inventoryType === 'ebook';
-    const computedPageCount = isEbook && newBookForm.ebookPages?.length ? newBookForm.ebookPages.length : 250;
-
     addBook({
-      title: newBookForm.title,
-      author: newBookForm.author,
+      title: newBookForm.title.trim(),
+      author: newBookForm.author.trim(),
       isbn: newBookForm.isbn || `978-${Math.floor(1000000000 + Math.random() * 9000000000)}`,
       category: newBookForm.category || 'African Literature',
       section: (newBookForm.section as any) || (activeSection === 'primary' ? 'primary' : 'college'),
-      totalCopies: isEbook ? 999 : (Number(newBookForm.totalCopies) || 5),
-      availableCopies: isEbook ? 999 : (Number(newBookForm.availableCopies) || 5),
+      totalCopies: Number(newBookForm.totalCopies) || 5,
+      availableCopies: Number(newBookForm.availableCopies) || 5,
       description: newBookForm.description || '',
       summary: newBookForm.description || '',
       coverImage: newBookForm.coverImage || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=700',
@@ -481,21 +469,17 @@ export const BookCatalog: React.FC = () => {
       callNumber: `${newBookForm.deweyCode || '896.3'} ${newBookForm.author.substring(0, 3).toUpperCase()}`,
       ageRange: newBookForm.ageRange || 'Ages 10-18',
       readingLevel: newBookForm.readingLevel || 'Lexile 850L',
-      pageCount: computedPageCount,
+      pageCount: 250,
       hasAudio: !!newBookForm.hasAudio,
       isAudiobook: !!newBookForm.hasAudio,
       isPopular: !!newBookForm.isPopular,
       isNew: true,
       rating: 5.0,
-      inventoryType: isEbook ? 'ebook' : 'physical',
-      ebookFormat: isEbook ? 'pages' : undefined,
-      ebookPages: isEbook ? newBookForm.ebookPages : undefined,
-      ebookFileName: isEbook ? newBookForm.ebookFileName : undefined,
-      ebookFileSize: isEbook ? newBookForm.ebookFileSize : undefined,
+      inventoryType: 'physical',
     });
 
     setIsAddBookModalOpen(false);
-    showToast('success', `"${newBookForm.title}" accessioned to ${isEbook ? 'eBook Digital Inventory Space' : 'Physical Library Holdings'}.`);
+    showToast('success', `"${newBookForm.title}" accessioned to Physical Library Holdings.`);
     setNewBookForm({
       title: '',
       author: '',
@@ -508,14 +492,7 @@ export const BookCatalog: React.FC = () => {
       deweyClass: '800',
       deweyCode: '896.3',
       inventoryType: 'physical',
-      ebookFormat: 'pages',
-      ebookPages: undefined,
-      ebookFileName: undefined,
-      ebookFileSize: undefined,
     });
-    setManuscriptPasteText('');
-    setShowManuscriptPaste(false);
-    setEbookUploadStatus(null);
   };
 
   const isFilterActive = searchQuery || selectedCategory !== 'ALL' || availabilityFilter !== 'ALL' || formatFilter !== 'ALL' || myActivityFilter !== 'ALL' || inventoryFilter !== 'all';
@@ -1206,7 +1183,7 @@ export const BookCatalog: React.FC = () => {
                     <h2 id="accession-book-modal-title" className="font-display font-bold text-sm sm:text-base">
                       Accession New Title to Library
                     </h2>
-                    <p className="text-[11px] text-slate-300">Catalog new physical or digital materials</p>
+                    <p className="text-[11px] text-slate-300">Catalog physical library book</p>
                   </div>
                 </div>
                 <button
@@ -1214,6 +1191,7 @@ export const BookCatalog: React.FC = () => {
                   onClick={() => {
                     setIsAddBookModalOpen(false);
                     setShowCatalogCameraScanner(false);
+                    setShowCatalogBarcodeInput(false);
                   }}
                   className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-white/10 transition cursor-pointer"
                   aria-label="Close modal"
@@ -1222,95 +1200,135 @@ export const BookCatalog: React.FC = () => {
                 </button>
               </div>
 
-              {/* Minimalist Barcode & Camera Scanner Bar */}
-              <div className="px-5 py-3 bg-slate-50 border-b border-slate-200/80 shrink-0">
-                <div className="flex items-center gap-2">
-                  {/* Mode Icon Toggles: Barcode (Laser POS) & Camera */}
-                  <div className="flex items-center bg-white p-1 rounded-xl border border-slate-200 shadow-2xs shrink-0">
-                    <button
-                      type="button"
-                      title="1D Laser Barcode Scanner (POS reader or keyboard input)"
-                      onClick={() => {
-                        setScannerType('laser');
-                        setShowCatalogCameraScanner(false);
-                        setTimeout(() => laserInputRef.current?.focus(), 100);
-                      }}
-                      className={`p-2 rounded-lg transition cursor-pointer ${
-                        scannerType === 'laser' && !showCatalogCameraScanner
-                          ? 'bg-slate-900 text-white shadow-2xs'
-                          : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
-                      }`}
-                    >
-                      <Barcode className="w-4 h-4" />
-                    </button>
-
-                    <button
-                      type="button"
-                      title="Optical Camera Barcode Scanner"
-                      onClick={() => {
-                        const next = !showCatalogCameraScanner;
-                        setShowCatalogCameraScanner(next);
-                        if (next) setScannerType('camera');
-                        else setScannerType('laser');
-                      }}
-                      className={`p-2 rounded-lg transition cursor-pointer ${
-                        scannerType === 'camera' && showCatalogCameraScanner
-                          ? 'bg-blue-600 text-white shadow-2xs'
-                          : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
-                      }`}
-                    >
-                      <Camera className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                  {/* Compact Barcode / ISBN Scan Input */}
-                  <div className="relative flex-1">
-                    <input
-                      ref={laserInputRef}
-                      type="text"
-                      value={laserScanInput}
-                      onChange={(e) => setLaserScanInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          if (laserScanInput.trim()) {
-                            handleExecuteIsbnLookup(laserScanInput);
-                          }
-                        }
-                      }}
-                      placeholder="Scan barcode with laser or enter ISBN..."
-                      className="w-full pl-8 pr-7 py-2 bg-white text-slate-800 border border-slate-300 rounded-xl text-xs font-mono placeholder:text-slate-400 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 transition shadow-2xs"
-                    />
-                    <ScanLine className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-                    {laserScanInput && (
+              {/* Minimalist Barcode & Camera Scanner Bar - Icons until clicked */}
+              <div className="px-5 py-2.5 bg-slate-50 border-b border-slate-200/80 shrink-0">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                      Auto-Fill Scanner:
+                    </span>
+                    <div className="flex items-center bg-white p-1 rounded-xl border border-slate-200 shadow-2xs">
+                      {/* Barcode Scanner Icon Toggle */}
                       <button
                         type="button"
-                        onClick={() => setLaserScanInput('')}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 rounded-full"
+                        title="Laser / ISBN Barcode Scanner (Click to open ISBN scan input)"
+                        onClick={() => {
+                          const next = !showCatalogBarcodeInput;
+                          setShowCatalogBarcodeInput(next);
+                          if (next) {
+                            setScannerType('laser');
+                            setShowCatalogCameraScanner(false);
+                            setTimeout(() => laserInputRef.current?.focus(), 150);
+                          }
+                        }}
+                        className={`p-2 rounded-lg transition cursor-pointer flex items-center justify-center ${
+                          showCatalogBarcodeInput
+                            ? 'bg-slate-900 text-white shadow-2xs'
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                        }`}
+                        aria-label="Laser / ISBN Barcode Scanner"
                       >
-                        <X className="w-3 h-3" />
+                        <Barcode className="w-4 h-4" />
                       </button>
-                    )}
+
+                      {/* Camera Scanner Icon Toggle */}
+                      <button
+                        type="button"
+                        title="Camera Barcode Scanner (Click to open camera)"
+                        onClick={() => {
+                          const next = !showCatalogCameraScanner;
+                          setShowCatalogCameraScanner(next);
+                          if (next) {
+                            setScannerType('camera');
+                            setShowCatalogBarcodeInput(false);
+                          } else {
+                            setScannerType('laser');
+                          }
+                        }}
+                        className={`p-2 rounded-lg transition cursor-pointer flex items-center justify-center ${
+                          showCatalogCameraScanner
+                            ? 'bg-blue-600 text-white shadow-2xs'
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                        }`}
+                        aria-label="Camera Barcode Scanner"
+                      >
+                        <Camera className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
 
-                  {/* Quick Fetch Button */}
-                  <button
-                    type="button"
-                    disabled={isLookingUpISBN || !laserScanInput.trim()}
-                    onClick={() => handleExecuteIsbnLookup(laserScanInput)}
-                    title="Pull details from OPAC"
-                    className="p-2 sm:px-3 sm:py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-semibold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer transition shadow-2xs shrink-0"
-                  >
-                    {isLookingUpISBN ? (
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <>
-                        <Sparkles className="w-4 h-4" />
-                        <span className="hidden sm:inline">Fetch</span>
-                      </>
-                    )}
-                  </button>
+                  {(showCatalogBarcodeInput || showCatalogCameraScanner) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowCatalogBarcodeInput(false);
+                        setShowCatalogCameraScanner(false);
+                      }}
+                      className="text-[11px] text-slate-400 hover:text-slate-700 font-semibold cursor-pointer flex items-center gap-1"
+                    >
+                      <span>Close scanner</span>
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
+
+                {/* Compact Barcode / ISBN Scan Input - only shown when barcode icon is clicked */}
+                <AnimatePresence>
+                  {showCatalogBarcodeInput && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="mt-2.5 pt-2.5 border-t border-slate-200/70 flex items-center gap-2"
+                    >
+                      <div className="relative flex-1">
+                        <input
+                          ref={laserInputRef}
+                          type="text"
+                          value={laserScanInput}
+                          onChange={(e) => setLaserScanInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              if (laserScanInput.trim()) {
+                                handleExecuteIsbnLookup(laserScanInput);
+                              }
+                            }
+                          }}
+                          placeholder="Scan barcode with laser or enter ISBN..."
+                          className="w-full pl-8 pr-7 py-2 bg-white text-slate-800 border border-slate-300 rounded-xl text-xs font-mono placeholder:text-slate-400 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 transition shadow-2xs"
+                        />
+                        <ScanLine className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                        {laserScanInput && (
+                          <button
+                            type="button"
+                            onClick={() => setLaserScanInput('')}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 rounded-full cursor-pointer"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        disabled={isLookingUpISBN || !laserScanInput.trim()}
+                        onClick={() => handleExecuteIsbnLookup(laserScanInput)}
+                        title="Pull details from OPAC"
+                        className="px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-semibold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer transition shadow-2xs shrink-0"
+                      >
+                        {isLookingUpISBN ? (
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <>
+                            <Sparkles className="w-4 h-4" />
+                            <span>Fetch</span>
+                          </>
+                        )}
+                      </button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 {/* Camera Scanner when active */}
                 <AnimatePresence>
@@ -1378,7 +1396,20 @@ export const BookCatalog: React.FC = () => {
                       type="text"
                       required
                       value={newBookForm.title}
-                      onChange={(e) => setNewBookForm({ ...newBookForm, title: e.target.value })}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setNewBookForm((prev) => {
+                          const autoCat = inferCategoryFromKeywords(val);
+                          const dewey = inferDewey(autoCat);
+                          return {
+                            ...prev,
+                            title: val,
+                            category: (!prev.category || prev.category === 'African Literature' || prev.category === 'Curriculum Classics') && val.trim().length > 2 ? autoCat : prev.category,
+                            deweyCode: (!prev.deweyCode || prev.deweyCode === '896.3') && val.trim().length > 2 ? dewey.code : prev.deweyCode,
+                            deweyClass: (!prev.deweyClass || prev.deweyClass === '800') && val.trim().length > 2 ? dewey.classNum : prev.deweyClass,
+                          };
+                        });
+                      }}
                       placeholder="e.g. Arrow of God"
                       className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs font-medium text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 transition shadow-2xs"
                     />
@@ -1399,208 +1430,40 @@ export const BookCatalog: React.FC = () => {
                     />
                   </div>
 
-                  {/* Book Inventory Format: Hard Copy (Physical) vs eBook (Digital) */}
-                  <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2.5">
-                    <label className="block text-[11px] font-bold text-slate-800 uppercase tracking-wider">
-                      Book Format & Inventory Space *
-                    </label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setNewBookForm(prev => ({ ...prev, inventoryType: 'physical' }))}
-                        className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
-                          newBookForm.inventoryType !== 'ebook'
-                            ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
-                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
-                        }`}
-                      >
-                        <BookOpen className="w-4 h-4" />
-                        <span>Hard Copy (Physical)</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setNewBookForm(prev => ({ ...prev, inventoryType: 'ebook', ebookFormat: 'pages' }))}
-                        className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
-                          newBookForm.inventoryType === 'ebook'
-                            ? 'bg-purple-600 text-white border-purple-600 shadow-2xs'
-                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
-                        }`}
-                      >
-                        <Smartphone className="w-4 h-4" />
-                        <span>Digital eBook</span>
-                      </button>
-                    </div>
-
-                    {newBookForm.inventoryType === 'ebook' && (
-                      <div className="mt-3 pt-3 border-t border-slate-200 space-y-2.5">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[11px] font-bold text-purple-900 flex items-center gap-1.5">
-                            <UploadCloud className="w-3.5 h-3.5 text-purple-600" />
-                            <span>Upload eBook Manuscript</span>
-                          </span>
-                          {newBookForm.ebookPages?.length ? (
-                            <span className="text-[10px] bg-purple-100 text-purple-800 font-bold px-2 py-0.5 rounded-full">
-                              {newBookForm.ebookPages.length} Pages Parsed
-                            </span>
-                          ) : null}
-                        </div>
-
-                        {/* File upload input */}
-                        <div className="flex items-center gap-2">
-                          <label className="flex-1 cursor-pointer">
-                            <div className="border border-dashed border-purple-300 bg-purple-50/50 hover:bg-purple-100/60 rounded-xl p-3 text-center transition flex flex-col items-center justify-center gap-1">
-                              <UploadCloud className="w-5 h-5 text-purple-600" />
-                              <span className="text-xs font-bold text-purple-900">
-                                {newBookForm.ebookFileName ? `File: ${newBookForm.ebookFileName}` : 'Click to Upload Manuscript (.txt, .json, .md)'}
-                              </span>
-                              <span className="text-[10px] text-purple-700">
-                                {newBookForm.ebookFileSize ? `Size: ${newBookForm.ebookFileSize}` : 'Will be paginated for page-by-page digital student reading'}
-                              </span>
-                            </div>
-                            <input
-                              type="file"
-                              accept=".txt,.json,.md"
-                              className="hidden"
-                              onChange={(e) => {
-                                const file = e.target.files?.[0];
-                                if (!file) return;
-                                const fileName = file.name;
-                                const fileSize = `${Math.round(file.size / 1024) || 1} KB`;
-                                const reader = new FileReader();
-                                reader.onload = (event) => {
-                                  const text = event.target?.result as string;
-                                  if (file.name.endsWith('.json')) {
-                                    try {
-                                      const parsed = JSON.parse(text);
-                                      const list = Array.isArray(parsed) ? parsed : (parsed.pages || []);
-                                      if (list.length > 0) {
-                                        setNewBookForm(prev => ({
-                                          ...prev,
-                                          inventoryType: 'ebook',
-                                          ebookPages: list,
-                                          ebookFileName: fileName,
-                                          ebookFileSize: fileSize,
-                                          pageCount: list.length,
-                                        }));
-                                        setEbookUploadStatus(`Successfully parsed ${list.length} pages from ${fileName}`);
-                                        return;
-                                      }
-                                    } catch {}
-                                  }
-                                  const pages = parseRawTextToPages(text, newBookForm.title);
-                                  setNewBookForm(prev => ({
-                                    ...prev,
-                                    inventoryType: 'ebook',
-                                    ebookPages: pages,
-                                    ebookFileName: fileName,
-                                    ebookFileSize: fileSize,
-                                    pageCount: pages.length,
-                                  }));
-                                  setEbookUploadStatus(`Converted "${fileName}" into ${pages.length} readable pages`);
-                                };
-                                reader.readAsText(file);
-                              }}
-                            />
-                          </label>
-                        </div>
-
-                        {/* Or Paste text button */}
-                        <div className="flex items-center justify-between text-xs">
-                          <button
-                            type="button"
-                            onClick={() => setShowManuscriptPaste(!showManuscriptPaste)}
-                            className="text-[11px] font-bold text-purple-700 hover:text-purple-900 flex items-center gap-1 cursor-pointer"
-                          >
-                            <FileText className="w-3.5 h-3.5" />
-                            <span>{showManuscriptPaste ? 'Hide Text Paste' : 'Or Paste Book Text Directly'}</span>
-                          </button>
-
-                          {newBookForm.ebookPages?.length ? (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setNewBookForm(prev => ({
-                                  ...prev,
-                                  ebookPages: undefined,
-                                  ebookFileName: undefined,
-                                  ebookFileSize: undefined
-                                }));
-                                setEbookUploadStatus(null);
-                              }}
-                              className="text-[10px] text-rose-600 hover:underline cursor-pointer"
-                            >
-                              Clear Pages
-                            </button>
-                          ) : null}
-                        </div>
-
-                        {showManuscriptPaste && (
-                          <div className="space-y-2 pt-1">
-                            <textarea
-                              rows={4}
-                              value={manuscriptPasteText}
-                              onChange={(e) => setManuscriptPasteText(e.target.value)}
-                              placeholder="Paste book chapters or complete text here..."
-                              className="w-full p-2.5 bg-white border border-purple-200 rounded-xl text-xs text-slate-800 outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500/30"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (!manuscriptPasteText.trim()) return;
-                                const pages = parseRawTextToPages(manuscriptPasteText, newBookForm.title);
-                                setNewBookForm(prev => ({
-                                  ...prev,
-                                  inventoryType: 'ebook',
-                                  ebookPages: pages,
-                                  ebookFileName: 'pasted-manuscript.txt',
-                                  ebookFileSize: `${Math.round(manuscriptPasteText.length / 1024) || 1} KB`,
-                                  pageCount: pages.length,
-                                }));
-                                setEbookUploadStatus(`Converted into ${pages.length} readable pages!`);
-                              }}
-                              className="px-3 py-1.5 bg-purple-700 hover:bg-purple-800 text-white rounded-lg text-xs font-bold cursor-pointer"
-                            >
-                              Convert to Pages ({parseRawTextToPages(manuscriptPasteText, newBookForm.title).length} pages)
-                            </button>
-                          </div>
-                        )}
-
-                        {ebookUploadStatus && (
-                          <p className="text-[11px] font-medium text-emerald-700 flex items-center gap-1">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                            <span>{ebookUploadStatus}</span>
-                          </p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label htmlFor="new-book-category" className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                        Subject Category
-                      </label>
-                      <select
+                      <div className="flex items-center justify-between mb-1">
+                        <label htmlFor="new-book-category" className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wider">
+                          Subject Category
+                        </label>
+                        {newBookForm.category && (
+                          <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60">
+                            Auto-detected
+                          </span>
+                        )}
+                      </div>
+                      <input
                         id="new-book-category"
-                        value={newBookForm.category}
+                        type="text"
+                        value={newBookForm.category || ''}
                         onChange={(e) => {
                           const val = e.target.value;
                           setNewBookForm({ 
                             ...newBookForm, 
                             category: val,
-                            isPopular: val === 'Popular' ? true : newBookForm.isPopular,
-                            hasAudio: val === 'Audiobooks & Read-Aloud' ? true : newBookForm.hasAudio
+                            isPopular: val.toLowerCase().includes('popular') ? true : newBookForm.isPopular,
+                            hasAudio: val.toLowerCase().includes('audio') ? true : newBookForm.hasAudio
                           });
                         }}
+                        placeholder="e.g. African Literature, Science & STEM, Fiction"
+                        list="category-suggestions"
                         className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs font-medium text-slate-800 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 transition shadow-2xs"
-                      >
+                      />
+                      <datalist id="category-suggestions">
                         {BOOK_CATEGORIES.map((cat) => (
-                          <option key={cat} value={cat}>
-                            {cat}
-                          </option>
+                          <option key={cat} value={cat} />
                         ))}
-                      </select>
+                      </datalist>
                     </div>
 
                     <div>

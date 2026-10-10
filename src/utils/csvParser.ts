@@ -4,7 +4,7 @@
  */
 
 import { Book, LibraryUser } from '../types';
-import { parseAcademicClass } from './academicClasses';
+import { parseAcademicClass, getYearFromGrade } from './academicClasses';
 
 /**
  * Robust CSV Line & Cell Parser compliant with RFC 4180.
@@ -187,17 +187,23 @@ export function autoMapColumns(headers: string[], aliasMap: Record<string, strin
 // Sample Templates
 // --------------------------------------------------------------------------
 
-export const SAMPLE_ROSTER_CSV = `Full Name,Email,Role,Grade/Year,Department,Library Card ID,Assigned Teacher
-Chidi Okafor,chidi.okafor@school.edu,Student,Year 9,,LIB-STUD-1001,Mrs. Emily Cole
-Amara Diallo,amara.diallo@school.edu,Student,Year 10,,LIB-STUD-1002,Dr. Marcus Vance
-Kwame Mensah,kwame.mensah@school.edu,Student,Year 8,,LIB-STUD-1003,Mrs. Emily Cole
-Zainab Bello,zainab.bello@school.edu,Student,Year 11,,LIB-STUD-1004,Mr. Tariq Al-Mansoor
-Kofi Boateng,kofi.boateng@school.edu,Student,Year 7,,LIB-STUD-1005,Mrs. Emily Cole
-Fatima Zahra,fatima.zahra@school.edu,Student,Year 9,,LIB-STUD-1006,Dr. Marcus Vance
-Dr. Marcus Vance,marcus.vance@school.edu,Teacher,,Science Department,LIB-TEACH-2001,
-Mrs. Emily Cole,emily.cole@school.edu,Teacher,,English Department,LIB-TEACH-2002,
-Mr. Tariq Al-Mansoor,tariq.mansoor@school.edu,Teacher,,Computer Science Department,LIB-TEACH-2003,
-Ms. Grace Adeyemi,grace.adeyemi@school.edu,Teacher,,Humanities & History,LIB-TEACH-2004,`;
+export const SAMPLE_PRIMARY_ROSTER_CSV = `Full Name,Class
+Amina Abubakar,Year 1
+Tunde Bakare,Year 2
+Chioma Okeke,Year 3
+Ibrahim Musa,Year 4
+Zainab Bello,Year 5
+David Adeleke,Year 6`;
+
+export const SAMPLE_SECONDARY_ROSTER_CSV = `Full Name,Class,Email
+Chidi Okafor,Year 7,chidi.okafor@premierinternationalschool.org
+Amara Diallo,Year 8,amara.diallo@premierinternationalschool.org
+Kwame Mensah,Year 9,kwame.mensah@premierinternationalschool.org
+Fatima Zahra,Year 10,fatima.zahra@premierinternationalschool.org
+Kofi Boateng,Year 11,kofi.boateng@premierinternationalschool.org
+Somtochukwu Eze,Year 12,somto.eze@premierinternationalschool.org`;
+
+export const SAMPLE_ROSTER_CSV = SAMPLE_PRIMARY_ROSTER_CSV;
 
 export const SAMPLE_CATALOG_CSV = `Title,Author,ISBN,Category,Copies,Dewey Code,Reading Level,Age Range,Audio Available,Usage Type,Description
 Things Fall Apart,Chinua Achebe,9780385474542,African Literature,6,896.3,Lexile 890L,Ages 12-18,Yes,circulation,"The classic post-colonial narrative tracing the life of Okonkwo and the tragic transformation of Igbo society."
@@ -324,44 +330,23 @@ export function normalizeRosterRows(
       messages.push('Missing required name.');
     }
 
-    // 2. Email
-    let email = (raw[mapping.email] || '').trim().toLowerCase();
-    if (!email) {
-      // Auto-generate fallback email if missing
-      const sanitized = name.toLowerCase().replace(/[^a-z0-9]/g, '.');
-      email = `${sanitized || 'patron'}@school.edu`;
-      messages.push('Email missing, auto-generated placeholder.');
-      if (status !== 'error') status = 'warning';
-    } else if (!email.includes('@')) {
-      status = 'error';
-      messages.push('Invalid email address format.');
-    } else if (existingEmails.has(email) || batchEmails.has(email)) {
-      messages.push('Duplicate email detected; will update existing patron if selected.');
-      if (status !== 'error') status = 'warning';
-    }
-    batchEmails.add(email);
-
-    // 3. Role
+    // Determine Role early to handle student vs staff expectations
     const rawRole = (raw[mapping.role] || '').trim().toLowerCase();
-    let role: 'student' | 'teacher' | 'admin' | 'learner' | 'staff' = 'student';
+    let role: 'student' | 'teacher' | 'admin' | 'learner' | 'staff' = 'learner';
     if (rawRole.includes('teach') || rawRole.includes('staff') || rawRole.includes('faculty') || rawRole.includes('prof')) {
       role = 'teacher';
     } else if (rawRole.includes('admin') || rawRole.includes('lib')) {
       role = 'admin';
     } else {
-      role = 'student';
+      role = 'learner';
     }
 
-    // 4. Grade / Year or Department
+    // Grade / Year or Department
     let gradeOrYear = (raw[mapping.gradeOrYear] || '').trim();
     let department = (raw[mapping.department] || '').trim();
 
-    if (role === 'student') {
-      if (!gradeOrYear) {
-        gradeOrYear = '9E';
-        messages.push('Grade/Year unassigned, defaulted to 9E (Year 9 Emerald).');
-        if (status !== 'error') status = 'warning';
-      } else {
+    if (role === 'learner' || (role as string) === 'student') {
+      if (gradeOrYear) {
         const parsed = parseAcademicClass(gradeOrYear);
         if (parsed) {
           gradeOrYear = parsed.code;
@@ -375,13 +360,27 @@ export function normalizeRosterRows(
       if (status !== 'error') status = 'warning';
     }
 
-    // 5. Library Card ID
+    // Email
+    let email = (raw[mapping.email] || '').trim().toLowerCase();
+    if (!email) {
+      // Auto-generate fallback email if missing (standard for primary learners)
+      const sanitized = name.toLowerCase().replace(/[^a-z0-9]/g, '.').replace(/\.+/g, '.').replace(/^\.|\.$/g, '');
+      const domain = gradeOrYear ? (getYearFromGrade(gradeOrYear) && getYearFromGrade(gradeOrYear)! <= 6 ? 'primary.learner' : 'premierinternationalschool.org') : 'learner.school';
+      email = `${sanitized || 'learner'}${Math.floor(100 + Math.random() * 900)}@${domain}`;
+    } else if (!email.includes('@')) {
+      status = 'error';
+      messages.push('Invalid email address format.');
+    } else if (existingEmails.has(email) || batchEmails.has(email)) {
+      messages.push('Duplicate email detected; will update existing patron if selected.');
+      if (status !== 'error') status = 'warning';
+    }
+    batchEmails.add(email);
+
+    // Library Card ID
     let libraryCardId = (raw[mapping.libraryCardId] || '').trim().toUpperCase();
     if (!libraryCardId) {
       const randNum = Math.floor(1000 + Math.random() * 9000);
-      libraryCardId = role === 'student' ? `LIB-STUD-${randNum}` : `LIB-TEACH-${randNum}`;
-      messages.push(`No Card ID provided, generated ${libraryCardId}.`);
-      if (status !== 'error') status = 'warning';
+      libraryCardId = (role === 'learner' || (role as string) === 'student') ? `LIB-STUD-${randNum}` : `LIB-TEACH-${randNum}`;
     } else if (existingCards.has(libraryCardId.toLowerCase()) || batchCards.has(libraryCardId.toLowerCase())) {
       messages.push('Library Card ID already in use; updating patron record.');
       if (status !== 'error') status = 'warning';
@@ -397,8 +396,8 @@ export function normalizeRosterRows(
       name,
       email,
       role,
-      gradeOrYear: role === 'student' ? gradeOrYear : undefined,
-      department: role === 'teacher' || role === 'admin' ? department : undefined,
+      gradeOrYear: (role === 'learner' || (role as string) === 'student') ? gradeOrYear : undefined,
+      department: (role === 'teacher' || role === 'admin' || (role as string) === 'staff') ? department : undefined,
       libraryCardId,
       assignedTeacherName,
       status,

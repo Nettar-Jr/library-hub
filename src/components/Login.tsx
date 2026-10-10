@@ -147,14 +147,47 @@ export const Login: React.FC<LoginProps> = ({ targetTab, adminMode }) => {
     setIsLoading(false);
   };
 
-  // Secondary Student Login (Enter email -> logs in if registered)
+  // Filter registered secondary learners for selected class (Year 7 to 12)
+  const registeredSecondaryLearners = useMemo(() => {
+    if (!isSecondary || !selectedYear) return [];
+    return users.filter((u) => {
+      const isLearner = u.role === 'learner' || u.role === 'student';
+      if (!isLearner) return false;
+      const yr = getYearFromGrade(u.gradeOrYear);
+      return yr === selectedYear;
+    });
+  }, [users, isSecondary, selectedYear]);
+
+  // Filter secondary learners by query
+  const visibleSecondaryLearners = useMemo(() => {
+    if (!secondaryEmail.trim()) return registeredSecondaryLearners;
+    const query = secondaryEmail.trim().toLowerCase();
+    return registeredSecondaryLearners.filter((u) => 
+      u.name.toLowerCase().includes(query) || 
+      (u.email && u.email.toLowerCase().includes(query))
+    );
+  }, [registeredSecondaryLearners, secondaryEmail]);
+
+  // Secondary Student 1-Click Login from roster list
+  const handleSecondaryStudentLogin = (student: LibraryUser) => {
+    setError(null);
+    setIsLoading(true);
+    login(student);
+    setLoggedInLearner(student);
+    setActiveSection('college');
+    setActiveTab(targetTab || 'dashboard');
+    navigate(resolveTargetRoute(targetTab, false));
+    setIsLoading(false);
+  };
+
+  // Secondary Student Login (Enter email or name -> logs in if registered)
   const handleSecondaryEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    const cleanEmail = secondaryEmail.trim().toLowerCase();
+    const cleanInput = secondaryEmail.trim().toLowerCase();
 
-    if (!cleanEmail) {
-      setError('Please enter your school email address.');
+    if (!cleanInput) {
+      setError('Please enter your school email or name.');
       return;
     }
 
@@ -165,7 +198,7 @@ export const Login: React.FC<LoginProps> = ({ targetTab, adminMode }) => {
       let cloudUser: LibraryUser | null = null;
       if (isSupabaseConfigured) {
         try {
-          const { data, error: sbError } = await queryUserFromSupabase(cleanEmail);
+          const { data, error: sbError } = await queryUserFromSupabase(cleanInput);
           if (!sbError && data) {
             cloudUser = data;
           }
@@ -177,9 +210,19 @@ export const Login: React.FC<LoginProps> = ({ targetTab, adminMode }) => {
       // 2. Find matching registered secondary learner
       const matchedUser = cloudUser || users.find((u) => {
         const isLearner = u.role === 'learner' || u.role === 'student';
+        if (!isLearner) return false;
         const uEmail = (u.email || '').trim().toLowerCase();
-        return isLearner && (uEmail === cleanEmail || uEmail.startsWith(cleanEmail + '@'));
-      }) || users.find((u) => (u.email || '').trim().toLowerCase() === cleanEmail);
+        const uName = (u.name || '').trim().toLowerCase();
+        return uEmail === cleanInput || 
+               uEmail.startsWith(cleanInput + '@') || 
+               uEmail.split('@')[0] === cleanInput || 
+               uName === cleanInput || 
+               uName.includes(cleanInput);
+      }) || users.find((u) => {
+        const uEmail = (u.email || '').trim().toLowerCase();
+        const uName = (u.name || '').trim().toLowerCase();
+        return uEmail === cleanInput || uName === cleanInput;
+      });
 
       if (matchedUser) {
         login(matchedUser);
@@ -191,7 +234,7 @@ export const Login: React.FC<LoginProps> = ({ targetTab, adminMode }) => {
         return;
       }
 
-      setError(`No registered secondary learner found with email "${secondaryEmail}". Please check your email or contact the library administrator.`);
+      setError(`No registered secondary learner found matching "${secondaryEmail}". Please check your email or contact the library administrator.`);
       setIsLoading(false);
     } catch (err: any) {
       setError(err?.message || 'Login failed. Please check your credentials.');
@@ -559,50 +602,82 @@ export const Login: React.FC<LoginProps> = ({ targetTab, adminMode }) => {
                 </motion.div>
               )}
 
-              {/* Secondary (Year 7 - Year 12): Ask for email */}
+              {/* Secondary (Year 7 - Year 12): Student School Email or Full Name */}
               {isSecondary && (
-                <motion.form
+                <motion.div
                   key={`secondary-email-form-${selectedYear}`}
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -8 }}
-                  onSubmit={handleSecondaryEmailLogin}
                   className="space-y-3.5 pt-1"
                 >
-                  <div className="space-y-1.5">
-                    <label htmlFor="sec-email" className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">
-                      Student School Email
-                    </label>
-                    <input
-                      id="sec-email"
-                      type="email"
-                      required
-                      autoComplete="email"
-                      placeholder="e.g. somtoo@premierinternationalschool.org"
-                      value={secondaryEmail}
-                      onChange={(e) => setSecondaryEmail(e.target.value)}
-                      className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 text-slate-900 placeholder:text-slate-400 font-medium transition shadow-2xs font-mono"
-                    />
-                  </div>
+                  <form onSubmit={handleSecondaryEmailLogin} className="space-y-3">
+                    <div className="relative">
+                      <input
+                        id="sec-email"
+                        type="text"
+                        required
+                        autoComplete="username email"
+                        placeholder="e.g. somtoo@premierinternationalschool.org or Full Name"
+                        value={secondaryEmail}
+                        onChange={(e) => setSecondaryEmail(e.target.value)}
+                        className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 text-slate-900 placeholder:text-slate-400 font-medium transition shadow-2xs font-mono"
+                      />
+                    </div>
 
-                  <button
-                    type="submit"
-                    disabled={isLoading}
-                    className="w-full py-3 px-4 rounded-xl text-sm font-bold text-center cursor-pointer transition-colors flex items-center justify-center gap-2 shadow-xs bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white disabled:opacity-50"
-                  >
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin text-white" />
-                        <span>Logging in...</span>
-                      </>
-                    ) : (
-                      <>
-                        <BookOpen className="w-4 h-4" />
-                        <span>Log In to Library</span>
-                      </>
-                    )}
-                  </button>
-                </motion.form>
+                    <button
+                      type="submit"
+                      disabled={isLoading}
+                      className="w-full py-3 px-4 rounded-xl text-sm font-bold text-center cursor-pointer transition-colors flex items-center justify-center gap-2 shadow-xs bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white disabled:opacity-50"
+                    >
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin text-white" />
+                          <span>Logging in...</span>
+                        </>
+                      ) : (
+                        <>
+                          <BookOpen className="w-4 h-4" />
+                          <span>Log In to Library</span>
+                        </>
+                      )}
+                    </button>
+                  </form>
+
+                  {/* Registered secondary learners in this selected class cohort */}
+                  {visibleSecondaryLearners.length > 0 && (
+                    <div className="pt-2 border-t border-slate-100 space-y-2">
+                      <div className="max-h-56 overflow-y-auto space-y-2 pr-0.5">
+                        {visibleSecondaryLearners.map((learner) => (
+                          <button
+                            key={learner.id}
+                            type="button"
+                            onClick={() => handleSecondaryStudentLogin(learner)}
+                            className="w-full flex items-center justify-between p-3 rounded-2xl border border-slate-200 hover:border-blue-500 bg-white hover:bg-blue-50/50 text-left transition group shadow-2xs cursor-pointer active:scale-98"
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-indigo-600 to-blue-500 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs">
+                                {learner.name.charAt(0).toUpperCase()}
+                              </div>
+                              <div className="min-w-0">
+                                <h4 className="font-bold text-slate-900 text-xs group-hover:text-blue-600 transition truncate">
+                                  {learner.name}
+                                </h4>
+                                <p className="text-[11px] text-slate-400 truncate font-mono">
+                                  {learner.email}
+                                </p>
+                              </div>
+                            </div>
+
+                            <span className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 group-hover:translate-x-1 transition shrink-0 pl-2">
+                              Sign In <ArrowRight className="w-3.5 h-3.5" />
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </motion.div>
               )}
             </AnimatePresence>
           </div>

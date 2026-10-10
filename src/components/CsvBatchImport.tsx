@@ -46,10 +46,13 @@ import {
   ParsedRosterRow, 
   ParsedCatalogRow, 
   SAMPLE_ROSTER_CSV, 
+  SAMPLE_PRIMARY_ROSTER_CSV,
+  SAMPLE_SECONDARY_ROSTER_CSV,
   SAMPLE_CATALOG_CSV 
 } from '../utils/csvParser';
 import { triggerConfetti } from '../utils/confetti';
 import { Book, LibraryUser } from '../types';
+import { parseAcademicClass, getYearFromGrade } from '../utils/academicClasses';
 
 interface CsvBatchImportProps {
   isModal?: boolean;
@@ -88,6 +91,11 @@ export const CsvBatchImport: React.FC<CsvBatchImportProps> = ({
     currentUser?.section === 'primary' || currentUser?.department?.toLowerCase().includes('primary') ? 'primary' :
     currentUser?.section === 'college' || currentUser?.department?.toLowerCase().includes('college') ? 'college' :
     (activeSection === 'primary' ? 'primary' : 'college');
+
+  // Section toggle for Roster import (Primary: Years 1-6, Secondary: Years 7-12)
+  const [rosterSection, setRosterSection] = useState<'primary' | 'secondary'>(
+    targetSection === 'primary' ? 'primary' : 'secondary'
+  );
 
   // File state
   const [fileName, setFileName] = useState<string>('');
@@ -175,15 +183,21 @@ export const CsvBatchImport: React.FC<CsvBatchImportProps> = ({
 
   // Load sample dataset
   const handleLoadSample = () => {
-    const sample = activeTab === 'roster' ? SAMPLE_ROSTER_CSV : SAMPLE_CATALOG_CSV;
-    const name = activeTab === 'roster' ? 'sample_school_roster.csv' : 'sample_book_catalog.csv';
-    processRawCSV(sample, name);
+    if (activeTab === 'roster') {
+      const sample = rosterSection === 'primary' ? SAMPLE_PRIMARY_ROSTER_CSV : SAMPLE_SECONDARY_ROSTER_CSV;
+      const name = rosterSection === 'primary' ? 'sample_primary_school_roster.csv' : 'sample_secondary_college_roster.csv';
+      processRawCSV(sample, name);
+    } else {
+      processRawCSV(SAMPLE_CATALOG_CSV, 'sample_book_catalog.csv');
+    }
   };
 
   // Download sample template
   const handleDownloadTemplate = () => {
     if (activeTab === 'roster') {
-      downloadCSVFile('school_roster_template.csv', SAMPLE_ROSTER_CSV);
+      const sample = rosterSection === 'primary' ? SAMPLE_PRIMARY_ROSTER_CSV : SAMPLE_SECONDARY_ROSTER_CSV;
+      const name = rosterSection === 'primary' ? 'primary_school_roster_template.csv' : 'secondary_college_roster_template.csv';
+      downloadCSVFile(name, sample);
     } else {
       downloadCSVFile('library_catalog_template.csv', SAMPLE_CATALOG_CSV);
     }
@@ -258,16 +272,24 @@ export const CsvBatchImport: React.FC<CsvBatchImportProps> = ({
     try {
       if (activeTab === 'roster') {
         const validRows = rosterRows.filter(r => r.status !== 'error');
-        const userBatch = validRows.map(r => ({
-          name: r.name,
-          email: r.email,
-          role: r.role,
-          gradeOrYear: r.gradeOrYear,
-          department: r.department,
-          libraryCardId: r.libraryCardId,
-          assignedTeacherName: r.assignedTeacherName,
-          section: targetSection,
-        }));
+        const userBatch = validRows.map(r => {
+          const parsed = parseAcademicClass(r.gradeOrYear);
+          const yr = parsed?.year ?? getYearFromGrade(r.gradeOrYear);
+          const resolvedSec: 'primary' | 'college' = yr !== null 
+            ? (yr <= 6 ? 'primary' : 'college')
+            : (rosterSection === 'primary' ? 'primary' : 'college');
+
+          return {
+            name: r.name,
+            email: r.email,
+            role: r.role || 'learner',
+            gradeOrYear: r.gradeOrYear,
+            department: r.department,
+            libraryCardId: r.libraryCardId,
+            assignedTeacherName: r.assignedTeacherName,
+            section: resolvedSec,
+          };
+        });
 
         const res = addUsersBatch(userBatch, { updateDuplicates });
         setImportResult({
@@ -410,16 +432,8 @@ export const CsvBatchImport: React.FC<CsvBatchImportProps> = ({
   const content = (
     <div className="space-y-6">
       {/* Header Bar */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white border border-slate-200 p-5 rounded-3xl shadow-xs">
+      <div className="relative flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white border border-slate-200 p-5 rounded-3xl shadow-xs">
         <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold tracking-widest uppercase font-mono px-2 py-0.5 rounded-full bg-cyan-100 text-cyan-800 border border-cyan-200">
-              CSV Data Pipeline
-            </span>
-            <span className="text-xs text-slate-500 font-medium">
-              School SIS & Inventory Sync
-            </span>
-          </div>
           <h2 className="text-xl sm:text-2xl font-black text-slate-900 font-display">
             CSV Roster & Catalog Batch Import
           </h2>
@@ -429,34 +443,36 @@ export const CsvBatchImport: React.FC<CsvBatchImportProps> = ({
         </div>
 
         {/* Global Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2 self-end md:self-center">
           <button
             type="button"
             onClick={handleDownloadTemplate}
-            className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl flex items-center gap-1.5 cursor-pointer transition border border-slate-200"
-            title="Download an example CSV file formatted for this system"
+            className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition border border-slate-200 cursor-pointer shadow-2xs hover:scale-105 active:scale-95"
+            title={`Download ${activeTab === 'roster' ? (rosterSection === 'primary' ? 'Primary Roster' : 'Secondary Roster') : 'Catalog'} Template`}
+            aria-label={`Download ${activeTab === 'roster' ? 'Roster' : 'Catalog'} Template`}
           >
-            <Download className="w-3.5 h-3.5 text-slate-600" />
-            <span>Download {activeTab === 'roster' ? 'Roster' : 'Catalog'} Template</span>
+            <Download className="w-4 h-4 text-slate-700" />
           </button>
 
           <button
             type="button"
             onClick={handleExportCurrentData}
-            className="px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl flex items-center gap-1.5 cursor-pointer transition border border-slate-200 shadow-2xs"
-            title="Export existing system database to CSV"
+            className="p-2.5 bg-white hover:bg-slate-50 text-slate-700 rounded-xl transition border border-slate-200 shadow-2xs cursor-pointer hover:scale-105 active:scale-95"
+            title={`Export Current ${activeTab === 'roster' ? 'Roster' : 'Catalog'}`}
+            aria-label={`Export Current ${activeTab === 'roster' ? 'Roster' : 'Catalog'}`}
           >
-            <FileDown className="w-3.5 h-3.5 text-slate-600" />
-            <span>Export Current {activeTab === 'roster' ? 'Roster' : 'Catalog'}</span>
+            <FileDown className="w-4 h-4 text-slate-700" />
           </button>
 
-          {isModal && onClose && (
+          {onClose && (
             <button
               type="button"
               onClick={onClose}
-              className="p-2 hover:bg-slate-100 text-slate-400 hover:text-slate-600 rounded-xl transition cursor-pointer"
+              className="p-2.5 bg-white hover:bg-slate-100 text-slate-400 hover:text-slate-700 rounded-xl transition border border-slate-200 shadow-2xs cursor-pointer hover:scale-105 active:scale-95"
+              title="Close"
+              aria-label="Close"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4" />
             </button>
           )}
         </div>
@@ -615,25 +631,82 @@ export const CsvBatchImport: React.FC<CsvBatchImportProps> = ({
 
           {/* Direct Text Paste Option */}
           <div className="bg-white border border-slate-200 rounded-3xl p-6 space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <FileText className="w-4 h-4 text-slate-500" />
                 <h4 className="font-display font-bold text-sm text-slate-900">
                   Or Paste Raw CSV Data Directly
                 </h4>
               </div>
-              <span className="text-[11px] text-slate-400">Comma, tab, or semicolon separated</span>
+
+              {activeTab === 'roster' && (
+                <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setRosterSection('primary')}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                      rosterSection === 'primary'
+                        ? 'bg-amber-500 text-white shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    🎒 Primary (Years 1–6)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRosterSection('secondary')}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                      rosterSection === 'secondary'
+                        ? 'bg-indigo-600 text-white shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    🎓 Secondary (Years 7–12)
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between text-[11px] text-slate-500">
+              {activeTab === 'roster' ? (
+                <span>
+                  {rosterSection === 'primary' 
+                    ? 'Primary Roster Format: Full Name, Class (No email required)' 
+                    : 'Secondary Roster Format: Full Name, Class, Email'}
+                </span>
+              ) : (
+                <span>Comma, tab, or semicolon separated</span>
+              )}
+              {activeTab === 'roster' && (
+                <button
+                  type="button"
+                  onClick={() => setRawText(rosterSection === 'primary' ? SAMPLE_PRIMARY_ROSTER_CSV : SAMPLE_SECONDARY_ROSTER_CSV)}
+                  className="text-cyan-700 hover:text-cyan-800 font-semibold underline cursor-pointer"
+                >
+                  Insert {rosterSection === 'primary' ? 'Primary' : 'Secondary'} Template
+                </button>
+              )}
             </div>
 
             <textarea
               value={rawText}
               onChange={(e) => setRawText(e.target.value)}
-              placeholder={activeTab === 'roster' ? SAMPLE_ROSTER_CSV : SAMPLE_CATALOG_CSV}
-              rows={5}
+              placeholder={activeTab === 'roster' 
+                ? (rosterSection === 'primary' ? SAMPLE_PRIMARY_ROSTER_CSV : SAMPLE_SECONDARY_ROSTER_CSV) 
+                : SAMPLE_CATALOG_CSV}
+              rows={6}
               className="w-full p-3 font-mono text-xs text-slate-800 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:bg-white focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500"
             />
 
-            <div className="flex justify-end">
+            <div className="flex justify-between items-center">
+              <span className="text-[11px] text-slate-400">
+                {activeTab === 'roster'
+                  ? (rosterSection === 'primary' 
+                      ? 'Format: Full Name,Class' 
+                      : 'Format: Full Name,Class,Email')
+                  : 'Format: Title,Author,ISBN,Category,Copies...'}
+              </span>
+
               <button
                 type="button"
                 disabled={!rawText.trim()}
@@ -789,82 +862,67 @@ export const CsvBatchImport: React.FC<CsvBatchImportProps> = ({
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-3">
-                    <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-2xl text-emerald-900 text-xs">
-                      <strong>Recommended User / Roster Column Arrangement (Columns 1–7):</strong>
-                      <p className="text-[11px] text-emerald-700 mt-0.5">
-                        Full Name, Email, Role, Grade/Year, Department, Library Card ID, Assigned Teacher
-                      </p>
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="bg-amber-50 border border-amber-200 p-3.5 rounded-2xl text-amber-950 text-xs space-y-1">
+                        <div className="flex items-center gap-2 font-bold text-amber-900">
+                          <span>🎒 Primary Section (Years 1–6)</span>
+                          <span className="px-1.5 py-0.5 rounded-full bg-amber-200 text-amber-900 text-[10px]">No Email Required</span>
+                        </div>
+                        <p className="text-[11px] text-amber-800">
+                          <strong>Columns needed:</strong> Full Name, Class
+                        </p>
+                        <p className="text-[10px] text-amber-700">
+                          Example: <code className="bg-amber-100/80 px-1 py-0.5 rounded">Amina Abubakar, Year 1</code>
+                        </p>
+                      </div>
+
+                      <div className="bg-indigo-50 border border-indigo-200 p-3.5 rounded-2xl text-indigo-950 text-xs space-y-1">
+                        <div className="flex items-center gap-2 font-bold text-indigo-900">
+                          <span>🎓 Secondary College (Years 7–12)</span>
+                          <span className="px-1.5 py-0.5 rounded-full bg-indigo-200 text-indigo-900 text-[10px]">Email Required</span>
+                        </div>
+                        <p className="text-[11px] text-indigo-800">
+                          <strong>Columns needed:</strong> Full Name, Class, Email
+                        </p>
+                        <p className="text-[10px] text-indigo-700">
+                          Example: <code className="bg-indigo-100/80 px-1 py-0.5 rounded">Chidi Okafor, Year 7, chidi@premierinternationalschool.org</code>
+                        </p>
+                      </div>
                     </div>
 
                     <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
                       <table className="w-full text-left text-xs border-collapse">
                         <thead>
                           <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
-                            <th className="py-2.5 px-3">Order</th>
-                            <th className="py-2.5 px-3">Field Name</th>
-                            <th className="py-2.5 px-3">Status</th>
-                            <th className="py-2.5 px-3">Expected Type</th>
+                            <th className="py-2.5 px-3">Field</th>
+                            <th className="py-2.5 px-3">Primary (Years 1–6)</th>
+                            <th className="py-2.5 px-3">Secondary (Years 7–12)</th>
                             <th className="py-2.5 px-3">Example</th>
-                            <th className="py-2.5 px-3">Backend Handling / Fallback</th>
+                            <th className="py-2.5 px-3">Login Integration</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 text-slate-600">
                           <tr>
-                            <td className="py-2 px-3 font-mono font-bold text-slate-800">1</td>
                             <td className="py-2 px-3 font-bold text-slate-900">Full Name</td>
                             <td className="py-2 px-3"><span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 font-bold text-[10px]">Required</span></td>
-                            <td className="py-2 px-3 font-mono">string</td>
-                            <td className="py-2 px-3 font-medium text-slate-800">Chidi Okafor</td>
-                            <td className="py-2 px-3 text-slate-500">Can also be split across "First Name" and "Last Name" columns.</td>
+                            <td className="py-2 px-3"><span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 font-bold text-[10px]">Required</span></td>
+                            <td className="py-2 px-3 font-medium text-slate-800">Amina Abubakar</td>
+                            <td className="py-2 px-3 text-slate-500">Learners select their class and their name to log in.</td>
                           </tr>
                           <tr>
-                            <td className="py-2 px-3 font-mono font-bold text-slate-800">2</td>
+                            <td className="py-2 px-3 font-bold text-slate-900">Class / Year</td>
+                            <td className="py-2 px-3"><span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 font-bold text-[10px]">Required</span></td>
+                            <td className="py-2 px-3"><span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 font-bold text-[10px]">Required</span></td>
+                            <td className="py-2 px-3 font-medium text-slate-800">Year 1 / Year 9</td>
+                            <td className="py-2 px-3 text-slate-500">Auto-routes to Primary (Years 1–6) or Secondary (Years 7–12).</td>
+                          </tr>
+                          <tr>
                             <td className="py-2 px-3 font-bold text-slate-900">Email</td>
-                            <td className="py-2 px-3"><span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold text-[10px]">Recommended</span></td>
-                            <td className="py-2 px-3 font-mono">valid email</td>
-                            <td className="py-2 px-3 font-medium text-slate-800">chidi.okafor@school.edu</td>
-                            <td className="py-2 px-3 text-slate-500">Unique identifier. If blank, auto-generates a formatted placeholder email.</td>
-                          </tr>
-                          <tr>
-                            <td className="py-2 px-3 font-mono font-bold text-slate-800">3</td>
-                            <td className="py-2 px-3 font-bold text-slate-900">Role</td>
-                            <td className="py-2 px-3"><span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold text-[10px]">Optional</span></td>
-                            <td className="py-2 px-3 font-mono">Student | Teacher | Admin</td>
-                            <td className="py-2 px-3 font-medium text-slate-800">Student</td>
-                            <td className="py-2 px-3 text-slate-500">Defaults to "Student" / "learner". Accepts Staff, Faculty, Teacher, Learner.</td>
-                          </tr>
-                          <tr>
-                            <td className="py-2 px-3 font-mono font-bold text-slate-800">4</td>
-                            <td className="py-2 px-3 font-bold text-slate-900">Grade / Year</td>
-                            <td className="py-2 px-3"><span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold text-[10px]">For Students</span></td>
-                            <td className="py-2 px-3 font-mono">string class code</td>
-                            <td className="py-2 px-3 font-medium text-slate-800">Year 9 (or 9E)</td>
-                            <td className="py-2 px-3 text-slate-500">Parsed into school roster class cohorts (e.g. 7E, 8E, 9E, 10E, 11E, 12E).</td>
-                          </tr>
-                          <tr>
-                            <td className="py-2 px-3 font-mono font-bold text-slate-800">5</td>
-                            <td className="py-2 px-3 font-bold text-slate-900">Department</td>
-                            <td className="py-2 px-3"><span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold text-[10px]">For Staff</span></td>
-                            <td className="py-2 px-3 font-mono">string</td>
-                            <td className="py-2 px-3 font-medium text-slate-800">Science Department</td>
-                            <td className="py-2 px-3 text-slate-500">Defaults to "General Faculty" if role is Teacher/Staff and left blank.</td>
-                          </tr>
-                          <tr>
-                            <td className="py-2 px-3 font-mono font-bold text-slate-800">6</td>
-                            <td className="py-2 px-3 font-bold text-slate-900">Library Card ID</td>
-                            <td className="py-2 px-3"><span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold text-[10px]">Optional</span></td>
-                            <td className="py-2 px-3 font-mono">string barcode</td>
-                            <td className="py-2 px-3 font-medium text-slate-800">LIB-STUD-1001</td>
-                            <td className="py-2 px-3 text-slate-500">Auto-generates sequential school barcode if omitted (LIB-STUD-xxxx / LIB-TEACH-xxxx).</td>
-                          </tr>
-                          <tr>
-                            <td className="py-2 px-3 font-mono font-bold text-slate-800">7</td>
-                            <td className="py-2 px-3 font-bold text-slate-900">Assigned Teacher</td>
-                            <td className="py-2 px-3"><span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold text-[10px]">Optional</span></td>
-                            <td className="py-2 px-3 font-mono">string teacher name</td>
-                            <td className="py-2 px-3 font-medium text-slate-800">Mrs. Emily Cole</td>
-                            <td className="py-2 px-3 text-slate-500">Automatically links student to the staff member's academic class cohort.</td>
+                            <td className="py-2 px-3"><span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[10px]">Not Needed</span></td>
+                            <td className="py-2 px-3"><span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px]">Required</span></td>
+                            <td className="py-2 px-3 font-medium text-slate-800">student@premierinternationalschool.org</td>
+                            <td className="py-2 px-3 text-slate-500">Secondary learners sign in with their school email or name.</td>
                           </tr>
                         </tbody>
                       </table>
@@ -1442,7 +1500,7 @@ export const CsvBatchImport: React.FC<CsvBatchImportProps> = ({
           initial={{ opacity: 0, scale: 0.96 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.96 }}
-          className="bg-slate-50 border border-slate-200 rounded-3xl p-6 max-w-5xl w-full max-h-[92vh] overflow-y-auto shadow-2xl space-y-4"
+          className="relative bg-slate-50 border border-slate-200 rounded-3xl p-6 max-w-5xl w-full max-h-[92vh] overflow-y-auto shadow-2xl space-y-4"
         >
           {content}
         </motion.div>
