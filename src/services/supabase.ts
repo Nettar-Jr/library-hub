@@ -5,6 +5,7 @@
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Book, StudentSubmission, CirculationRecord, BookHold, LibraryUser, HeroSpotlightData } from '../types';
+import { safeStorage } from '../utils/storage';
 
 // Load Vite environment variables with production project fallback
 const DEFAULT_SUPABASE_URL = 'https://dlaxjarpxjopktzijizn.supabase.co';
@@ -27,7 +28,14 @@ export function getSupabaseClient(): SupabaseClient | null {
   if (!isSupabaseConfigured) return null;
   if (!clientInstance) {
     try {
-      clientInstance = createClient(supabaseUrl, supabaseAnonKey);
+      clientInstance = createClient(supabaseUrl, supabaseAnonKey, {
+        auth: {
+          storage: safeStorage,
+          persistSession: true,
+          autoRefreshToken: false,
+          detectSessionInUrl: false,
+        },
+      });
     } catch (err) {
       console.error('Failed to initialize Supabase client:', err);
       return null;

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { jsPDF } from 'jspdf';
+import type { jsPDF as JsPdfType } from 'jspdf';
 import { Book, CirculationRecord } from '../types';
 
 export interface ReportData {
@@ -54,7 +54,8 @@ export interface ReportData {
 /**
  * Generate a PDF decision report for Premier International School
  */
-export function generatePdfDecisionReport(data: ReportData, chartImageUri?: string): jsPDF {
+export async function generatePdfDecisionReport(data: ReportData, chartImageUri?: string): Promise<JsPdfType> {
+  const { jsPDF } = await import('jspdf');
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -345,8 +346,8 @@ export function generatePdfDecisionReport(data: ReportData, chartImageUri?: stri
 /**
  * Triggers browser download for the generated PDF
  */
-export function downloadPdfReport(data: ReportData, chartImageUri?: string): void {
-  const doc = generatePdfDecisionReport(data, chartImageUri);
+export async function downloadPdfReport(data: ReportData, chartImageUri?: string): Promise<void> {
+  const doc = await generatePdfDecisionReport(data, chartImageUri);
   const sanitizedTitle = data.title.replace(/[^a-zA-Z0-9]/g, '_');
   doc.save(`Premier_School_${sanitizedTitle}_${data.campusSection.toUpperCase()}.pdf`);
 }

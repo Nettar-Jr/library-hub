@@ -3,6 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { safeStorage } from '../utils/storage';
+
+const localStorage = safeStorage;
+
 export type OfflineMutationType = 
   | 'ADD_BOOK'
   | 'UPDATE_BOOK'

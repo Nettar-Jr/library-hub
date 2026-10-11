@@ -706,7 +706,7 @@ export const Login: React.FC<LoginProps> = ({ targetTab, adminMode }) => {
                 }}
                 className="text-xs text-slate-400 hover:text-blue-600 transition cursor-pointer"
               >
-                Staff member? <span className="text-blue-600 font-semibold underline">Staff Login (Email & Password)</span>
+                Staff member? <span className="text-blue-600 font-semibold underline">Staff Login</span>
               </button>
             )}
           </div>

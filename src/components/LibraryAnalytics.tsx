@@ -350,10 +350,10 @@ export const LibraryAnalytics: React.FC = () => {
     effectiveCirculation
   ]);
 
-  const handleDownloadPdf = () => {
+  const handleDownloadPdf = async () => {
     try {
       const chartUri = getPictorialReportDataUrl(activeReportData);
-      downloadPdfReport(activeReportData, chartUri);
+      await downloadPdfReport(activeReportData, chartUri);
       triggerNotification('success', `PDF Decision Report downloaded successfully!`);
     } catch (err) {
       console.error(err);
