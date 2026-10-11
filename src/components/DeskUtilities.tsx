@@ -1673,7 +1673,10 @@ export const DeskUtilities: React.FC = () => {
       {/* SUBTAB CONTENT: CSV BATCH IMPORT (ROSTER & CATALOG) */}
       {activeSubTab === 'import' && (
         <div className="space-y-6 print:hidden">
-          <CsvBatchImport initialTab={importInitialTab} />
+          <CsvBatchImport 
+            initialTab={importInitialTab} 
+            onClose={() => setActiveSubTab('circulation')} 
+          />
         </div>
       )}
 

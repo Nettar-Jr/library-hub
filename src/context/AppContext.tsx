@@ -36,6 +36,11 @@ import {
   setLastSyncTimestamp,
 } from '../services/offlineSync';
 import { parseAcademicClass } from '../utils/academicClasses';
+import { safeStorage, safeSessionStorage } from '../utils/storage';
+
+// Safe proxy for iframe sandboxes
+const localStorage = safeStorage;
+const sessionStorage = safeSessionStorage;
 
 export interface EmailLog {
   id: string;
@@ -657,14 +662,14 @@ const getDeletedUserIds = (): Set<string> => {
         try {
           const parsed: Book[] = JSON.parse(saved);
           if (Array.isArray(parsed) && parsed.length > 0) {
-            // Strip out any hardcoded sample IDs so only database books remain
-            return parsed.filter(b => !DEMO_SAMPLE_IDS.has(b.id) && !b.id.startsWith('book-') && !deletedBookIds.has(b.id));
+            const clean = parsed.filter(b => !deletedBookIds.has(b.id));
+            if (clean.length > 0) return clean;
           }
         } catch {
           // ignore
         }
       }
-      return [];
+      return samplesCleared ? [] : initialBooks.filter(b => !deletedBookIds.has(b.id));
     }
 
     const catalogBase = (samplesCleared ? initialBooks.filter(b => !DEMO_SAMPLE_IDS.has(b.id)) : initialBooks).filter(
@@ -1201,6 +1206,17 @@ const getDeletedUserIds = (): Set<string> => {
       if (error) {
         console.warn('Could not sync books from Supabase:', error);
         setCloudSyncStatus('error');
+        setBooks(prev => {
+          if (prev && prev.length > 0) return prev;
+          const saved = localStorage.getItem('p_books_v3');
+          if (saved) {
+            try {
+              const parsed = JSON.parse(saved);
+              if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+            } catch {}
+          }
+          return localStorage.getItem('p_samples_cleared') === 'true' ? [] : initialBooks;
+        });
       } else if (data && data.length > 0) {
         // Strip out any legacy hardcoded demo sample IDs from state so only database books exist
         const cleanData = data.filter(b => !DEMO_SAMPLE_IDS.has(b.id) && !b.id.startsWith('book-'));
