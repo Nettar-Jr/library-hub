@@ -23,6 +23,20 @@ if (typeof window !== 'undefined') {
     if (isExtensionError(event.message, event.filename)) {
       event.preventDefault();
       event.stopImmediatePropagation();
+      return;
+    }
+    // Prevent blank screen if a fatal runtime error prevents mounting
+    const root = document.getElementById('root');
+    if (root && (!root.innerHTML || root.innerHTML.trim() === '')) {
+      root.innerHTML = `
+        <div style="min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #0f172a; color: white; font-family: sans-serif; padding: 20px; text-align: center;">
+          <div style="max-width: 440px; background: #1e293b; padding: 24px; border-radius: 16px; border: 1px solid #334155; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+            <h2 style="margin: 0 0 8px 0; font-size: 18px; font-weight: bold; color: #f8fafc;">Premier Library Portal</h2>
+            <p style="font-size: 13px; color: #94a3b8; margin: 0 0 16px 0;">${event.message || 'Loading error. Click below to reload.'}</p>
+            <button onclick="window.location.reload()" style="background: #2563eb; color: white; border: none; padding: 10px 20px; border-radius: 10px; font-size: 13px; font-weight: bold; cursor: pointer;">Reload Portal</button>
+          </div>
+        </div>
+      `;
     }
   }, true);
 

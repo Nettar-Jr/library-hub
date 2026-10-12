@@ -64,8 +64,7 @@ export const initialBooks: Book[] = [
     isPopular: true,
     isNew: false,
     isTeacherPick: true,
-    inventoryType: 'ebook',
-    ebookFormat: 'pages',
+    inventoryType: 'physical',
   },
   {
     id: 'book-2',
@@ -92,8 +91,7 @@ export const initialBooks: Book[] = [
     isPopular: true,
     isNew: false,
     isTeacherPick: true,
-    inventoryType: 'ebook',
-    ebookFormat: 'pages',
+    inventoryType: 'physical',
   },
   {
     id: 'book-3',
@@ -121,8 +119,7 @@ export const initialBooks: Book[] = [
     isAudiobook: true,
     isPopular: true,
     isNew: true,
-    inventoryType: 'ebook',
-    ebookFormat: 'pages',
+    inventoryType: 'physical',
   },
   {
     id: 'book-4',

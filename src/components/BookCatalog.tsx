@@ -49,17 +49,6 @@ import { lookupBookByISBN, playScannerBeep, inferCategoryFromKeywords, inferDewe
 import { CsvBatchImport } from './CsvBatchImport';
 import { EditBookModal } from './EditBookModal';
 
-const CATEGORY_TABS = [
-  { id: 'ALL', label: 'All Resources' },
-  { id: 'POPULAR', label: 'High Circulation' },
-  { id: 'CLASSICS', label: 'Curriculum Classics' },
-  { id: 'AFRICAN', label: 'African Literature & Heritage' },
-  { id: 'STEM', label: 'Science & Mathematics' },
-  { id: 'CODING', label: 'Computer Science' },
-  { id: 'COMICS', label: 'Graphic Novels & Fiction' },
-  { id: 'AUDIOBOOKS', label: 'Audiobooks & Media' },
-];
-
 export const BookCatalog: React.FC = () => {
   const { 
     books, 
@@ -107,10 +96,42 @@ export const BookCatalog: React.FC = () => {
   const [activeSort, setActiveSort] = useState<'reads' | 'title' | 'rating' | 'newest' | 'callNumber'>('reads');
   const [availabilityFilter, setAvailabilityFilter] = useState<'ALL' | 'AVAILABLE' | 'LOANED'>('ALL');
   const [formatFilter, setFormatFilter] = useState<'ALL' | 'PRINT' | 'AUDIO'>('ALL');
-  const [myActivityFilter, setMyActivityFilter] = useState<'ALL' | 'LOANS' | 'HOLDS'>('ALL');
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [actionToast, setActionToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+
+  // Dynamically derive categories directly from database inventory so filters are never generic
+  const dynamicCategories = useMemo(() => {
+    const categoryMap = new Map<string, number>();
+
+    books.forEach((b) => {
+      const cat = b.category?.trim();
+      if (cat) {
+        categoryMap.set(cat, (categoryMap.get(cat) || 0) + 1);
+      }
+    });
+
+    const sortedCategories = Array.from(categoryMap.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([name, count]) => ({
+        id: name,
+        label: `${name} (${count})`,
+        name,
+        count,
+      }));
+
+    return [
+      { id: 'ALL', label: `All Resources (${books.length})`, name: 'All Resources', count: books.length },
+      ...sortedCategories,
+    ];
+  }, [books]);
+
+  // Clean up selectedCategory if the selected category is no longer present in database
+  useEffect(() => {
+    if (selectedCategory !== 'ALL' && !dynamicCategories.some(c => c.id.toLowerCase() === selectedCategory.toLowerCase())) {
+      setSelectedCategory('ALL');
+    }
+  }, [dynamicCategories, selectedCategory, setSelectedCategory]);
 
   const [isAddBookModalOpen, setIsAddBookModalOpen] = useState(false);
   const [editingBook, setEditingBook] = useState<Book | null>(null);
@@ -302,22 +323,8 @@ export const BookCatalog: React.FC = () => {
       );
 
       let matchesCategory = true;
-      if (selectedCategory === 'POPULAR') {
-        matchesCategory = !!b.isPopular || b.readsCount > 80;
-      } else if (selectedCategory === 'AUDIOBOOKS') {
-        matchesCategory = !!b.isAudiobook || !!b.hasAudio;
-      } else if (selectedCategory === 'COMICS') {
-        matchesCategory = b.category.toLowerCase().includes('comic') || b.category.toLowerCase().includes('fiction') || b.category.toLowerCase().includes('graphic');
-      } else if (selectedCategory === 'STEM') {
-        matchesCategory = b.category.toLowerCase().includes('stem') || b.category.toLowerCase().includes('space') || b.category.toLowerCase().includes('tech') || b.category.toLowerCase().includes('science');
-      } else if (selectedCategory === 'AFRICAN') {
-        matchesCategory = b.category.toLowerCase().includes('african') || b.category.toLowerCase().includes('history') || b.category.toLowerCase().includes('heritage');
-      } else if (selectedCategory === 'CLASSICS') {
-        matchesCategory = b.category.toLowerCase().includes('classic') || b.category.toLowerCase().includes('philosophy');
-      } else if (selectedCategory === 'CODING') {
-        matchesCategory = b.category.toLowerCase().includes('coding') || b.category.toLowerCase().includes('tech') || b.category.toLowerCase().includes('computer');
-      } else if (selectedCategory !== 'ALL') {
-        matchesCategory = b.category.toLowerCase().includes(selectedCategory.toLowerCase());
+      if (selectedCategory && selectedCategory !== 'ALL') {
+        matchesCategory = b.category?.trim().toLowerCase() === selectedCategory.trim().toLowerCase();
       }
 
       // Separate physical vs ebook inventory filter
@@ -340,15 +347,7 @@ export const BookCatalog: React.FC = () => {
         matchesFormat = b.inventoryType !== 'ebook' && !b.isAudiobook;
       }
 
-      // Personal activity filter (Learner loans/holds)
-      let matchesMyActivity = true;
-      if (myActivityFilter === 'LOANS') {
-        matchesMyActivity = userLoanMap.has(b.id);
-      } else if (myActivityFilter === 'HOLDS') {
-        matchesMyActivity = userHoldMap.has(b.id);
-      }
-
-      return matchesSearch && matchesCategory && matchesAvailability && matchesFormat && matchesMyActivity;
+      return matchesSearch && matchesCategory && matchesAvailability && matchesFormat;
     }).sort((a, b) => {
       if (activeSort === 'reads') return b.readsCount - a.readsCount;
       if (activeSort === 'rating') return (b.rating || 0) - (a.rating || 0);
@@ -356,18 +355,11 @@ export const BookCatalog: React.FC = () => {
       if (activeSort === 'callNumber') return (a.deweyCode || '').localeCompare(b.deweyCode || '');
       return a.title.localeCompare(b.title);
     });
-  }, [books, searchQuery, selectedCategory, availabilityFilter, formatFilter, myActivityFilter, activeSort, userLoanMap, userHoldMap, inventoryFilter]);
+  }, [books, searchQuery, selectedCategory, availabilityFilter, formatFilter, activeSort, inventoryFilter]);
 
-  // Curated collections for Collections view
+  // Curated collections for Collections view (excluding generic High-Circulation and Faculty Recommendations)
   const curatedCollections = useMemo(() => {
     return [
-      {
-        id: 'popular',
-        title: 'High-Circulation Titles',
-        subtitle: 'Most frequently checked out and reviewed across all grade levels',
-        categoryTag: 'POPULAR',
-        books: books.filter(b => b.isPopular || b.readsCount > 80),
-      },
       {
         id: 'new',
         title: 'Recent Library Accessions',
@@ -376,45 +368,38 @@ export const BookCatalog: React.FC = () => {
         books: books.filter(b => b.isNew || ['book-3', 'book-5', 'book-10', 'book-12'].includes(b.id)),
       },
       {
-        id: 'teacher',
-        title: 'Curriculum & Faculty Recommendations',
-        subtitle: 'Prescribed syllabus masterworks and academic faculty reading lists',
-        categoryTag: 'CLASSICS',
-        books: books.filter(b => b.isTeacherPick || (b.rating || 0) >= 4.8),
-      },
-      {
         id: 'african',
         title: 'African Literature & Heritage',
         subtitle: 'Foundational African masterworks, post-colonial history, and contemporary voices',
-        categoryTag: 'AFRICAN',
-        books: books.filter(b => b.category.includes('African') || b.category.includes('History')),
+        categoryTag: 'African Literature',
+        books: books.filter(b => b.category?.toLowerCase().includes('african') || b.category?.toLowerCase().includes('history')),
       },
       {
         id: 'stem',
         title: 'Science, Mathematics & Technology',
         subtitle: 'Physical sciences, planetary astronomy, computing concepts, and algorithms',
-        categoryTag: 'STEM',
-        books: books.filter(b => b.category.includes('STEM') || b.category.includes('Coding') || b.category.includes('Tech')),
+        categoryTag: 'Science & Space',
+        books: books.filter(b => b.category?.toLowerCase().includes('stem') || b.category?.toLowerCase().includes('science') || b.category?.toLowerCase().includes('math')),
       },
       {
         id: 'audio',
         title: 'Audiobooks & Media',
         subtitle: 'Narrated editions and accessible audio accompaniments for active readers',
-        categoryTag: 'AUDIOBOOKS',
+        categoryTag: 'ALL',
         books: books.filter(b => b.isAudiobook || b.hasAudio),
       },
       {
         id: 'comics',
         title: 'Graphic Novels & Illustrated Works',
         subtitle: 'Illustrated narrative non-fiction, visual literature, and historical epics',
-        categoryTag: 'COMICS',
-        books: books.filter(b => b.category.includes('Comics') || b.category.includes('Fiction') || b.category.includes('Adventure')),
+        categoryTag: 'Fantasy & Adventure',
+        books: books.filter(b => b.category?.toLowerCase().includes('comics') || b.category?.toLowerCase().includes('fiction') || b.category?.toLowerCase().includes('adventure')),
       },
     ];
   }, [books]);
 
   // Force GRID mode if user has typed a search query or set specific secondary filters
-  const hasSecondaryFilters = availabilityFilter !== 'ALL' || formatFilter !== 'ALL' || myActivityFilter !== 'ALL';
+  const hasSecondaryFilters = availabilityFilter !== 'ALL' || formatFilter !== 'ALL';
   const activeMode = (searchQuery.trim().length > 0 || hasSecondaryFilters) ? 'GRID' : catalogViewMode;
 
   const handleSelectViewAll = (categoryTag: string) => {
@@ -427,7 +412,6 @@ export const BookCatalog: React.FC = () => {
     setSelectedCategory('ALL');
     setAvailabilityFilter('ALL');
     setFormatFilter('ALL');
-    setMyActivityFilter('ALL');
     setActiveSort('reads');
   };
 
@@ -495,7 +479,7 @@ export const BookCatalog: React.FC = () => {
     });
   };
 
-  const isFilterActive = searchQuery || selectedCategory !== 'ALL' || availabilityFilter !== 'ALL' || formatFilter !== 'ALL' || myActivityFilter !== 'ALL' || inventoryFilter !== 'all';
+  const isFilterActive = searchQuery || selectedCategory !== 'ALL' || availabilityFilter !== 'ALL' || formatFilter !== 'ALL' || inventoryFilter !== 'all';
 
   const primaryBooksCount = useMemo(() => (allBooks || []).filter(b => b.section === 'primary').length, [allBooks]);
   const collegeBooksCount = useMemo(() => (allBooks || []).filter(b => (b.section || 'college') === 'college').length, [allBooks]);
@@ -623,14 +607,14 @@ export const BookCatalog: React.FC = () => {
         {/* Top Control Bar: Category Tabs & View Switcher */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           
-          {/* Horizontally Scrollable Category Tabs */}
+          {/* Horizontally Scrollable Category Tabs - Synced with Database Inventory */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0 scrollbar-none py-0.5" role="tablist" aria-label="Book Categories">
-            {CATEGORY_TABS.map((cat) => (
+            {dynamicCategories.map((cat) => (
               <button
                 key={cat.id}
                 type="button"
                 role="tab"
-                aria-selected={selectedCategory === cat.id}
+                aria-selected={selectedCategory.toLowerCase() === cat.id.toLowerCase()}
                 onClick={() => {
                   setSelectedCategory(cat.id);
                   if (activeMode === 'CAROUSEL' && cat.id !== 'ALL') {
@@ -638,8 +622,8 @@ export const BookCatalog: React.FC = () => {
                   }
                 }}
                 className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors whitespace-nowrap cursor-pointer select-none ${
-                  selectedCategory === cat.id
-                    ? 'bg-slate-900 text-white'
+                  selectedCategory.toLowerCase() === cat.id.toLowerCase()
+                    ? 'bg-slate-900 text-white shadow-2xs'
                     : 'bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900'
                 }`}
               >
@@ -762,7 +746,7 @@ export const BookCatalog: React.FC = () => {
 
         {/* Secondary Filter Drawer */}
         {(showAdvancedFilters || hasSecondaryFilters) && (
-          <div className="pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+          <div className="pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
             {/* Availability Filter */}
             <div>
               <label htmlFor="filter-availability" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
@@ -794,24 +778,6 @@ export const BookCatalog: React.FC = () => {
                 <option value="ALL">All Formats</option>
                 <option value="PRINT">Print Volume</option>
                 <option value="AUDIO">Audiobook Narration</option>
-              </select>
-            </div>
-
-            {/* My Account Filter (if logged in learner) */}
-            <div>
-              <label htmlFor="filter-activity" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
-                My Holdings
-              </label>
-              <select
-                id="filter-activity"
-                value={myActivityFilter}
-                onChange={(e) => setMyActivityFilter(e.target.value as any)}
-                disabled={!isLearner}
-                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 outline-none focus:ring-1 focus:ring-slate-400 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <option value="ALL">All Catalog Holdings</option>
-                <option value="LOANS">My Active Loans ({userLoanMap.size})</option>
-                <option value="HOLDS">My Active Holds ({userHoldMap.size})</option>
               </select>
             </div>
 
@@ -855,7 +821,7 @@ export const BookCatalog: React.FC = () => {
 
               {selectedCategory !== 'ALL' && (
                 <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-medium flex items-center gap-1">
-                  <span>Category: {CATEGORY_TABS.find(c => c.id === selectedCategory)?.label || selectedCategory}</span>
+                  <span>Category: {dynamicCategories.find(c => c.id.toLowerCase() === selectedCategory.toLowerCase())?.name || selectedCategory}</span>
                   <button type="button" onClick={() => setSelectedCategory('ALL')} className="hover:text-slate-900 cursor-pointer">
                     <X className="w-3 h-3" />
                   </button>
@@ -875,15 +841,6 @@ export const BookCatalog: React.FC = () => {
                 <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-medium flex items-center gap-1">
                   <span>Format: {formatFilter === 'AUDIO' ? 'Audiobook' : 'Print'}</span>
                   <button type="button" onClick={() => setFormatFilter('ALL')} className="hover:text-slate-900 cursor-pointer">
-                    <X className="w-3 h-3" />
-                  </button>
-                </span>
-              )}
-
-              {myActivityFilter !== 'ALL' && (
-                <span className="bg-indigo-50 text-indigo-800 px-2 py-0.5 rounded-md font-medium flex items-center gap-1">
-                  <span>{myActivityFilter === 'LOANS' ? 'My Loans' : 'My Holds'}</span>
-                  <button type="button" onClick={() => setMyActivityFilter('ALL')} className="hover:text-indigo-950 cursor-pointer">
                     <X className="w-3 h-3" />
                   </button>
                 </span>
@@ -1041,11 +998,7 @@ export const BookCatalog: React.FC = () => {
                   <p className="text-xs text-slate-500 leading-relaxed">
                     {books.length === 0
                       ? "Demonstration sample titles have been cleared. Accession your school library's physical titles or sync from Supabase to populate your collection."
-                      : myActivityFilter !== 'ALL'
-                        ? myActivityFilter === 'LOANS'
-                          ? "You have no active loans matching this search. Browse the catalog to borrow or reserve available titles."
-                          : "You have no active holds matching this search. You can place 24-hour holds on available physical copies."
-                        : "We couldn't find any resources matching your search criteria or filters. Check your spelling or reset filters to browse the complete collection."}
+                      : "We couldn't find any resources matching your search criteria or filters. Check your spelling or reset filters to browse the complete collection."}
                   </p>
                 </div>
                 {books.length === 0 && isAdmin ? (

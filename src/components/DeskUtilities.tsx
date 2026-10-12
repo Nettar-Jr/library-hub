@@ -795,27 +795,30 @@ export const DeskUtilities: React.FC = () => {
                             onChange={(e) => setGradeOrYear(e.target.value)}
                             className="w-full p-2.5 border border-slate-200 rounded-xl text-xs bg-white outline-none focus:border-cyan-500 cursor-pointer font-medium"
                           >
-                            <optgroup label="Primary Section (Years 1–6: Diamond, Gold, Emerald, Onyx, Ruby)">
-                              {PRIMARY_ACADEMIC_CLASSES.map((c) => (
+                            {(activeSection === 'primary' || currentUser?.section === 'primary') ? (
+                              PRIMARY_ACADEMIC_CLASSES.map((c) => (
                                 <option key={c.code} value={c.code}>
                                   {c.code} — {c.fullLabel}
                                 </option>
-                              ))}
-                            </optgroup>
-                            <optgroup label="Secondary Junior (Years 7–9: Diamond, Gold, Emerald, Onyx, Ruby)">
-                              {JUNIOR_SECONDARY_CLASSES.map((c) => (
-                                <option key={c.code} value={c.code}>
-                                  {c.code} — {c.fullLabel}
-                                </option>
-                              ))}
-                            </optgroup>
-                            <optgroup label="Secondary Senior (Years 10–12: Diamond, Gold, Emerald, Onyx, Ruby)">
-                              {SENIOR_SECONDARY_CLASSES.map((c) => (
-                                <option key={c.code} value={c.code}>
-                                  {c.code} — {c.fullLabel}
-                                </option>
-                              ))}
-                            </optgroup>
+                              ))
+                            ) : (
+                              <>
+                                <optgroup label="Secondary Junior (Years 7–9)">
+                                  {JUNIOR_SECONDARY_CLASSES.map((c) => (
+                                    <option key={c.code} value={c.code}>
+                                      {c.code} — {c.fullLabel}
+                                    </option>
+                                  ))}
+                                </optgroup>
+                                <optgroup label="Secondary Senior (Years 10–12)">
+                                  {SENIOR_SECONDARY_CLASSES.map((c) => (
+                                    <option key={c.code} value={c.code}>
+                                      {c.code} — {c.fullLabel}
+                                    </option>
+                                  ))}
+                                </optgroup>
+                              </>
+                            )}
                           </select>
                         </div>
                       ) : (

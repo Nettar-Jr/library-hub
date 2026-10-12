@@ -70,26 +70,28 @@ export const CirculationTracker: React.FC = () => {
   const [showCheckoutForm, setShowCheckoutForm] = useState(false);
   const [viewStyle, setViewStyle] = useState<'cards' | 'table'>('cards');
   
-  // Target database for the loan form: initialized to active section ('primary' or 'college'/'secondary')
-  const [targetLoanSection, setTargetLoanSection] = useState<'college' | 'primary'>(() => 
-    activeSection === 'primary' ? 'primary' : 'college'
-  );
+  // Target database for the loan form: strictly locked to the logged-in admin's section
+  // Secondary admin can only loan to secondary students; Primary admin can only loan to primary students
+  const targetLoanSection: 'college' | 'primary' = useMemo(() => {
+    if (currentUser?.section === 'primary' || activeSection === 'primary') {
+      return 'primary';
+    }
+    return 'college';
+  }, [currentUser, activeSection]);
 
   // Checkout Form states
   const [selectedBookId, setSelectedBookId] = useState('');
   const [selectedLearnerId, setSelectedLearnerId] = useState('');
   const [studentName, setStudentName] = useState('');
-  const [grade, setGrade] = useState(activeSection === 'primary' ? '1D' : '9E');
+  const [grade, setGrade] = useState(() => (activeSection === 'primary' || currentUser?.section === 'primary' ? '1D' : '9E'));
   const [loanDuration, setLoanDuration] = useState(14);
   const [recordToDelete, setRecordToDelete] = useState<CirculationRecord | null>(null);
   const [isDeletingRecord, setIsDeletingRecord] = useState(false);
 
-  // Sync loan form defaults when activeSection changes in context
+  // Sync loan form defaults when admin section changes
   useEffect(() => {
-    const defaultSec = activeSection === 'primary' ? 'primary' : 'college';
-    setTargetLoanSection(defaultSec);
-    setGrade(defaultSec === 'primary' ? '1D' : '9E');
-  }, [activeSection]);
+    setGrade(targetLoanSection === 'primary' ? '1D' : '9E');
+  }, [targetLoanSection]);
 
   // Status message
   const [msg, setMsg] = useState<{ 
@@ -368,25 +370,6 @@ export const CirculationTracker: React.FC = () => {
         </div>
       </div>
 
-      {/* Policy Reminder Banner - Strictly section scoped */}
-      <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center flex-shrink-0 font-bold">
-            <BookOpen className="w-4 h-4" />
-          </div>
-          <div>
-            <span className="font-extrabold text-slate-900 block sm:inline">Borrowing Limit Policy: </span>
-            <span className="text-slate-600">
-              {activeSection === 'primary' ? (
-                <>Primary Section has <span className="font-bold text-emerald-700">no automated limit</span> (managed manually by primary librarian Mrs. Adeleke).</>
-              ) : (
-                <>Secondary Junior <span className="font-bold text-slate-800">Year 7–9: max 2 books</span> • Secondary Senior <span className="font-bold text-slate-800">Year 10–12: max 3 books</span>.</>
-              )}
-            </span>
-          </div>
-        </div>
-      </div>
-
       {/* Manual Checkout Form */}
       <AnimatePresence>
         {showCheckoutForm && (
@@ -397,55 +380,29 @@ export const CirculationTracker: React.FC = () => {
             onSubmit={handleCheckoutSubmit}
             className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-lg space-y-5 overflow-hidden"
           >
-            {/* Header & Target Database Selector */}
+            {/* Header */}
             <div className="border-b border-slate-100 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h2 className="font-display font-black text-base text-slate-900 flex items-center gap-2">
                   <UserPlus className="w-4 h-4 text-blue-600" /> Assign a New Physical Book Loan
                 </h2>
                 <p className="text-xs text-slate-500">
-                  Select catalog title and enrolled learner from the official school database.
+                  Select catalog title and enrolled learner from the official {targetLoanSection === 'primary' ? 'Primary' : 'Secondary'} school database.
                 </p>
               </div>
 
-              {/* Database Section Switcher */}
-              <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-2xl self-start sm:self-auto border border-slate-200/80">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setTargetLoanSection('college');
-                    setSelectedBookId('');
-                    setSelectedLearnerId('');
-                    setStudentName('');
-                    setGrade('9E');
-                  }}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-                    targetLoanSection === 'college'
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <Building2 className="w-3.5 h-3.5" />
-                  <span>Secondary Database</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setTargetLoanSection('primary');
-                    setSelectedBookId('');
-                    setSelectedLearnerId('');
-                    setStudentName('');
-                    setGrade('1D');
-                  }}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-                    targetLoanSection === 'primary'
-                      ? 'bg-emerald-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>Primary Database</span>
-                </button>
+              <div className="text-xs font-bold px-3 py-1.5 rounded-xl bg-slate-100 text-slate-700 border border-slate-200/80 flex items-center gap-1.5 self-start sm:self-auto">
+                {targetLoanSection === 'primary' ? (
+                  <>
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Primary Library</span>
+                  </>
+                ) : (
+                  <>
+                    <Building2 className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Secondary Library</span>
+                  </>
+                )}
               </div>
             </div>
             
@@ -567,26 +524,24 @@ export const CirculationTracker: React.FC = () => {
                     className="w-full text-xs border border-slate-300 bg-slate-50 rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-600 font-semibold text-slate-800 cursor-pointer"
                   >
                     {targetLoanSection === 'primary' ? (
-                      <optgroup label="Primary Section (Years 1–6: D, G, E, O, R • Manual limit)">
-                        {PRIMARY_ACADEMIC_CLASSES.map((c) => (
-                          <option key={c.code} value={c.code}>
-                            {c.code} — {c.fullLabel}
-                          </option>
-                        ))}
-                      </optgroup>
+                      PRIMARY_ACADEMIC_CLASSES.map((c) => (
+                        <option key={c.code} value={c.code}>
+                          {c.code} — {c.fullLabel}
+                        </option>
+                      ))
                     ) : (
                       <>
-                        <optgroup label="Secondary Senior (Years 10–12: D, G, E, O, R • Max 3 books)">
-                          {SENIOR_SECONDARY_CLASSES.map((c) => (
+                        <optgroup label="Secondary Junior (Years 7–9)">
+                          {JUNIOR_SECONDARY_CLASSES.map((c) => (
                             <option key={c.code} value={c.code}>
-                              {c.code} — {c.fullLabel} (Max 3 books)
+                              {c.code} — {c.fullLabel}
                             </option>
                           ))}
                         </optgroup>
-                        <optgroup label="Secondary Junior (Years 7–9: D, G, E, O, R • Max 2 books)">
-                          {JUNIOR_SECONDARY_CLASSES.map((c) => (
+                        <optgroup label="Secondary Senior (Years 10–12)">
+                          {SENIOR_SECONDARY_CLASSES.map((c) => (
                             <option key={c.code} value={c.code}>
-                              {c.code} — {c.fullLabel} (Max 2 books)
+                              {c.code} — {c.fullLabel}
                             </option>
                           ))}
                         </optgroup>
@@ -614,34 +569,16 @@ export const CirculationTracker: React.FC = () => {
               </div>
             </div>
 
-            {/* Live Borrow Limit Status Card */}
-            {studentName.trim() && (
-              <div className={`p-3.5 rounded-2xl border text-xs flex items-center justify-between gap-3 ${
-                isCheckoutLimitReached
-                  ? 'bg-rose-50 border-rose-200 text-rose-900'
-                  : liveBorrowLimitInfo.isPrimaryManual
-                  ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
-                  : 'bg-blue-50 border-blue-200 text-blue-900'
-              }`}>
+            {/* Live Borrow Limit Status Card - Only shown if limit reached on secondary accounts */}
+            {studentName.trim() && !liveBorrowLimitInfo.isPrimaryManual && isCheckoutLimitReached && (
+              <div className="p-3.5 rounded-2xl border text-xs flex items-center justify-between gap-3 bg-rose-50 border-rose-200 text-rose-900">
                 <div className="flex items-center gap-2">
-                  <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
-                    isCheckoutLimitReached ? 'bg-rose-600 animate-ping' : liveBorrowLimitInfo.isPrimaryManual ? 'bg-emerald-600' : 'bg-blue-600'
-                  }`} />
+                  <span className="w-2.5 h-2.5 rounded-full flex-shrink-0 bg-rose-600 animate-ping" />
                   <div>
                     <span className="font-extrabold">{studentName}: </span>
-                    {isCheckoutLimitReached ? (
-                      <span className="font-semibold text-rose-700">
-                        Borrowing limit reached ({activeStudentLoans.length}/{liveBorrowLimitInfo.maxAllowed} books). Secondary {liveBorrowLimitInfo.gradeCategory === 'senior-secondary' ? 'Year 10–12 allows max 3' : 'Year 7–9 allows max 2'} books. Student must return a book before borrowing another.
-                      </span>
-                    ) : liveBorrowLimitInfo.isPrimaryManual ? (
-                      <span>
-                        Primary Section — No automated limit. Primary librarian handles pupil limits manually ({activeStudentLoans.length} active loans currently registered).
-                      </span>
-                    ) : (
-                      <span>
-                        Within limit ({activeStudentLoans.length}/{liveBorrowLimitInfo.maxAllowed} books borrowed). {liveBorrowLimitInfo.maxAllowed! - activeStudentLoans.length} slot(s) remaining for {liveBorrowLimitInfo.label}.
-                      </span>
-                    )}
+                    <span className="font-semibold text-rose-700">
+                      Borrowing limit reached ({activeStudentLoans.length}/{liveBorrowLimitInfo.maxAllowed} books). Student must return a book before borrowing another.
+                    </span>
                   </div>
                 </div>
 

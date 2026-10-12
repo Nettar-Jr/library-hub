@@ -1571,71 +1571,22 @@ const getDeletedUserIds = (): Set<string> => {
     }
   }, [currentUser]);
 
-  // Digital Reading Progress Records (stored in separate space 'p_reading_progress_v1')
+  // Digital Reading Progress Records (stored in real database storage 'p_reading_progress_v1')
   const [readingProgressRecords, setReadingProgressRecords] = useState<ReadingProgressRecord[]>(() => {
     const saved = localStorage.getItem('p_reading_progress_v1');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) {
+          // Filter out legacy generic mock placeholder seeds to ensure 100% real database records
+          const realRecords = parsed.filter(
+            (r: any) => r && r.id !== 'user-student-1_book-1' && r.id !== 'user-student-1_book-3'
+          );
+          return realRecords;
+        }
       } catch {}
     }
-    const initialRecords: ReadingProgressRecord[] = [
-      {
-        id: 'user-student-1_book-1',
-        userId: 'user-student-1',
-        learnerName: 'Zainab Ahmed',
-        bookId: 'book-1',
-        bookTitle: 'Things Fall Apart',
-        author: 'Chinua Achebe',
-        coverUrl: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=700',
-        totalPages: 6,
-        currentPage: 3,
-        highestPageRead: 3,
-        pagesFlippedCount: 4,
-        totalDurationSeconds: 210,
-        pageDwells: [
-          { pageNumber: 1, durationSeconds: 65, timestamp: new Date(Date.now() - 3600000).toISOString() },
-          { pageNumber: 2, durationSeconds: 75, timestamp: new Date(Date.now() - 2400000).toISOString() },
-          { pageNumber: 3, durationSeconds: 70, timestamp: new Date(Date.now() - 1500000).toISOString() },
-        ],
-        status: 'more-than-half',
-        percentCompleted: 50,
-        startedAt: new Date(Date.now() - 86400000).toISOString(),
-        lastReadAt: new Date(Date.now() - 1500000).toISOString(),
-        notificationsEnabled: true
-      },
-      {
-        id: 'user-student-1_book-3',
-        userId: 'user-student-1',
-        learnerName: 'Zainab Ahmed',
-        bookId: 'book-3',
-        bookTitle: 'Percy Jackson: The Lightning Thief',
-        author: 'Rick Riordan',
-        coverUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&q=80&w=700',
-        totalPages: 4,
-        currentPage: 4,
-        highestPageRead: 4,
-        pagesFlippedCount: 5,
-        totalDurationSeconds: 380,
-        pageDwells: [
-          { pageNumber: 1, durationSeconds: 90, timestamp: new Date(Date.now() - 172800000).toISOString() },
-          { pageNumber: 2, durationSeconds: 95, timestamp: new Date(Date.now() - 160000000).toISOString() },
-          { pageNumber: 3, durationSeconds: 100, timestamp: new Date(Date.now() - 150000000).toISOString() },
-          { pageNumber: 4, durationSeconds: 95, timestamp: new Date(Date.now() - 140000000).toISOString() },
-        ],
-        status: 'completed',
-        percentCompleted: 100,
-        startedAt: new Date(Date.now() - 172800000).toISOString(),
-        lastReadAt: new Date(Date.now() - 140000000).toISOString(),
-        completedAt: new Date(Date.now() - 140000000).toISOString(),
-        notificationsEnabled: true
-      }
-    ];
-    try {
-      localStorage.setItem('p_reading_progress_v1', JSON.stringify(initialRecords));
-    } catch {}
-    return initialRecords;
+    return [];
   });
 
   useEffect(() => {

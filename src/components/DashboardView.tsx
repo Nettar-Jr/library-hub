@@ -891,163 +891,61 @@ export const DashboardView: React.FC = () => {
             </div>
           </div>
 
-          {/* 1. SEPARATE INVENTORY SPACES BREAKDOWN (Physical vs eBook Data) */}
-          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-xs space-y-5">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <div className="p-2 bg-indigo-50 text-indigo-700 rounded-xl">
-                    <Layers className="w-4 h-4" />
-                  </div>
-                  <h3 className="font-display font-black text-lg text-slate-900">
-                    Library Inventory Spaces Breakdown
-                  </h3>
+          {/* 1. MINIMALISTIC INVENTORY SPACES BREAKDOWN (Three simple round shapes with icons, numbers, and small text) */}
+          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-xs space-y-6">
+            <div className="border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-indigo-50 text-indigo-700 rounded-xl">
+                  <Layers className="w-4 h-4" />
                 </div>
-                <p className="text-xs text-slate-500 mt-1">
-                  Physical inventory and digital eBook holdings stored in distinct database partitions with unified management
-                </p>
+                <h3 className="font-display font-black text-lg text-slate-900">
+                  Library Inventory Spaces Breakdown
+                </h3>
               </div>
-
-              {/* Space View Tabs */}
-              <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setInventoryFilter('all')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                    inventoryFilter === 'all'
-                      ? 'bg-slate-900 text-white shadow-2xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  Consolidated ({inventoryMetrics.totalOverallCount})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setInventoryFilter('physical')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                    inventoryFilter === 'physical'
-                      ? 'bg-blue-600 text-white shadow-2xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  Physical Space ({inventoryMetrics.totalPhysicalCount})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setInventoryFilter('ebook')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                    inventoryFilter === 'ebook'
-                      ? 'bg-purple-600 text-white shadow-2xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  eBook Space ({inventoryMetrics.totalEbookCount})
-                </button>
-              </div>
+              <p className="text-xs text-slate-500 mt-1">
+                Overview of cataloged physical and digital inventory holdings
+              </p>
             </div>
 
-            {/* 3 Telemetry Cards for the Partitioned Inventory Spaces */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Partition 1: Overall Consolidated Catalog */}
-              <div className="p-5 bg-slate-50/80 rounded-2xl border border-slate-200/80 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                    <Layers className="w-3.5 h-3.5 text-slate-700" />
-                    <span>Overall Holdings Space</span>
-                  </span>
-                  <span className="text-xs font-bold font-mono text-slate-800 bg-white px-2 py-0.5 rounded-md border border-slate-200">
-                    p_books_v3
-                  </span>
+            {/* Three Simple Round Shapes with Icons, Numbers, and Small Text (No Links, No Filters) */}
+            <div className="flex flex-wrap items-center justify-around gap-6 sm:gap-8 py-2">
+              {/* Round Shape 1: Consolidated Holdings */}
+              <div className="w-36 h-36 sm:w-44 sm:h-44 rounded-full bg-slate-50 border border-slate-200 flex flex-col items-center justify-center p-4 text-center shadow-xs">
+                <div className="w-8 h-8 rounded-full bg-slate-200/70 text-slate-700 flex items-center justify-center mb-1">
+                  <Layers className="w-4 h-4" />
                 </div>
-                <div className="space-y-1">
-                  <div className="font-display font-black text-2xl text-slate-900">
-                    {inventoryMetrics.totalOverallCount} <span className="text-xs font-medium text-slate-500">Titles Cataloged</span>
-                  </div>
-                  <p className="text-xs text-slate-600">
-                    {inventoryMetrics.physicalCopiesTotal} physical hard copies + {inventoryMetrics.totalEbookCount} digital eBook editions
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setInventoryFilter('all');
-                    navigate('/catalog');
-                  }}
-                  className="w-full py-2 bg-white hover:bg-slate-100 text-slate-800 rounded-xl text-xs font-bold border border-slate-200 transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
-                >
-                  <span>Inspect Overall Catalog</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
+                <span className="font-display font-black text-2xl sm:text-3xl text-slate-900 tracking-tight leading-none">
+                  {inventoryMetrics.totalOverallCount}
+                </span>
+                <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-wider mt-1.5">
+                  Total Titles
+                </span>
               </div>
 
-              {/* Partition 2: Physical Inventory Space */}
-              <div className="p-5 bg-blue-50/50 rounded-2xl border border-blue-200/70 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-blue-900 flex items-center gap-1.5">
-                    <BookOpen className="w-3.5 h-3.5 text-blue-700" />
-                    <span>Physical Hard Copy Space</span>
-                  </span>
-                  <span className="text-xs font-bold font-mono text-blue-900 bg-white px-2 py-0.5 rounded-md border border-blue-200">
-                    p_physical_inv
-                  </span>
+              {/* Round Shape 2: Physical Inventory Space */}
+              <div className="w-36 h-36 sm:w-44 sm:h-44 rounded-full bg-blue-50/70 border border-blue-200/80 flex flex-col items-center justify-center p-4 text-center shadow-xs">
+                <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center mb-1">
+                  <BookOpen className="w-4 h-4" />
                 </div>
-                <div className="space-y-1">
-                  <div className="font-display font-black text-2xl text-blue-950">
-                    {inventoryMetrics.totalPhysicalCount} <span className="text-xs font-medium text-blue-700">Hard Copy Titles</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-xs text-blue-900 font-medium">
-                    <span><strong>{inventoryMetrics.physicalCopiesAvailable}</strong> On Shelves</span>
-                    <span>•</span>
-                    <span><strong>{inventoryMetrics.physicalCopiesOnLoan}</strong> On Loan</span>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setInventoryFilter('physical');
-                    navigate('/catalog');
-                  }}
-                  className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
-                >
-                  <span>Filter Physical Holdings</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
+                <span className="font-display font-black text-2xl sm:text-3xl text-blue-950 tracking-tight leading-none">
+                  {inventoryMetrics.totalPhysicalCount}
+                </span>
+                <span className="text-[10px] sm:text-[11px] font-bold text-blue-700 uppercase tracking-wider mt-1.5">
+                  Physical Books
+                </span>
               </div>
 
-              {/* Partition 3: Digital eBook Space */}
-              <div className="p-5 bg-purple-50/50 rounded-2xl border border-purple-200/70 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-purple-900 flex items-center gap-1.5">
-                    <Smartphone className="w-3.5 h-3.5 text-purple-700" />
-                    <span>Digital eBook Space</span>
-                  </span>
-                  <span className="text-xs font-bold font-mono text-purple-900 bg-white px-2 py-0.5 rounded-md border border-purple-200">
-                    p_ebook_inv
-                  </span>
+              {/* Round Shape 3: Digital eBook Space */}
+              <div className="w-36 h-36 sm:w-44 sm:h-44 rounded-full bg-purple-50/70 border border-purple-200/80 flex flex-col items-center justify-center p-4 text-center shadow-xs">
+                <div className="w-8 h-8 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center mb-1">
+                  <Smartphone className="w-4 h-4" />
                 </div>
-                <div className="space-y-1">
-                  <div className="font-display font-black text-2xl text-purple-950">
-                    {inventoryMetrics.totalEbookCount} <span className="text-xs font-medium text-purple-700">eBook Titles</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-xs text-purple-900 font-medium">
-                    <span><strong>{inventoryMetrics.ebookActiveReaders}</strong> Active Readers</span>
-                    <span>•</span>
-                    <span><strong>{inventoryMetrics.ebookCompletedReads}</strong> Completed</span>
-                    <span>•</span>
-                    <span><strong>{inventoryMetrics.ebookHalfwayReads}</strong> &gt;50%</span>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setInventoryFilter('ebook');
-                    navigate('/catalog');
-                  }}
-                  className="w-full py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
-                >
-                  <span>Filter eBook Space</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
+                <span className="font-display font-black text-2xl sm:text-3xl text-purple-950 tracking-tight leading-none">
+                  {inventoryMetrics.totalEbookCount}
+                </span>
+                <span className="text-[10px] sm:text-[11px] font-bold text-purple-700 uppercase tracking-wider mt-1.5">
+                  Digital eBooks
+                </span>
               </div>
             </div>
           </div>
@@ -1083,104 +981,108 @@ export const DashboardView: React.FC = () => {
               </div>
             </div>
 
-            {/* Reading Records Table */}
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-slate-200 text-slate-400 uppercase font-semibold text-[10px]">
-                    <th className="py-2.5 px-3">Student / Reader</th>
-                    <th className="py-2.5 px-3">Book Title</th>
-                    <th className="py-2.5 px-3">Pages Progress</th>
-                    <th className="py-2.5 px-3">Pages Flipped</th>
-                    <th className="py-2.5 px-3">Duration / Page</th>
-                    <th className="py-2.5 px-3">Total Time</th>
-                    <th className="py-2.5 px-3">Status Milestone</th>
-                    <th className="py-2.5 px-3 text-right">Pace Verification</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {readingProgressRecords.map((rec) => {
-                    const avgSec = Math.round(rec.totalDurationSeconds / Math.max(1, rec.pagesFlippedCount || 1));
-                    const isGenuinePace = avgSec >= 15;
-
-                    return (
-                      <tr key={rec.id} className="hover:bg-slate-50/70 transition">
-                        <td className="py-3 px-3 font-bold text-slate-900">
-                          {rec.learnerName}
-                        </td>
-                        <td className="py-3 px-3 text-slate-700 max-w-[180px] truncate">
-                          {rec.bookTitle}
-                        </td>
-                        <td className="py-3 px-3">
-                          <div className="space-y-1">
-                            <span className="font-semibold text-slate-800">
-                              Page {rec.currentPage} of {rec.totalPages} ({rec.percentCompleted}%)
-                            </span>
-                            <div className="w-24 h-1 bg-slate-200 rounded-full overflow-hidden">
-                              <div 
-                                className={`h-full rounded-full ${
-                                  rec.status === 'completed' ? 'bg-emerald-600' : 'bg-blue-600'
-                                }`}
-                                style={{ width: `${rec.percentCompleted}%` }}
-                              />
-                            </div>
-                          </div>
-                        </td>
-                        <td className="py-3 px-3 font-mono font-bold text-slate-800">
-                          {rec.pagesFlippedCount || 0} flips
-                        </td>
-                        <td className="py-3 px-3 font-mono text-slate-700">
-                          {avgSec}s / page
-                        </td>
-                        <td className="py-3 px-3 font-mono text-slate-600">
-                          {formatReadingDuration(rec.totalDurationSeconds)}
-                        </td>
-                        <td className="py-3 px-3">
-                          {rec.status === 'completed' ? (
-                            <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 w-max">
-                              <CheckCircle2 className="w-2.5 h-2.5" />
-                              <span>Finished (100%)</span>
-                            </span>
-                          ) : rec.status === 'more-than-half' ? (
-                            <span className="bg-blue-100 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 w-max">
-                              <BookOpen className="w-2.5 h-2.5" />
-                              <span>Read &gt; 50%</span>
-                            </span>
-                          ) : rec.status === 'just-started' ? (
-                            <span className="bg-slate-100 text-slate-700 text-[10px] font-bold px-2 py-0.5 rounded-full w-max">
-                              Just Started
-                            </span>
-                          ) : (
-                            <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-full w-max">
-                              In Progress
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-3 px-3 text-right">
-                          {isGenuinePace ? (
-                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                              Genuine Pace
-                            </span>
-                          ) : (
-                            <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
-                              Fast Skim
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-
-                  {readingProgressRecords.length === 0 && (
-                    <tr>
-                      <td colSpan={8} className="py-6 text-center text-xs text-slate-400">
-                        No student reading sessions recorded yet.
-                      </td>
+            {/* Reading Records Table or Real Database Zero-State */}
+            {readingProgressRecords.length === 0 ? (
+              <div className="py-10 px-4 text-center rounded-2xl bg-slate-50/70 border border-dashed border-slate-200 space-y-2">
+                <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                  <BookOpen className="w-5 h-5" />
+                </div>
+                <p className="text-xs font-bold text-slate-700">No Digital eBook Reading Sessions Recorded</p>
+                <p className="text-[11px] text-slate-500 max-w-sm mx-auto">
+                  All metrics reflect live database records. Digital reader sessions will automatically populate here once students begin reading eBooks.
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-200 text-slate-400 uppercase font-semibold text-[10px]">
+                      <th className="py-2.5 px-3">Student / Reader</th>
+                      <th className="py-2.5 px-3">Book Title</th>
+                      <th className="py-2.5 px-3">Pages Progress</th>
+                      <th className="py-2.5 px-3">Pages Flipped</th>
+                      <th className="py-2.5 px-3">Duration / Page</th>
+                      <th className="py-2.5 px-3">Total Time</th>
+                      <th className="py-2.5 px-3">Status Milestone</th>
+                      <th className="py-2.5 px-3 text-right">Pace Verification</th>
                     </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {readingProgressRecords.map((rec) => {
+                      const avgSec = Math.round(rec.totalDurationSeconds / Math.max(1, rec.pagesFlippedCount || 1));
+                      const isGenuinePace = avgSec >= 15;
+
+                      return (
+                        <tr key={rec.id} className="hover:bg-slate-50/70 transition">
+                          <td className="py-3 px-3 font-bold text-slate-900">
+                            {rec.learnerName}
+                          </td>
+                          <td className="py-3 px-3 text-slate-700 max-w-[180px] truncate">
+                            {rec.bookTitle}
+                          </td>
+                          <td className="py-3 px-3">
+                            <div className="space-y-1">
+                              <span className="font-semibold text-slate-800">
+                                Page {rec.currentPage} of {rec.totalPages} ({rec.percentCompleted}%)
+                              </span>
+                              <div className="w-24 h-1 bg-slate-200 rounded-full overflow-hidden">
+                                <div 
+                                  className={`h-full rounded-full ${
+                                    rec.status === 'completed' ? 'bg-emerald-600' : 'bg-blue-600'
+                                  }`}
+                                  style={{ width: `${rec.percentCompleted}%` }}
+                                />
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-3 px-3 font-mono font-bold text-slate-800">
+                            {rec.pagesFlippedCount || 0} flips
+                          </td>
+                          <td className="py-3 px-3 font-mono text-slate-700">
+                            {avgSec}s / page
+                          </td>
+                          <td className="py-3 px-3 font-mono text-slate-600">
+                            {formatReadingDuration(rec.totalDurationSeconds)}
+                          </td>
+                          <td className="py-3 px-3">
+                            {rec.status === 'completed' ? (
+                              <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 w-max">
+                                <CheckCircle2 className="w-2.5 h-2.5" />
+                                <span>Finished (100%)</span>
+                              </span>
+                            ) : rec.status === 'more-than-half' ? (
+                              <span className="bg-blue-100 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 w-max">
+                                <BookOpen className="w-2.5 h-2.5" />
+                                <span>Read &gt; 50%</span>
+                              </span>
+                            ) : rec.status === 'just-started' ? (
+                              <span className="bg-slate-100 text-slate-700 text-[10px] font-bold px-2 py-0.5 rounded-full w-max">
+                                Just Started
+                              </span>
+                            ) : (
+                              <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-full w-max">
+                                In Progress
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 px-3 text-right">
+                            {isGenuinePace ? (
+                              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                                Genuine Pace
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
+                                Fast Skim
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
           {/* Librarian Quick Operational Desk Shortcuts */}
